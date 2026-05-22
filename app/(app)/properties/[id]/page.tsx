@@ -45,7 +45,7 @@ export default async function PropertyDetailPage({
     costTotalsRes,
   ] = await Promise.all([
     sb.from("leases").select("*").eq("property_id", id).eq("active", true).maybeSingle(),
-    sb.from("rent_collections").select("*", { count: "exact" }).eq("property_id", id).order("due_month", { ascending: false }).range(...rangeFor(rentPage)),
+    sb.from("rent_collections").select("*", { count: "exact" }).eq("property_id", id).order("due_date", { ascending: false }).range(...rangeFor(rentPage)),
     sb.from("cost_allocations").select("allocated_amount, costs(description, category, incurred_on)", { count: "exact" }).eq("property_id", id).order("created_at", { ascending: false }).range(...rangeFor(costPage)),
     sb.from("leases").select("*", { count: "exact" }).eq("property_id", id).order("start_date", { ascending: false }).range(...rangeFor(leasePage)),
     // Totals across ALL rent + cost rows (not paginated).
@@ -157,11 +157,11 @@ export default async function PropertyDetailPage({
             <span className="text-xs text-muted-fg">{rentTotal.toLocaleString()} row{rentTotal === 1 ? "" : "s"}</span>
           </div>
           <div className="table-wrap"><table className="table">
-            <thead><tr><th>Month</th><th>Status</th><th className="text-right">Net</th></tr></thead>
+            <thead><tr><th>Due date</th><th>Status</th><th className="text-right">Net</th></tr></thead>
             <tbody>
               {rentRows.map((r: any) => (
                 <tr key={r.id}>
-                  <td>{fmtDate(r.due_month)}</td>
+                  <td>{fmtDate(r.due_date)}</td>
                   <td>{r.status === "collected" ? <span className="badge-success">Collected</span> : <span className="badge-warning">Due</span>}</td>
                   <td className="text-right">{money(r.net_amount)}</td>
                 </tr>

@@ -2,7 +2,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
-import { money, fmtDate, firstOfMonthISO } from "@/lib/format";
+import { money, fmtDate } from "@/lib/format";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 type RentRow = {
   id: string;
-  due_month: string;
+  due_date: string;
   gross_amount: number;
   service_charge_deduction: number;
   net_amount: number;
@@ -27,13 +27,14 @@ function pickOne<T>(v: T | T[] | null): T | null {
   return Array.isArray(v) ? v[0] ?? null : v;
 }
 
-async function generateThisMonth() {
-  "use server";
-  await requirePermission("mark_rent");
-  const sb = await supabaseServer();
-  await sb.rpc("generate_due_rents", { p_month: firstOfMonthISO() });
-  await sb.rpc("post_monthly_service_charges", { p_month: firstOfMonthISO() });
-  revalidatePath("/rent");
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function plusDaysISO(d: string, n: number): string {
+  const dt = new Date(d + "T00:00:00Z");
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
 }
 
 async function markCollected(formData: FormData) {
@@ -62,63 +63,59 @@ export default async function RentPage({
   const collectedPage = parsePage(sp.collected_page);
 
   const sb = await supabaseServer();
-  const monthStart = firstOfMonthISO();
+  const today = todayISO();
+  const horizon = plusDaysISO(today, 7);
 
-  // Each section paginated independently with its own count.
+  // Per-section ranges
   const rangeFor = (p: number): [number, number] => [(p - 1) * PAGE_SIZE, p * PAGE_SIZE - 1];
 
+  const cols = "id, due_date, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)";
+
   const [overdueRes, soonRes, collectedRes, overdueSum, soonSum, collectedSum] = await Promise.all([
+    // OUTSTANDING: due on or before today, still unpaid
     sb.from("rent_collections")
-      .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)", { count: "exact" })
+      .select(cols, { count: "exact" })
       .eq("status", "due")
-      .lt("due_month", monthStart)
-      .order("due_month", { ascending: true })
+      .lte("due_date", today)
+      .order("due_date", { ascending: true })
       .range(...rangeFor(overduePage)),
+    // DUE SOON: due within next 7 days (strictly after today, ≤ today+7)
     sb.from("rent_collections")
-      .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)", { count: "exact" })
+      .select(cols, { count: "exact" })
       .eq("status", "due")
-      .gte("due_month", monthStart)
-      .order("due_month", { ascending: true })
+      .gt("due_date", today)
+      .lte("due_date", horizon)
+      .order("due_date", { ascending: true })
       .range(...rangeFor(soonPage)),
+    // COLLECTED
     sb.from("rent_collections")
-      .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)", { count: "exact" })
+      .select(cols, { count: "exact" })
       .eq("status", "collected")
       .order("collected_at", { ascending: false })
       .range(...rangeFor(collectedPage)),
-    // Totals (no pagination)
-    sb.from("rent_collections").select("net_amount").eq("status", "due").lt("due_month", monthStart),
-    sb.from("rent_collections").select("net_amount").eq("status", "due").gte("due_month", monthStart),
+    // Bucket totals (no pagination)
+    sb.from("rent_collections").select("net_amount").eq("status", "due").lte("due_date", today),
+    sb.from("rent_collections").select("net_amount").eq("status", "due").gt("due_date", today).lte("due_date", horizon),
     sb.from("rent_collections").select("net_amount").eq("status", "collected"),
   ]);
 
   const sumOf = (rows: { net_amount: number }[] | null | undefined) => (rows ?? []).reduce((s, r) => s + Number(r.net_amount || 0), 0);
 
-  const overdueTotalAmt = sumOf(overdueSum.data as any);
-  const soonTotalAmt = sumOf(soonSum.data as any);
-  const collectedTotalAmt = sumOf(collectedSum.data as any);
-
   return (
     <div>
       <PageHeader
         title="Rent Collection"
-        subtitle="Track due, outstanding (overdue), and collected rent"
-        actions={
-          has(profile, "mark_rent") ? (
-            <form action={generateThisMonth}>
-              <button className="btn-secondary">Generate this month</button>
-            </form>
-          ) : null
-        }
+        subtitle="Due dates follow each lease's start day-of-month. Buckets update automatically every day."
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Kpi label="Outstanding (overdue)" value={money(overdueTotalAmt)} hint={`${(overdueRes.count ?? 0).toLocaleString()} rows`} />
-        <Kpi label="Due soon" value={money(soonTotalAmt)} hint={`${(soonRes.count ?? 0).toLocaleString()} rows`} />
-        <Kpi label="Collected (total)" value={money(collectedTotalAmt)} hint={`${(collectedRes.count ?? 0).toLocaleString()} rows`} />
+        <Kpi label="Outstanding (overdue)" value={money(sumOf(overdueSum.data as any))} hint={`${(overdueRes.count ?? 0).toLocaleString()} rows`} />
+        <Kpi label="Due soon (≤7 days)" value={money(sumOf(soonSum.data as any))} hint={`${(soonRes.count ?? 0).toLocaleString()} rows`} />
+        <Kpi label="Collected (total)" value={money(sumOf(collectedSum.data as any))} hint={`${(collectedRes.count ?? 0).toLocaleString()} rows`} />
       </div>
 
       <Section
-        title="Outstanding — overdue"
+        title="Outstanding — due today or earlier"
         rows={(overdueRes.data ?? []) as unknown as RentRow[]}
         total={overdueRes.count ?? 0}
         page={overduePage}
@@ -131,13 +128,13 @@ export default async function RentPage({
       />
 
       <Section
-        title="Due soon — this month and upcoming"
+        title="Due soon — within the next 7 days"
         rows={(soonRes.data ?? []) as unknown as RentRow[]}
         total={soonRes.count ?? 0}
         page={soonPage}
         pageParam="soon_page"
         searchParams={sp}
-        emptyText="Nothing due right now."
+        emptyText="Nothing due in the next 7 days."
         showMark={has(profile, "mark_rent")}
         markAction={markCollected}
         emphasizeStatus="due_soon"
@@ -186,48 +183,50 @@ function Section({
         <h2 className="font-semibold">{title}</h2>
         <span className="text-xs text-muted-fg">{total.toLocaleString()} row{total === 1 ? "" : "s"}</span>
       </div>
-      <div className="table-wrap"><table className="table">
-        <thead>
-          <tr>
-            <th>{showCollectedAt ? "Collected on" : "Due month"}</th>
-            <th>Property</th>
-            <th>Lessee</th>
-            <th>Contact</th>
-            <th className="text-right">Gross</th>
-            <th className="text-right">SC deduction</th>
-            <th className="text-right">Net</th>
-            <th></th>
-            {showMark && <th></th>}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const p = pickOne(r.properties);
-            const l = pickOne(r.leases);
-            return (
-              <tr key={r.id}>
-                <td>{showCollectedAt ? fmtDate(r.collected_at) : fmtDate(r.due_month)}</td>
-                <td>{p?.name}</td>
-                <td>{l?.lessee_name}</td>
-                <td>{l?.lessee_contact || "—"}</td>
-                <td className="text-right">{money(r.gross_amount)}</td>
-                <td className="text-right text-muted-fg">{money(r.service_charge_deduction)}</td>
-                <td className="text-right font-medium">{money(r.net_amount)}</td>
-                <td><span className={badge}>{emphasizeStatus.replace("_", " ")}</span></td>
-                {showMark && (
-                  <td className="text-right">
-                    <form action={markAction}>
-                      <input type="hidden" name="id" value={r.id} />
-                      <button className="btn-primary text-xs">Mark collected</button>
-                    </form>
-                  </td>
-                )}
-              </tr>
-            );
-          })}
-          {!rows.length && <tr><td colSpan={showMark ? 9 : 8} className="text-center text-muted-fg py-6">{emptyText}</td></tr>}
-        </tbody>
-      </table></div>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>{showCollectedAt ? "Collected on" : "Due date"}</th>
+              <th>Property</th>
+              <th>Lessee</th>
+              <th>Contact</th>
+              <th className="text-right">Gross</th>
+              <th className="text-right">SC deduction</th>
+              <th className="text-right">Net</th>
+              <th></th>
+              {showMark && <th></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const p = pickOne(r.properties);
+              const l = pickOne(r.leases);
+              return (
+                <tr key={r.id}>
+                  <td>{showCollectedAt ? fmtDate(r.collected_at) : fmtDate(r.due_date)}</td>
+                  <td>{p?.name}</td>
+                  <td>{l?.lessee_name}</td>
+                  <td>{l?.lessee_contact || "—"}</td>
+                  <td className="text-right">{money(r.gross_amount)}</td>
+                  <td className="text-right text-muted-fg">{money(r.service_charge_deduction)}</td>
+                  <td className="text-right font-medium">{money(r.net_amount)}</td>
+                  <td><span className={badge}>{emphasizeStatus.replace("_", " ")}</span></td>
+                  {showMark && (
+                    <td className="text-right">
+                      <form action={markAction}>
+                        <input type="hidden" name="id" value={r.id} />
+                        <button className="btn-primary text-xs">Mark collected</button>
+                      </form>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+            {!rows.length && <tr><td colSpan={showMark ? 9 : 8} className="text-center text-muted-fg py-6">{emptyText}</td></tr>}
+          </tbody>
+        </table>
+      </div>
       <Pagination page={page} total={total} paramName={pageParam} searchParams={searchParams} label="rows" />
     </div>
   );

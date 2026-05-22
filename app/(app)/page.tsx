@@ -10,18 +10,18 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   await guardView("view_dashboard");
   const sb = await supabaseServer();
-  const month = firstOfMonthISO();
+  const today = new Date().toISOString().slice(0, 10);
 
   const [propsRes, leasesRes, rentRes, costsRes, alertsRes] = await Promise.all([
     sb.from("v_property_summary").select("*"),
     sb.from("leases").select("id, end_date, active").eq("active", true),
-    sb.from("rent_collections").select("status, net_amount, due_month").gte("due_month", `${new Date().getFullYear()}-01-01`),
+    sb.from("rent_collections").select("status, net_amount, due_date").gte("due_date", `${new Date().getFullYear()}-01-01`),
     sb.from("cost_allocations").select("allocated_amount, costs!inner(incurred_on)").gte("costs.incurred_on", `${new Date().getFullYear()}-01-01`),
     sb.from("rent_collections")
-      .select("id, due_month, net_amount, status, properties(name), leases(lessee_name)")
+      .select("id, due_date, net_amount, status, properties(name), leases(lessee_name)")
       .eq("status", "due")
-      .lte("due_month", month)
-      .order("due_month", { ascending: true })
+      .lte("due_date", today)
+      .order("due_date", { ascending: true })
       .limit(10),
   ]);
 
@@ -70,14 +70,14 @@ export default async function DashboardPage() {
         {alertsRes.data?.length ? (
           <table className="table">
             <thead>
-              <tr><th>Property</th><th>Lessee</th><th>Due month</th><th className="text-right">Amount</th></tr>
+              <tr><th>Property</th><th>Lessee</th><th>Due date</th><th className="text-right">Amount</th></tr>
             </thead>
             <tbody>
               {alertsRes.data.map((r: any) => (
                 <tr key={r.id}>
                   <td>{r.properties?.name}</td>
                   <td>{r.leases?.lessee_name}</td>
-                  <td>{fmtDate(r.due_month)}</td>
+                  <td>{fmtDate(r.due_date)}</td>
                   <td className="text-right">{money(r.net_amount)}</td>
                 </tr>
               ))}
