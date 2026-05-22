@@ -7,6 +7,7 @@ import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -54,13 +55,15 @@ async function markCollected(formData: FormData) {
 export default async function RentPage({
   searchParams,
 }: {
-  searchParams: Promise<{ overdue_page?: string; soon_page?: string; collected_page?: string }>;
+  searchParams: Promise<{ overdue_page?: string; soon_page?: string; collected_page?: string; lessee?: string; property?: string }>;
 }) {
   const profile = await guardView("view_rent");
   const sp = await searchParams;
   const overduePage = parsePage(sp.overdue_page);
   const soonPage = parsePage(sp.soon_page);
   const collectedPage = parsePage(sp.collected_page);
+  const filterLessee = sp.lessee?.trim() || null;
+  const filterProperty = sp.property?.trim() || null;
 
   const sb = await supabaseServer();
   const today = todayISO();
@@ -69,34 +72,38 @@ export default async function RentPage({
   // Per-section ranges
   const rangeFor = (p: number): [number, number] => [(p - 1) * PAGE_SIZE, p * PAGE_SIZE - 1];
 
-  const cols = "id, due_date, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)";
+  const cols = "id, due_date, gross_amount, service_charge_deduction, net_amount, status, collected_at, property_id, properties(name), leases(lessee_name, lessee_contact)";
+
+  // Pre-resolve lessee filter → list of lease_ids matching the name (case-insensitive).
+  let leaseIds: string[] | null = null;
+  if (filterLessee) {
+    const { data: matchedLeases } = await sb
+      .from("leases")
+      .select("id")
+      .ilike("lessee_name", `%${filterLessee}%`);
+    leaseIds = (matchedLeases ?? []).map((l) => (l as { id: string }).id);
+    if (leaseIds.length === 0) leaseIds = ["00000000-0000-0000-0000-000000000000"]; // forces empty result
+  }
+
+  // Apply property_id + lease_id filters to a builder.
+  type Q = ReturnType<typeof sb.from> extends any ? any : any;
+  const withFilters = (q: any): any => {
+    let out = q;
+    if (filterProperty) out = out.eq("property_id", filterProperty);
+    if (leaseIds) out = out.in("lease_id", leaseIds);
+    return out;
+  };
 
   const [overdueRes, soonRes, collectedRes, overdueSum, soonSum, collectedSum] = await Promise.all([
-    // OUTSTANDING: due on or before today, still unpaid
-    sb.from("rent_collections")
-      .select(cols, { count: "exact" })
-      .eq("status", "due")
-      .lte("due_date", today)
-      .order("due_date", { ascending: true })
-      .range(...rangeFor(overduePage)),
-    // DUE SOON: due within next 7 days (strictly after today, ≤ today+7)
-    sb.from("rent_collections")
-      .select(cols, { count: "exact" })
-      .eq("status", "due")
-      .gt("due_date", today)
-      .lte("due_date", horizon)
-      .order("due_date", { ascending: true })
-      .range(...rangeFor(soonPage)),
-    // COLLECTED
-    sb.from("rent_collections")
-      .select(cols, { count: "exact" })
-      .eq("status", "collected")
-      .order("collected_at", { ascending: false })
-      .range(...rangeFor(collectedPage)),
-    // Bucket totals (no pagination)
-    sb.from("rent_collections").select("net_amount").eq("status", "due").lte("due_date", today),
-    sb.from("rent_collections").select("net_amount").eq("status", "due").gt("due_date", today).lte("due_date", horizon),
-    sb.from("rent_collections").select("net_amount").eq("status", "collected"),
+    withFilters(sb.from("rent_collections").select(cols, { count: "exact" }).eq("status", "due").lte("due_date", today))
+      .order("due_date", { ascending: true }).range(...rangeFor(overduePage)),
+    withFilters(sb.from("rent_collections").select(cols, { count: "exact" }).eq("status", "due").gt("due_date", today).lte("due_date", horizon))
+      .order("due_date", { ascending: true }).range(...rangeFor(soonPage)),
+    withFilters(sb.from("rent_collections").select(cols, { count: "exact" }).eq("status", "collected"))
+      .order("collected_at", { ascending: false }).range(...rangeFor(collectedPage)),
+    withFilters(sb.from("rent_collections").select("net_amount").eq("status", "due").lte("due_date", today)),
+    withFilters(sb.from("rent_collections").select("net_amount").eq("status", "due").gt("due_date", today).lte("due_date", horizon)),
+    withFilters(sb.from("rent_collections").select("net_amount").eq("status", "collected")),
   ]);
 
   const sumOf = (rows: { net_amount: number }[] | null | undefined) => (rows ?? []).reduce((s, r) => s + Number(r.net_amount || 0), 0);
@@ -107,6 +114,18 @@ export default async function RentPage({
         title="Rent Collection"
         subtitle="Due dates follow each lease's start day-of-month. Buckets update automatically every day."
       />
+
+      {(filterLessee || filterProperty) && (
+        <div className="card mb-4 flex items-center justify-between gap-3 bg-accent/5 border-accent/30">
+          <p className="text-sm">
+            Filtered by{" "}
+            {filterLessee && <><span className="font-medium">lessee:</span> &ldquo;{filterLessee}&rdquo;</>}
+            {filterLessee && filterProperty && <span className="text-muted-fg"> · </span>}
+            {filterProperty && <><span className="font-medium">property</span></>}
+          </p>
+          <Link href="/rent" className="btn-secondary text-xs">Clear filter</Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Kpi label="Outstanding (overdue)" value={money(sumOf(overdueSum.data as any))} hint={`${(overdueRes.count ?? 0).toLocaleString()} rows`} />
