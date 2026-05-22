@@ -1,9 +1,15 @@
-// Granular permission flags stored on user_profiles.
-// Admins implicitly have every permission.
+// Pure permission types and helpers — safe to import from both client and server components.
+// Server-only helpers (getCurrentProfile, requirePermission) live in lib/permissions-server.ts.
 
-import { supabaseServer } from "./supabase/server";
+export type ViewPermission =
+  | "view_dashboard"
+  | "view_compounds"
+  | "view_properties"
+  | "view_leases"
+  | "view_rent"
+  | "view_costs";
 
-export type Permission =
+export type ActionPermission =
   | "create_property"
   | "edit_property"
   | "delete_property"
@@ -14,11 +20,19 @@ export type Permission =
   | "delete_cost"
   | "manage_users";
 
+export type Permission = ViewPermission | ActionPermission;
+
 export type UserProfile = {
   id: string;
   email: string;
   full_name: string | null;
   is_admin: boolean;
+  can_view_dashboard: boolean;
+  can_view_compounds: boolean;
+  can_view_properties: boolean;
+  can_view_leases: boolean;
+  can_view_rent: boolean;
+  can_view_costs: boolean;
   can_create_property: boolean;
   can_edit_property: boolean;
   can_delete_property: boolean;
@@ -28,9 +42,16 @@ export type UserProfile = {
   can_add_cost: boolean;
   can_delete_cost: boolean;
   can_manage_users: boolean;
+  created_at: string;
 };
 
-const FIELD_MAP: Record<Permission, keyof UserProfile> = {
+export const FIELD_MAP: Record<Permission, keyof UserProfile> = {
+  view_dashboard: "can_view_dashboard",
+  view_compounds: "can_view_compounds",
+  view_properties: "can_view_properties",
+  view_leases: "can_view_leases",
+  view_rent: "can_view_rent",
+  view_costs: "can_view_costs",
   create_property: "can_create_property",
   edit_property: "can_edit_property",
   delete_property: "can_delete_property",
@@ -48,40 +69,43 @@ export function has(profile: UserProfile | null, perm: Permission): boolean {
   return Boolean(profile[FIELD_MAP[perm]]);
 }
 
-export async function getCurrentProfile(): Promise<UserProfile | null> {
-  const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  if (!user) return null;
-
-  const { data } = await sb.from("user_profiles").select("*").eq("id", user.id).maybeSingle();
-  if (data) return data as UserProfile;
-
-  // Fallback: trigger may not have fired (or RLS hid the row). Try to create it.
-  const fullName = (user.user_metadata?.full_name as string | undefined) ?? user.email ?? "";
-  const { data: inserted } = await sb
-    .from("user_profiles")
-    .insert({ id: user.id, email: user.email ?? "", full_name: fullName })
-    .select("*")
-    .maybeSingle();
-  return (inserted as UserProfile) ?? null;
-}
-
-export async function requirePermission(perm: Permission): Promise<UserProfile> {
-  const profile = await getCurrentProfile();
-  if (!has(profile, perm)) {
-    throw new Error(`Permission denied: ${perm}`);
-  }
-  return profile!;
+export function firstAllowedPath(profile: UserProfile | null): string {
+  if (!profile) return "/login";
+  if (has(profile, "view_dashboard")) return "/";
+  if (has(profile, "view_compounds")) return "/compounds";
+  if (has(profile, "view_properties")) return "/properties";
+  if (has(profile, "view_leases")) return "/leases";
+  if (has(profile, "view_rent")) return "/rent";
+  if (has(profile, "view_costs")) return "/costs";
+  if (has(profile, "manage_users")) return "/users";
+  return "/no-access";
 }
 
 export const PERMISSION_LABELS: Record<Permission, string> = {
-  create_property: "Create properties",
-  edit_property: "Edit properties",
-  delete_property: "Delete properties",
-  create_lease: "Put properties on rent",
+  view_dashboard: "View dashboard",
+  view_compounds: "View compounds page",
+  view_properties: "View properties page",
+  view_leases: "View leases page",
+  view_rent: "View rent collection page",
+  view_costs: "View costs page",
+  create_property: "Create properties & compounds",
+  edit_property: "Edit properties & compounds",
+  delete_property: "Delete (archive) properties",
+  create_lease: "Put on rent / edit leases",
   cancel_lease: "Cancel rentals",
   mark_rent: "Mark rent collected",
-  add_cost: "Add costs",
+  add_cost: "Add / edit costs",
   delete_cost: "Delete costs",
   manage_users: "Manage users & permissions",
 };
+
+export const VIEW_PERMS: ViewPermission[] = [
+  "view_dashboard", "view_compounds", "view_properties", "view_leases", "view_rent", "view_costs",
+];
+export const ACTION_PERMS: ActionPermission[] = [
+  "create_property", "edit_property", "delete_property",
+  "create_lease", "cancel_lease",
+  "mark_rent",
+  "add_cost", "delete_cost",
+  "manage_users",
+];

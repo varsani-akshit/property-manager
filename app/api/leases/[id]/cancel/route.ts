@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

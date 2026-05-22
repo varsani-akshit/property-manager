@@ -1,20 +1,53 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
+import { Kpi } from "@/components/Kpi";
 import { money, fmtDate } from "@/lib/format";
+import { guardView } from "@/lib/guard";
+import { has } from "@/lib/permissions";
 import Link from "next/link";
-import { getCurrentProfile, has } from "@/lib/permissions";
 import { Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
+type LeaseRow = {
+  id: string;
+  active: boolean;
+  lessee_name: string;
+  lessee_contact: string | null;
+  start_date: string;
+  end_date: string;
+  gross_rent_monthly: number;
+  properties: { id: string; name: string; compounds: { name: string } | { name: string }[] | null } | { id: string; name: string; compounds: { name: string } | { name: string }[] | null }[] | null;
+};
+
+function compoundName(c: { name: string } | { name: string }[] | null): string {
+  if (!c) return "";
+  return Array.isArray(c) ? c[0]?.name ?? "" : c.name;
+}
+function propertyOf(l: LeaseRow): { id: string; name: string; compounds: { name: string } | { name: string }[] | null } | null {
+  if (!l.properties) return null;
+  return Array.isArray(l.properties) ? l.properties[0] : l.properties;
+}
+
 export default async function LeasesPage() {
+  const profile = await guardView("view_leases");
   const sb = await supabaseServer();
-  const profile = await getCurrentProfile();
+
   const { data } = await sb
     .from("leases")
-    .select("*, properties(id, name, compounds(name))")
+    .select("id, active, lessee_name, lessee_contact, start_date, end_date, gross_rent_monthly, properties(id, name, compounds(name))")
     .order("active", { ascending: false })
     .order("start_date", { ascending: false });
+
+  const arr = (data ?? []) as unknown as LeaseRow[];
+  const active = arr.filter((l) => l.active);
+  const monthlyRent = active.reduce((s, l) => s + Number(l.gross_rent_monthly || 0), 0);
+  const now = Date.now();
+  const expiring60 = active.filter((l) => {
+    const d = (new Date(l.end_date).getTime() - now) / 86400000;
+    return d >= 0 && d <= 60;
+  }).length;
+  const expired = arr.filter((l) => !l.active).length;
 
   return (
     <div>
@@ -22,6 +55,14 @@ export default async function LeasesPage() {
         title="Leases"
         actions={has(profile, "create_lease") ? <Link href="/leases/new" className="btn-primary"><Plus size={14}/> New lease</Link> : null}
       />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Kpi label="Active leases" value={String(active.length)} />
+        <Kpi label="Monthly rent (gross)" value={money(monthlyRent)} />
+        <Kpi label="Expiring ≤ 60 days" value={String(expiring60)} />
+        <Kpi label="Past leases" value={String(expired)} />
+      </div>
+
       <div className="card p-0">
         <table className="table">
           <thead>
@@ -32,23 +73,29 @@ export default async function LeasesPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.map((l: any) => (
-              <tr key={l.id}>
-                <td><Link href={`/properties/${l.properties?.id}`} className="font-medium hover:underline">{l.properties?.name}</Link><div className="text-xs text-muted-fg">{l.properties?.compounds?.name}</div></td>
-                <td>{l.lessee_name}</td>
-                <td>{l.lessee_contact}</td>
-                <td>{fmtDate(l.start_date)}</td>
-                <td>{fmtDate(l.end_date)}</td>
-                <td className="text-right">{money(l.gross_rent_monthly)}</td>
-                <td>{l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}</td>
-                <td className="text-right">
-                  {has(profile, "create_lease") && l.active && (
-                    <Link href={`/leases/${l.id}/edit`} className="btn-secondary text-xs">Edit</Link>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {!data?.length && <tr><td colSpan={8} className="text-center text-muted-fg py-8">No leases yet.</td></tr>}
+            {arr.map((l) => {
+              const p = propertyOf(l);
+              return (
+                <tr key={l.id}>
+                  <td>
+                    {p && <Link href={`/properties/${p.id}`} className="font-medium hover:underline">{p.name}</Link>}
+                    <div className="text-xs text-muted-fg">{compoundName(p?.compounds ?? null)}</div>
+                  </td>
+                  <td>{l.lessee_name}</td>
+                  <td>{l.lessee_contact || "—"}</td>
+                  <td>{fmtDate(l.start_date)}</td>
+                  <td>{fmtDate(l.end_date)}</td>
+                  <td className="text-right">{money(l.gross_rent_monthly)}</td>
+                  <td>{l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}</td>
+                  <td className="text-right">
+                    {has(profile, "create_lease") && l.active && (
+                      <Link href={`/leases/${l.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {!arr.length && <tr><td colSpan={8} className="text-center text-muted-fg py-8">No leases yet.</td></tr>}
           </tbody>
         </table>
       </div>

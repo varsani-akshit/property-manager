@@ -4,16 +4,17 @@ import { Kpi } from "@/components/Kpi";
 import { money, fmtDate } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCurrentProfile, has } from "@/lib/permissions";
+import { has } from "@/lib/permissions";
+import { requirePermission } from "@/lib/permissions-server";
+import { guardView } from "@/lib/guard";
 import { redirect } from "next/navigation";
-import { requirePermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function PropertyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const profile = await guardView("view_properties");
   const sb = await supabaseServer();
-  const profile = await getCurrentProfile();
 
   const { data: prop } = await sb
     .from("properties")

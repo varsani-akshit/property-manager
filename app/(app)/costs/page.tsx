@@ -1,12 +1,25 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
-import { money, fmtDate } from "@/lib/format";
+import { Kpi } from "@/components/Kpi";
+import { money, fmtDate, firstOfMonthISO } from "@/lib/format";
 import Link from "next/link";
-import { getCurrentProfile, has, requirePermission } from "@/lib/permissions";
+import { has } from "@/lib/permissions";
+import { requirePermission } from "@/lib/permissions-server";
+import { guardView } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
 import { Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+type CostRow = {
+  id: string;
+  description: string;
+  category: string;
+  amount: number;
+  incurred_on: string;
+  is_auto_service_charge: boolean;
+  cost_allocations: { allocated_amount: number; properties: { id: string; name: string } | null }[] | null;
+};
 
 async function deleteCost(formData: FormData) {
   "use server";
@@ -18,14 +31,26 @@ async function deleteCost(formData: FormData) {
 }
 
 export default async function CostsPage() {
+  const profile = await guardView("view_costs");
   const sb = await supabaseServer();
-  const profile = await getCurrentProfile();
 
   const { data } = await sb
     .from("costs")
-    .select("*, cost_allocations(allocated_amount, properties(id, name))")
+    .select("id, description, category, amount, incurred_on, is_auto_service_charge, cost_allocations(allocated_amount, properties(id, name))")
     .order("incurred_on", { ascending: false })
     .limit(200);
+
+  const arr = (data ?? []) as unknown as CostRow[];
+  const month = firstOfMonthISO();
+  const ytdStart = `${new Date().getFullYear()}-01-01`;
+  const totalThisMonth = arr.filter((c) => c.incurred_on >= month).reduce((s, c) => s + Number(c.amount), 0);
+  const totalYTD = arr.filter((c) => c.incurred_on >= ytdStart).reduce((s, c) => s + Number(c.amount), 0);
+
+  const byCategory: Record<string, number> = {};
+  for (const c of arr) {
+    if (c.incurred_on >= ytdStart) byCategory[c.category] = (byCategory[c.category] ?? 0) + Number(c.amount);
+  }
+  const topCat = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
 
   return (
     <div>
@@ -34,6 +59,13 @@ export default async function CostsPage() {
         subtitle="Single property or multi-property (auto-split by sqft)"
         actions={has(profile, "add_cost") ? <Link href="/costs/new" className="btn-primary"><Plus size={14}/> Add cost</Link> : null}
       />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <Kpi label="Costs this month" value={money(totalThisMonth)} />
+        <Kpi label="Costs YTD" value={money(totalYTD)} />
+        <Kpi label="Total entries (shown)" value={String(arr.length)} />
+        <Kpi label="Top category YTD" value={topCat ? topCat[0] : "—"} hint={topCat ? money(topCat[1]) : undefined} />
+      </div>
 
       <div className="card p-0">
         <table className="table">
@@ -45,7 +77,7 @@ export default async function CostsPage() {
             </tr>
           </thead>
           <tbody>
-            {data?.map((c: any) => (
+            {arr.map((c) => (
               <tr key={c.id}>
                 <td>{fmtDate(c.incurred_on)}</td>
                 <td>
@@ -54,7 +86,7 @@ export default async function CostsPage() {
                 </td>
                 <td><span className="badge-muted">{c.category}</span></td>
                 <td className="text-xs">
-                  {c.cost_allocations?.length === 1
+                  {c.cost_allocations?.length === 1 && c.cost_allocations[0].properties
                     ? <Link href={`/properties/${c.cost_allocations[0].properties.id}`} className="hover:underline">{c.cost_allocations[0].properties.name}</Link>
                     : `${c.cost_allocations?.length ?? 0} properties (split by sqft)`}
                 </td>
@@ -74,7 +106,7 @@ export default async function CostsPage() {
                 </td>
               </tr>
             ))}
-            {!data?.length && <tr><td colSpan={6} className="text-center text-muted-fg py-8">No costs yet.</td></tr>}
+            {!arr.length && <tr><td colSpan={6} className="text-center text-muted-fg py-8">No costs yet.</td></tr>}
           </tbody>
         </table>
       </div>

@@ -2,11 +2,13 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { Kpi } from "@/components/Kpi";
 import { PageHeader } from "@/components/PageHeader";
 import { money, fmtDate, firstOfMonthISO } from "@/lib/format";
+import { guardView } from "@/lib/guard";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  await guardView("view_dashboard");
   const sb = await supabaseServer();
   const month = firstOfMonthISO();
 

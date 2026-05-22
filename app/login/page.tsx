@@ -7,7 +7,6 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<"login" | "signup">("login");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -16,10 +15,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     const sb = supabaseBrowser();
-    const { error } =
-      mode === "login"
-        ? await sb.auth.signInWithPassword({ email, password })
-        : await sb.auth.signUp({ email, password });
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) setError(error.message);
     else router.push("/");
@@ -30,7 +26,7 @@ export default function LoginPage() {
       <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-4">
         <div>
           <h1 className="text-xl font-semibold">Rental Manager</h1>
-          <p className="text-sm text-muted-fg">{mode === "login" ? "Sign in to continue" : "Create your account"}</p>
+          <p className="text-sm text-muted-fg">Sign in to continue.</p>
         </div>
 
         <div>
@@ -39,22 +35,18 @@ export default function LoginPage() {
         </div>
         <div>
           <label className="label">Password</label>
-          <input type="password" required minLength={6} className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <input type="password" required className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
 
         {error && <p className="text-sm text-danger">{error}</p>}
 
         <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? "Please wait…" : mode === "login" ? "Sign in" : "Sign up"}
+          {loading ? "Please wait…" : "Sign in"}
         </button>
 
-        <button
-          type="button"
-          className="text-xs text-muted-fg hover:text-fg w-full text-center"
-          onClick={() => setMode(mode === "login" ? "signup" : "login")}
-        >
-          {mode === "login" ? "Need an account? Sign up" : "Have an account? Sign in"}
-        </button>
+        <p className="text-xs text-muted-fg text-center">
+          Access is invite-only. Ask your admin to invite you from the Users page.
+        </p>
       </form>
     </div>
   );

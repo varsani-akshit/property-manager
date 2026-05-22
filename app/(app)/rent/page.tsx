@@ -1,10 +1,30 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
+import { Kpi } from "@/components/Kpi";
 import { money, fmtDate, firstOfMonthISO } from "@/lib/format";
-import { getCurrentProfile, has, requirePermission } from "@/lib/permissions";
+import { has } from "@/lib/permissions";
+import { requirePermission } from "@/lib/permissions-server";
+import { guardView } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
+
+type RentRow = {
+  id: string;
+  due_month: string;
+  gross_amount: number;
+  service_charge_deduction: number;
+  net_amount: number;
+  status: string;
+  collected_at: string | null;
+  properties: { name: string } | { name: string }[] | null;
+  leases: { lessee_name: string; lessee_contact: string | null } | { lessee_name: string; lessee_contact: string | null }[] | null;
+};
+
+function pickOne<T>(v: T | T[] | null): T | null {
+  if (!v) return null;
+  return Array.isArray(v) ? v[0] ?? null : v;
+}
 
 async function generateThisMonth() {
   "use server";
@@ -30,27 +50,36 @@ async function markCollected(formData: FormData) {
 }
 
 export default async function RentPage() {
+  const profile = await guardView("view_rent");
   const sb = await supabaseServer();
-  const profile = await getCurrentProfile();
+  const monthStart = firstOfMonthISO(); // first of current month
 
-  const { data: due } = await sb
+  const { data: dueRows } = await sb
     .from("rent_collections")
-    .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, properties(name), leases(lessee_name, lessee_contact)")
+    .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)")
     .eq("status", "due")
     .order("due_month", { ascending: true });
 
-  const { data: recent } = await sb
+  const { data: collectedRows } = await sb
     .from("rent_collections")
-    .select("id, due_month, net_amount, collected_at, properties(name), leases(lessee_name)")
+    .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)")
     .eq("status", "collected")
     .order("collected_at", { ascending: false })
-    .limit(20);
+    .limit(50);
+
+  const due = (dueRows ?? []) as unknown as RentRow[];
+  const collected = (collectedRows ?? []) as unknown as RentRow[];
+
+  const outstanding = due.filter((r) => r.due_month < monthStart);   // past months still unpaid
+  const dueSoon     = due.filter((r) => r.due_month >= monthStart);  // current + future months
+
+  const sum = (arr: RentRow[]) => arr.reduce((s, r) => s + Number(r.net_amount || 0), 0);
 
   return (
     <div>
       <PageHeader
         title="Rent Collection"
-        subtitle="Mark rent as collected as it comes in"
+        subtitle="Track due, outstanding (overdue), and collected rent"
         actions={
           has(profile, "mark_rent") ? (
             <form action={generateThisMonth}>
@@ -60,61 +89,104 @@ export default async function RentPage() {
         }
       />
 
-      <div className="card mb-6">
-        <h2 className="font-semibold mb-3">Outstanding ({due?.length ?? 0})</h2>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Due month</th><th>Property</th><th>Lessee</th><th>Contact</th>
-              <th className="text-right">Gross</th><th className="text-right">SC deduction</th><th className="text-right">Net</th>
-              {has(profile, "mark_rent") && <th></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {due?.map((r: any) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <Kpi label="Due soon" value={money(sum(dueSoon))} hint={`${dueSoon.length} row${dueSoon.length === 1 ? "" : "s"}`} />
+        <Kpi label="Outstanding (overdue)" value={money(sum(outstanding))} hint={`${outstanding.length} row${outstanding.length === 1 ? "" : "s"}`} />
+        <Kpi label="Collected (recent)" value={money(sum(collected))} hint={`Last ${collected.length}`} />
+      </div>
+
+      <Section
+        title={`Outstanding — overdue (${outstanding.length})`}
+        emptyText="Nothing overdue. 👌"
+        rows={outstanding}
+        showMark={has(profile, "mark_rent")}
+        markAction={markCollected}
+        emphasizeStatus="overdue"
+      />
+
+      <Section
+        title={`Due soon — this month and upcoming (${dueSoon.length})`}
+        emptyText="Nothing due right now."
+        rows={dueSoon}
+        showMark={has(profile, "mark_rent")}
+        markAction={markCollected}
+        emphasizeStatus="due_soon"
+      />
+
+      <Section
+        title={`Recently collected (${collected.length})`}
+        emptyText="No collections yet."
+        rows={collected}
+        showMark={false}
+        markAction={markCollected}
+        emphasizeStatus="collected"
+        showCollectedAt
+      />
+    </div>
+  );
+}
+
+function Section({
+  title, rows, emptyText, showMark, markAction, emphasizeStatus, showCollectedAt,
+}: {
+  title: string;
+  rows: RentRow[];
+  emptyText: string;
+  showMark: boolean;
+  markAction: (fd: FormData) => Promise<void>;
+  emphasizeStatus: "due_soon" | "overdue" | "collected";
+  showCollectedAt?: boolean;
+}) {
+  const badge =
+    emphasizeStatus === "overdue" ? "badge-danger" :
+    emphasizeStatus === "due_soon" ? "badge-warning" :
+    "badge-success";
+
+  return (
+    <div className="card mb-6">
+      <h2 className="font-semibold mb-3">{title}</h2>
+      <table className="table">
+        <thead>
+          <tr>
+            <th>{showCollectedAt ? "Collected on" : "Due month"}</th>
+            <th>Property</th>
+            <th>Lessee</th>
+            <th>Contact</th>
+            <th className="text-right">Gross</th>
+            <th className="text-right">SC deduction</th>
+            <th className="text-right">Net</th>
+            <th></th>
+            {showMark && <th></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const p = pickOne(r.properties);
+            const l = pickOne(r.leases);
+            return (
               <tr key={r.id}>
-                <td>{fmtDate(r.due_month)}</td>
-                <td>{r.properties?.name}</td>
-                <td>{r.leases?.lessee_name}</td>
-                <td>{r.leases?.lessee_contact}</td>
+                <td>{showCollectedAt ? fmtDate(r.collected_at) : fmtDate(r.due_month)}</td>
+                <td>{p?.name}</td>
+                <td>{l?.lessee_name}</td>
+                <td>{l?.lessee_contact || "—"}</td>
                 <td className="text-right">{money(r.gross_amount)}</td>
                 <td className="text-right text-muted-fg">{money(r.service_charge_deduction)}</td>
                 <td className="text-right font-medium">{money(r.net_amount)}</td>
-                {has(profile, "mark_rent") && (
+                <td><span className={badge}>{emphasizeStatus.replace("_", " ")}</span></td>
+                {showMark && (
                   <td className="text-right">
-                    <form action={markCollected}>
+                    <form action={markAction}>
                       <input type="hidden" name="id" value={r.id} />
                       <button className="btn-primary text-xs">Mark collected</button>
                     </form>
                   </td>
                 )}
               </tr>
-            ))}
-            {!due?.length && <tr><td colSpan={8} className="text-center text-muted-fg py-8">All caught up.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="card">
-        <h2 className="font-semibold mb-3">Recently collected</h2>
-        <table className="table">
-          <thead>
-            <tr><th>Collected on</th><th>Property</th><th>Lessee</th><th>Due month</th><th className="text-right">Net</th></tr>
-          </thead>
-          <tbody>
-            {recent?.map((r: any) => (
-              <tr key={r.id}>
-                <td>{fmtDate(r.collected_at)}</td>
-                <td>{r.properties?.name}</td>
-                <td>{r.leases?.lessee_name}</td>
-                <td>{fmtDate(r.due_month)}</td>
-                <td className="text-right">{money(r.net_amount)}</td>
-              </tr>
-            ))}
-            {!recent?.length && <tr><td colSpan={5} className="text-center text-muted-fg py-8">No collections yet.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+            );
+          })}
+          {!rows.length && <tr><td colSpan={showMark ? 9 : 8} className="text-center text-muted-fg py-6">{emptyText}</td></tr>}
+        </tbody>
+      </table>
     </div>
   );
 }

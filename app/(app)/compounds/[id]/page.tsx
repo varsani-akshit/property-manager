@@ -4,14 +4,15 @@ import { Kpi } from "@/components/Kpi";
 import { money } from "@/lib/format";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getCurrentProfile, has } from "@/lib/permissions";
+import { has } from "@/lib/permissions";
+import { guardView } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
 export default async function CompoundDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const profile = await guardView("view_compounds");
   const sb = await supabaseServer();
-  const profile = await getCurrentProfile();
   const { data: compound } = await sb.from("compounds").select("*").eq("id", id).maybeSingle();
   if (!compound) notFound();
 

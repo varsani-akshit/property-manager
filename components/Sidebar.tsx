@@ -1,22 +1,24 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { Home, Building2, FileText, Banknote, Receipt, Users, LogOut } from "lucide-react";
+import { Home, Building2, FileText, Banknote, Receipt, Users, LogOut, Building } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { has, type Permission, type UserProfile } from "@/lib/permissions";
 
-const NAV = [
-  { href: "/", label: "Dashboard", icon: Home },
-  { href: "/compounds", label: "Compounds", icon: Building2 },
-  { href: "/properties", label: "Properties", icon: Building2 },
-  { href: "/leases", label: "Leases", icon: FileText },
-  { href: "/rent", label: "Rent Collection", icon: Banknote },
-  { href: "/costs", label: "Costs", icon: Receipt },
-  { href: "/users", label: "Users", icon: Users, adminOnly: true },
+type NavItem = { href: string; label: string; icon: typeof Home; perm: Permission };
+
+const NAV: NavItem[] = [
+  { href: "/",            label: "Dashboard",       icon: Home,     perm: "view_dashboard" },
+  { href: "/compounds",   label: "Compounds",       icon: Building, perm: "view_compounds" },
+  { href: "/properties",  label: "Properties",      icon: Building2,perm: "view_properties" },
+  { href: "/leases",      label: "Leases",          icon: FileText, perm: "view_leases" },
+  { href: "/rent",        label: "Rent Collection", icon: Banknote, perm: "view_rent" },
+  { href: "/costs",       label: "Costs",           icon: Receipt,  perm: "view_costs" },
+  { href: "/users",       label: "Users",           icon: Users,    perm: "manage_users" },
 ];
 
-export function Sidebar({ isAdmin, userEmail }: { isAdmin: boolean; userEmail: string }) {
+export function Sidebar({ profile }: { profile: UserProfile }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -26,14 +28,16 @@ export function Sidebar({ isAdmin, userEmail }: { isAdmin: boolean; userEmail: s
     router.refresh();
   }
 
+  const visible = NAV.filter((n) => has(profile, n.perm));
+
   return (
     <aside className="w-60 border-r border-border bg-bg flex flex-col h-screen sticky top-0">
       <div className="p-4 border-b border-border">
         <div className="font-semibold">Rental Manager</div>
-        <div className="text-xs text-muted-fg truncate">{userEmail}</div>
+        <div className="text-xs text-muted-fg truncate">{profile.email}</div>
       </div>
       <nav className="flex-1 p-2 space-y-0.5">
-        {NAV.filter((n) => !n.adminOnly || isAdmin).map((n) => {
+        {visible.map((n) => {
           const Icon = n.icon;
           const active = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
           return (

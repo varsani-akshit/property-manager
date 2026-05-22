@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
-import { requirePermission } from "@/lib/permissions";
+import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import { LeaseEditForm } from "./LeaseEditForm";
