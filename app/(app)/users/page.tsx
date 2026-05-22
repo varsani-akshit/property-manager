@@ -113,58 +113,64 @@ export default async function UsersPage() {
 
       <div className="space-y-4">
         {users.map((u) => (
-          <form key={u.id} action={updateUser} className="card">
-            <input type="hidden" name="id" value={u.id} />
-            <div className="flex items-center justify-between mb-3 gap-3">
-              <div className="min-w-0">
-                <div className="font-medium truncate">{u.full_name || u.email}</div>
-                <div className="text-xs text-muted-fg truncate">{u.email}</div>
+          <div key={u.id} className="card">
+            {/* Single outer form for permission updates. Delete is a SIBLING form, never nested. */}
+            <form action={updateUser}>
+              <input type="hidden" name="id" value={u.id} />
+              <div className="flex items-center justify-between mb-3 gap-3">
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{u.full_name || u.email}</div>
+                  <div className="text-xs text-muted-fg truncate">{u.email}</div>
+                </div>
+                <label className="flex items-center gap-2 text-sm whitespace-nowrap">
+                  <input type="checkbox" name="is_admin" defaultChecked={u.is_admin} />
+                  <span className="font-medium">Admin</span>
+                </label>
               </div>
-              <label className="flex items-center gap-2 text-sm whitespace-nowrap">
-                <input type="checkbox" name="is_admin" defaultChecked={u.is_admin} />
-                <span className="font-medium">Admin</span>
-              </label>
-            </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-xs uppercase tracking-wide text-muted-fg mb-2">Page visibility</div>
-                <div className="space-y-1 text-sm">
-                  {VIEW_PERMS.map((p) => (
-                    <label key={p} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50">
-                      <input type="checkbox" name={p} defaultChecked={Boolean(u[FIELD_MAP[p]])} />
-                      <span>{PERMISSION_LABELS[p]}</span>
-                    </label>
-                  ))}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-fg mb-2">Page visibility</div>
+                  <div className="space-y-1 text-sm">
+                    {VIEW_PERMS.map((p) => (
+                      <label key={p} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50">
+                        <input type="checkbox" name={p} defaultChecked={Boolean(u[FIELD_MAP[p]])} />
+                        <span>{PERMISSION_LABELS[p]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-muted-fg mb-2">Actions</div>
+                  <div className="space-y-1 text-sm">
+                    {ACTION_PERMS.map((p) => (
+                      <label key={p} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50">
+                        <input type="checkbox" name={p} defaultChecked={Boolean(u[FIELD_MAP[p]])} />
+                        <span>{PERMISSION_LABELS[p]}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div>
-                <div className="text-xs uppercase tracking-wide text-muted-fg mb-2">Actions</div>
-                <div className="space-y-1 text-sm">
-                  {ACTION_PERMS.map((p) => (
-                    <label key={p} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50">
-                      <input type="checkbox" name={p} defaultChecked={Boolean(u[FIELD_MAP[p]])} />
-                      <span>{PERMISSION_LABELS[p]}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
 
-            <div className="mt-4 flex justify-between items-center">
-              <details>
-                <summary className="text-xs text-danger cursor-pointer">Delete user</summary>
-                <form action={deleteUser} className="mt-2">
-                  <input type="hidden" name="id" value={u.id} />
-                  <button type="submit" className="btn-danger text-xs">Permanently delete</button>
-                </form>
-              </details>
-              <div className="flex items-center gap-3">
+              <div className="mt-4 flex justify-end items-center gap-3">
                 <span className="text-xs text-muted-fg">Joined {fmtDate(u.created_at)}</span>
-                <button className="btn-primary text-sm">Save</button>
+                <button className="btn-primary text-sm">Save permissions</button>
               </div>
-            </div>
-          </form>
+            </form>
+
+            {/* Separate, sibling form for delete — never nested inside the permissions form. */}
+            <details className="mt-3 pt-3 border-t border-border">
+              <summary className="text-xs text-danger cursor-pointer">Delete this user permanently</summary>
+              <form action={deleteUser} className="mt-2 flex items-center gap-2">
+                <input type="hidden" name="id" value={u.id} />
+                <p className="text-xs text-muted-fg flex-1">
+                  Removes the auth user and their profile row. Cannot be undone.
+                </p>
+                <button type="submit" className="btn-danger text-xs">Permanently delete</button>
+              </form>
+            </details>
+          </div>
         ))}
       </div>
     </div>
