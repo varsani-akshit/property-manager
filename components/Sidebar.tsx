@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { Home, Building2, FileText, Banknote, Receipt, Users, LogOut, Building } from "lucide-react";
+import { Home, Building2, FileText, Banknote, Receipt, Users, LogOut, Building, X } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { has, type Permission, type UserProfile } from "@/lib/permissions";
 
@@ -18,7 +18,15 @@ const NAV: NavItem[] = [
   { href: "/users",       label: "Users",           icon: Users,    perm: "manage_users" },
 ];
 
-export function Sidebar({ profile }: { profile: UserProfile }) {
+export function Sidebar({
+  profile,
+  onNavigate,
+  mobileClose,
+}: {
+  profile: UserProfile;
+  onNavigate?: () => void;
+  mobileClose?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -31,12 +39,19 @@ export function Sidebar({ profile }: { profile: UserProfile }) {
   const visible = NAV.filter((n) => has(profile, n.perm));
 
   return (
-    <aside className="w-60 border-r border-border bg-bg flex flex-col h-screen sticky top-0">
-      <div className="p-4 border-b border-border">
-        <div className="font-semibold">Rental Manager</div>
-        <div className="text-xs text-muted-fg truncate">{profile.email}</div>
+    <aside className="w-60 h-screen border-r border-border bg-bg flex flex-col">
+      <div className="p-4 border-b border-border flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="font-semibold">Rental Manager</div>
+          <div className="text-xs text-muted-fg truncate">{profile.email}</div>
+        </div>
+        {mobileClose && (
+          <button onClick={mobileClose} className="lg:hidden p-1 rounded-md hover:bg-muted shrink-0" aria-label="Close menu">
+            <X size={16} />
+          </button>
+        )}
       </div>
-      <nav className="flex-1 p-2 space-y-0.5">
+      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
         {visible.map((n) => {
           const Icon = n.icon;
           const active = n.href === "/" ? pathname === "/" : pathname.startsWith(n.href);
@@ -44,6 +59,7 @@ export function Sidebar({ profile }: { profile: UserProfile }) {
             <Link
               key={n.href}
               href={n.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-md text-sm",
                 active ? "bg-primary text-primary-fg" : "text-fg hover:bg-muted"

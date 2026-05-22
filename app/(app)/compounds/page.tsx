@@ -70,7 +70,7 @@ export default async function CompoundsPage({
       </div>
 
       <div className="card p-0">
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead>
             <tr>
               <th>Name</th><th>Address</th>
@@ -104,7 +104,7 @@ export default async function CompoundsPage({
               <tr><td colSpan={6} className="text-center text-muted-fg py-8">No compounds yet.</td></tr>
             )}
           </tbody>
-        </table>
+        </table></div>
         <Pagination page={page} total={total} label="compounds" />
       </div>
     </div>

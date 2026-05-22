@@ -156,7 +156,7 @@ export default async function PropertyDetailPage({
             <h2 className="font-semibold">Rent history</h2>
             <span className="text-xs text-muted-fg">{rentTotal.toLocaleString()} row{rentTotal === 1 ? "" : "s"}</span>
           </div>
-          <table className="table">
+          <div className="table-wrap"><table className="table">
             <thead><tr><th>Month</th><th>Status</th><th className="text-right">Net</th></tr></thead>
             <tbody>
               {rentRows.map((r: any) => (
@@ -168,7 +168,7 @@ export default async function PropertyDetailPage({
               ))}
               {!rentRows.length && <tr><td colSpan={3} className="text-muted-fg text-center py-4">No rent history yet.</td></tr>}
             </tbody>
-          </table>
+          </table></div>
           <Pagination page={rentPage} total={rentTotal} paramName="rent_page" searchParams={sp} label="months" />
         </div>
       </div>
@@ -178,7 +178,7 @@ export default async function PropertyDetailPage({
           <h2 className="font-semibold">Cost history</h2>
           <span className="text-xs text-muted-fg">{costTotal.toLocaleString()} row{costTotal === 1 ? "" : "s"}</span>
         </div>
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead><tr><th>Date</th><th>Description</th><th>Category</th><th className="text-right">Allocated</th></tr></thead>
           <tbody>
             {allocsRows.map((a, i) => (
@@ -191,7 +191,7 @@ export default async function PropertyDetailPage({
             ))}
             {!allocsRows.length && <tr><td colSpan={4} className="text-muted-fg text-center py-4">No costs allocated yet.</td></tr>}
           </tbody>
-        </table>
+        </table></div>
         <Pagination page={costPage} total={costTotal} paramName="cost_page" searchParams={sp} label="entries" />
       </div>
 
@@ -200,7 +200,7 @@ export default async function PropertyDetailPage({
           <h2 className="font-semibold">Lease history</h2>
           <span className="text-xs text-muted-fg">{leaseTotal.toLocaleString()} lease{leaseTotal === 1 ? "" : "s"}</span>
         </div>
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead><tr><th>Lessee</th><th>Start</th><th>End</th><th>Status</th><th className="text-right">Rent</th></tr></thead>
           <tbody>
             {leases.map((l: any) => (
@@ -214,7 +214,7 @@ export default async function PropertyDetailPage({
             ))}
             {!leases.length && <tr><td colSpan={5} className="text-muted-fg text-center py-4">No leases yet.</td></tr>}
           </tbody>
-        </table>
+        </table></div>
         <Pagination page={leasePage} total={leaseTotal} paramName="lease_page" searchParams={sp} label="leases" />
       </div>
     </div>

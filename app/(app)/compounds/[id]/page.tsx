@@ -58,7 +58,7 @@ export default async function CompoundDetailPage({
       </div>
 
       <div className="card p-0">
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead>
             <tr>
               <th>Property</th>
@@ -82,7 +82,7 @@ export default async function CompoundDetailPage({
             ))}
             {!arr.length && <tr><td colSpan={6} className="text-center text-muted-fg py-8">No properties in this compound yet.</td></tr>}
           </tbody>
-        </table>
+        </table></div>
         <Pagination page={page} total={total} label="properties" />
       </div>
     </div>

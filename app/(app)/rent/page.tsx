@@ -186,7 +186,7 @@ function Section({
         <h2 className="font-semibold">{title}</h2>
         <span className="text-xs text-muted-fg">{total.toLocaleString()} row{total === 1 ? "" : "s"}</span>
       </div>
-      <table className="table">
+      <div className="table-wrap"><table className="table">
         <thead>
           <tr>
             <th>{showCollectedAt ? "Collected on" : "Due month"}</th>
@@ -227,7 +227,7 @@ function Section({
           })}
           {!rows.length && <tr><td colSpan={showMark ? 9 : 8} className="text-center text-muted-fg py-6">{emptyText}</td></tr>}
         </tbody>
-      </table>
+      </table></div>
       <Pagination page={page} total={total} paramName={pageParam} searchParams={searchParams} label="rows" />
     </div>
   );

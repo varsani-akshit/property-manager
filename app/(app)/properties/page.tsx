@@ -76,7 +76,7 @@ export default async function PropertiesPage({
       </div>
 
       <div className="card p-0">
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead>
             <tr>
               <th>Name</th>
@@ -113,7 +113,7 @@ export default async function PropertiesPage({
             })}
             {!arr.length && <tr><td colSpan={9} className="text-center text-muted-fg py-8">No properties yet.</td></tr>}
           </tbody>
-        </table>
+        </table></div>
         <Pagination page={page} total={total} label="properties" />
       </div>
     </div>

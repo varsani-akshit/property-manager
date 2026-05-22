@@ -86,7 +86,7 @@ export default async function CostsPage({
       </div>
 
       <div className="card p-0">
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead>
             <tr>
               <th>Date</th><th>Description</th><th>Category</th>
@@ -126,7 +126,7 @@ export default async function CostsPage({
             ))}
             {!arr.length && <tr><td colSpan={6} className="text-center text-muted-fg py-8">No costs yet.</td></tr>}
           </tbody>
-        </table>
+        </table></div>
         <Pagination page={page} total={total} label="costs" />
       </div>
     </div>

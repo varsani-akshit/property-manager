@@ -81,7 +81,7 @@ export default async function LeasesPage({
       </div>
 
       <div className="card p-0">
-        <table className="table">
+        <div className="table-wrap"><table className="table">
           <thead>
             <tr>
               <th>Property</th><th>Lessee</th><th>Contact</th>
@@ -114,7 +114,7 @@ export default async function LeasesPage({
             })}
             {!arr.length && <tr><td colSpan={8} className="text-center text-muted-fg py-8">No leases yet.</td></tr>}
           </tbody>
-        </table>
+        </table></div>
         <Pagination page={page} total={total} label="leases" />
       </div>
     </div>
