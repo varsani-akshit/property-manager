@@ -37,9 +37,11 @@ async function inviteUser(formData: FormData) {
   if (!email) throw new Error("Email is required");
 
   const admin = supabaseAdmin();
-  // Send invite email — user clicks link, sets password, gets logged in.
+  // Send invite email — link redirects to /auth/callback, which exchanges the
+  // code for a session, then forwards to /auth/set-password (first-time users).
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/login`,
+    redirectTo: `${site}/auth/callback?next=/`,
   });
   if (error) throw new Error(error.message);
   // user_profiles row will be created automatically by the on_auth_user_created trigger.
@@ -62,6 +64,20 @@ async function updateUser(formData: FormData) {
   revalidatePath("/users");
 }
 
+async function resendInvite(formData: FormData) {
+  "use server";
+  await requirePermission("manage_users");
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  if (!email) throw new Error("Email required");
+  const admin = supabaseAdmin();
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${site}/auth/callback?next=/`,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath("/users");
+}
+
 async function deleteUser(formData: FormData) {
   "use server";
   await requirePermission("manage_users");
@@ -73,24 +89,54 @@ async function deleteUser(formData: FormData) {
   revalidatePath("/users");
 }
 
+type AuthState = { invited_at: string | null; email_confirmed_at: string | null; last_sign_in_at: string | null };
+
+function statusOf(s: AuthState | null): { label: string; cls: string } {
+  if (!s) return { label: "unknown", cls: "badge-muted" };
+  if (s.last_sign_in_at) return { label: "active", cls: "badge-success" };
+  if (s.email_confirmed_at) return { label: "accepted (no password yet)", cls: "badge-warning" };
+  if (s.invited_at) return { label: "invited — pending", cls: "badge-warning" };
+  return { label: "no auth record", cls: "badge-muted" };
+}
+
 export default async function UsersPage() {
   await guardView("view_dashboard"); // /users is gated below by manage_users
   await requirePermission("manage_users");
 
   const sb = await supabaseServer();
-  const { data } = await sb.from("user_profiles").select("*").order("created_at");
-  const users = (data ?? []) as unknown as UserProfile[];
+  const admin = supabaseAdmin();
+
+  const [{ data: profileData }, { data: authList }] = await Promise.all([
+    sb.from("user_profiles").select("*").order("created_at"),
+    admin.auth.admin.listUsers({ perPage: 200 }),
+  ]);
+  const users = (profileData ?? []) as unknown as UserProfile[];
+
+  const authById: Record<string, AuthState> = {};
+  for (const u of authList?.users ?? []) {
+    authById[u.id] = {
+      invited_at: u.invited_at ?? null,
+      email_confirmed_at: u.email_confirmed_at ?? null,
+      last_sign_in_at: u.last_sign_in_at ?? null,
+    };
+  }
 
   const admins = users.filter((u) => u.is_admin).length;
+  const invitedPending = users.filter((u) => {
+    const a = authById[u.id];
+    return a && a.invited_at && !a.last_sign_in_at;
+  }).length;
+  const active = users.filter((u) => authById[u.id]?.last_sign_in_at).length;
 
   return (
     <div>
       <PageHeader title="Users & permissions" subtitle="Invite teammates, toggle granular permissions. Admins implicitly have all permissions." />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Users" value={String(users.length)} />
+        <Kpi label="Active" value={String(active)} hint="Have signed in" />
+        <Kpi label="Invited / pending" value={String(invitedPending)} hint="Haven't logged in yet" />
         <Kpi label="Admins" value={String(admins)} />
-        <Kpi label="Standard users" value={String(users.length - admins)} />
       </div>
 
       <div className="card mb-6">
@@ -119,7 +165,10 @@ export default async function UsersPage() {
               <input type="hidden" name="id" value={u.id} />
               <div className="flex items-center justify-between mb-3 gap-3">
                 <div className="min-w-0">
-                  <div className="font-medium truncate">{u.full_name || u.email}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium truncate">{u.full_name || u.email}</span>
+                    {(() => { const s = statusOf(authById[u.id] ?? null); return <span className={s.cls}>{s.label}</span>; })()}
+                  </div>
                   <div className="text-xs text-muted-fg truncate">{u.email}</div>
                 </div>
                 <label className="flex items-center gap-2 text-sm whitespace-nowrap">
@@ -158,6 +207,20 @@ export default async function UsersPage() {
                 <button className="btn-primary text-sm">Save permissions</button>
               </div>
             </form>
+
+            {/* Resend invite — shown when user is invited but hasn't signed in. Sibling form. */}
+            {(() => {
+              const a = authById[u.id];
+              const pending = a && a.invited_at && !a.last_sign_in_at;
+              if (!pending) return null;
+              return (
+                <form action={resendInvite} className="mt-3 pt-3 border-t border-border flex items-center gap-2">
+                  <input type="hidden" name="email" value={u.email} />
+                  <p className="text-xs text-muted-fg flex-1">User hasn&apos;t accepted the invite yet.</p>
+                  <button type="submit" className="btn-secondary text-xs">Resend invite</button>
+                </form>
+              );
+            })()}
 
             {/* Separate, sibling form for delete — never nested inside the permissions form. */}
             <details className="mt-3 pt-3 border-t border-border">

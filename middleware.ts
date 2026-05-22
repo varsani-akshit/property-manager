@@ -23,14 +23,17 @@ export async function middleware(req: NextRequest) {
   // to Supabase auth server). Page-level code re-verifies with getUser() when needed.
   const { data: { session } } = await supabase.auth.getSession();
   const path = req.nextUrl.pathname;
-  const isAuthPage = path === "/login";
+  // /auth/* handles the email-link redirect + set-password flow; let it through.
+  const isPublic = path === "/login" || path.startsWith("/auth/");
+  // set-password specifically needs a session, so don't block it like login.
+  const isLoginOnly = path === "/login";
 
-  if (!session && !isAuthPage) {
+  if (!session && !isPublic) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  if (session && isAuthPage) {
+  if (session && isLoginOnly) {
     const url = req.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
