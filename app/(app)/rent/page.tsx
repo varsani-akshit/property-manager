@@ -1,6 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
+import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { money, fmtDate, firstOfMonthISO } from "@/lib/format";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
@@ -49,31 +50,52 @@ async function markCollected(formData: FormData) {
   revalidatePath("/rent");
 }
 
-export default async function RentPage() {
+export default async function RentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ overdue_page?: string; soon_page?: string; collected_page?: string }>;
+}) {
   const profile = await guardView("view_rent");
+  const sp = await searchParams;
+  const overduePage = parsePage(sp.overdue_page);
+  const soonPage = parsePage(sp.soon_page);
+  const collectedPage = parsePage(sp.collected_page);
+
   const sb = await supabaseServer();
-  const monthStart = firstOfMonthISO(); // first of current month
+  const monthStart = firstOfMonthISO();
 
-  const { data: dueRows } = await sb
-    .from("rent_collections")
-    .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)")
-    .eq("status", "due")
-    .order("due_month", { ascending: true });
+  // Each section paginated independently with its own count.
+  const rangeFor = (p: number): [number, number] => [(p - 1) * PAGE_SIZE, p * PAGE_SIZE - 1];
 
-  const { data: collectedRows } = await sb
-    .from("rent_collections")
-    .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)")
-    .eq("status", "collected")
-    .order("collected_at", { ascending: false })
-    .limit(50);
+  const [overdueRes, soonRes, collectedRes, overdueSum, soonSum, collectedSum] = await Promise.all([
+    sb.from("rent_collections")
+      .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)", { count: "exact" })
+      .eq("status", "due")
+      .lt("due_month", monthStart)
+      .order("due_month", { ascending: true })
+      .range(...rangeFor(overduePage)),
+    sb.from("rent_collections")
+      .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)", { count: "exact" })
+      .eq("status", "due")
+      .gte("due_month", monthStart)
+      .order("due_month", { ascending: true })
+      .range(...rangeFor(soonPage)),
+    sb.from("rent_collections")
+      .select("id, due_month, gross_amount, service_charge_deduction, net_amount, status, collected_at, properties(name), leases(lessee_name, lessee_contact)", { count: "exact" })
+      .eq("status", "collected")
+      .order("collected_at", { ascending: false })
+      .range(...rangeFor(collectedPage)),
+    // Totals (no pagination)
+    sb.from("rent_collections").select("net_amount").eq("status", "due").lt("due_month", monthStart),
+    sb.from("rent_collections").select("net_amount").eq("status", "due").gte("due_month", monthStart),
+    sb.from("rent_collections").select("net_amount").eq("status", "collected"),
+  ]);
 
-  const due = (dueRows ?? []) as unknown as RentRow[];
-  const collected = (collectedRows ?? []) as unknown as RentRow[];
+  const sumOf = (rows: { net_amount: number }[] | null | undefined) => (rows ?? []).reduce((s, r) => s + Number(r.net_amount || 0), 0);
 
-  const outstanding = due.filter((r) => r.due_month < monthStart);   // past months still unpaid
-  const dueSoon     = due.filter((r) => r.due_month >= monthStart);  // current + future months
-
-  const sum = (arr: RentRow[]) => arr.reduce((s, r) => s + Number(r.net_amount || 0), 0);
+  const overdueTotalAmt = sumOf(overdueSum.data as any);
+  const soonTotalAmt = sumOf(soonSum.data as any);
+  const collectedTotalAmt = sumOf(collectedSum.data as any);
 
   return (
     <div>
@@ -89,34 +111,46 @@ export default async function RentPage() {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-        <Kpi label="Due soon" value={money(sum(dueSoon))} hint={`${dueSoon.length} row${dueSoon.length === 1 ? "" : "s"}`} />
-        <Kpi label="Outstanding (overdue)" value={money(sum(outstanding))} hint={`${outstanding.length} row${outstanding.length === 1 ? "" : "s"}`} />
-        <Kpi label="Collected (recent)" value={money(sum(collected))} hint={`Last ${collected.length}`} />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <Kpi label="Outstanding (overdue)" value={money(overdueTotalAmt)} hint={`${(overdueRes.count ?? 0).toLocaleString()} rows`} />
+        <Kpi label="Due soon" value={money(soonTotalAmt)} hint={`${(soonRes.count ?? 0).toLocaleString()} rows`} />
+        <Kpi label="Collected (total)" value={money(collectedTotalAmt)} hint={`${(collectedRes.count ?? 0).toLocaleString()} rows`} />
       </div>
 
       <Section
-        title={`Outstanding — overdue (${outstanding.length})`}
+        title="Outstanding — overdue"
+        rows={(overdueRes.data ?? []) as unknown as RentRow[]}
+        total={overdueRes.count ?? 0}
+        page={overduePage}
+        pageParam="overdue_page"
+        searchParams={sp}
         emptyText="Nothing overdue. 👌"
-        rows={outstanding}
         showMark={has(profile, "mark_rent")}
         markAction={markCollected}
         emphasizeStatus="overdue"
       />
 
       <Section
-        title={`Due soon — this month and upcoming (${dueSoon.length})`}
+        title="Due soon — this month and upcoming"
+        rows={(soonRes.data ?? []) as unknown as RentRow[]}
+        total={soonRes.count ?? 0}
+        page={soonPage}
+        pageParam="soon_page"
+        searchParams={sp}
         emptyText="Nothing due right now."
-        rows={dueSoon}
         showMark={has(profile, "mark_rent")}
         markAction={markCollected}
         emphasizeStatus="due_soon"
       />
 
       <Section
-        title={`Recently collected (${collected.length})`}
+        title="Collected"
+        rows={(collectedRes.data ?? []) as unknown as RentRow[]}
+        total={collectedRes.count ?? 0}
+        page={collectedPage}
+        pageParam="collected_page"
+        searchParams={sp}
         emptyText="No collections yet."
-        rows={collected}
         showMark={false}
         markAction={markCollected}
         emphasizeStatus="collected"
@@ -127,10 +161,14 @@ export default async function RentPage() {
 }
 
 function Section({
-  title, rows, emptyText, showMark, markAction, emphasizeStatus, showCollectedAt,
+  title, rows, total, page, pageParam, searchParams, emptyText, showMark, markAction, emphasizeStatus, showCollectedAt,
 }: {
   title: string;
   rows: RentRow[];
+  total: number;
+  page: number;
+  pageParam: string;
+  searchParams: Record<string, string | undefined>;
   emptyText: string;
   showMark: boolean;
   markAction: (fd: FormData) => Promise<void>;
@@ -143,8 +181,11 @@ function Section({
     "badge-success";
 
   return (
-    <div className="card mb-6">
-      <h2 className="font-semibold mb-3">{title}</h2>
+    <div className="card mb-6 p-0">
+      <div className="flex items-center justify-between px-3 py-3 border-b border-border">
+        <h2 className="font-semibold">{title}</h2>
+        <span className="text-xs text-muted-fg">{total.toLocaleString()} row{total === 1 ? "" : "s"}</span>
+      </div>
       <table className="table">
         <thead>
           <tr>
@@ -187,6 +228,7 @@ function Section({
           {!rows.length && <tr><td colSpan={showMark ? 9 : 8} className="text-center text-muted-fg py-6">{emptyText}</td></tr>}
         </tbody>
       </table>
+      <Pagination page={page} total={total} paramName={pageParam} searchParams={searchParams} label="rows" />
     </div>
   );
 }

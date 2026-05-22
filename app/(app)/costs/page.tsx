@@ -1,6 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
+import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { money, fmtDate, firstOfMonthISO } from "@/lib/format";
 import Link from "next/link";
 import { has } from "@/lib/permissions";
@@ -30,25 +31,42 @@ async function deleteCost(formData: FormData) {
   revalidatePath("/costs");
 }
 
-export default async function CostsPage() {
+export default async function CostsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const profile = await guardView("view_costs");
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   const sb = await supabaseServer();
-
-  const { data } = await sb
-    .from("costs")
-    .select("id, description, category, amount, incurred_on, is_auto_service_charge, cost_allocations(allocated_amount, properties(id, name))")
-    .order("incurred_on", { ascending: false })
-    .limit(200);
-
-  const arr = (data ?? []) as unknown as CostRow[];
-  const month = firstOfMonthISO();
   const ytdStart = `${new Date().getFullYear()}-01-01`;
-  const totalThisMonth = arr.filter((c) => c.incurred_on >= month).reduce((s, c) => s + Number(c.amount), 0);
-  const totalYTD = arr.filter((c) => c.incurred_on >= ytdStart).reduce((s, c) => s + Number(c.amount), 0);
+  const month = firstOfMonthISO();
+
+  // Paginated page rows + aggregate KPIs computed over the entire YTD.
+  const [pageRes, ytdSummary, monthSummary] = await Promise.all([
+    sb.from("costs")
+      .select("id, description, category, amount, incurred_on, is_auto_service_charge, cost_allocations(allocated_amount, properties(id, name))", { count: "exact" })
+      .order("incurred_on", { ascending: false })
+      .range(from, to),
+    sb.from("costs").select("amount, category, incurred_on").gte("incurred_on", ytdStart),
+    sb.from("costs").select("amount").gte("incurred_on", month),
+  ]);
+
+  const arr = (pageRes.data ?? []) as unknown as CostRow[];
+  const total = pageRes.count ?? 0;
+
+  const ytd = ytdSummary.data ?? [];
+  const totalYTD = ytd.reduce((s, c) => s + Number((c as { amount: number }).amount), 0);
+  const totalThisMonth = (monthSummary.data ?? []).reduce((s, c) => s + Number((c as { amount: number }).amount), 0);
 
   const byCategory: Record<string, number> = {};
-  for (const c of arr) {
-    if (c.incurred_on >= ytdStart) byCategory[c.category] = (byCategory[c.category] ?? 0) + Number(c.amount);
+  for (const c of ytd) {
+    const row = c as { amount: number; category: string };
+    byCategory[row.category] = (byCategory[row.category] ?? 0) + Number(row.amount);
   }
   const topCat = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
 
@@ -63,7 +81,7 @@ export default async function CostsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Costs this month" value={money(totalThisMonth)} />
         <Kpi label="Costs YTD" value={money(totalYTD)} />
-        <Kpi label="Total entries (shown)" value={String(arr.length)} />
+        <Kpi label="Total entries" value={total.toLocaleString()} />
         <Kpi label="Top category YTD" value={topCat ? topCat[0] : "—"} hint={topCat ? money(topCat[1]) : undefined} />
       </div>
 
@@ -109,6 +127,7 @@ export default async function CostsPage() {
             {!arr.length && <tr><td colSpan={6} className="text-center text-muted-fg py-8">No costs yet.</td></tr>}
           </tbody>
         </table>
+        <Pagination page={page} total={total} label="costs" />
       </div>
     </div>
   );

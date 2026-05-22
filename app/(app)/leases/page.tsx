@@ -1,6 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
+import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { money, fmtDate } from "@/lib/format";
 import { guardView } from "@/lib/guard";
 import { has } from "@/lib/permissions";
@@ -29,25 +30,41 @@ function propertyOf(l: LeaseRow): { id: string; name: string; compounds: { name:
   return Array.isArray(l.properties) ? l.properties[0] : l.properties;
 }
 
-export default async function LeasesPage() {
+export default async function LeasesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const profile = await guardView("view_leases");
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   const sb = await supabaseServer();
 
-  const { data } = await sb
-    .from("leases")
-    .select("id, active, lessee_name, lessee_contact, start_date, end_date, gross_rent_monthly, properties(id, name, compounds(name))")
-    .order("active", { ascending: false })
-    .order("start_date", { ascending: false });
+  // Page of leases + aggregate summary across all leases.
+  const [pageRes, activeSummary] = await Promise.all([
+    sb.from("leases")
+      .select("id, active, lessee_name, lessee_contact, start_date, end_date, gross_rent_monthly, properties(id, name, compounds(name))", { count: "exact" })
+      .order("active", { ascending: false })
+      .order("start_date", { ascending: false })
+      .range(from, to),
+    sb.from("leases").select("id, end_date, gross_rent_monthly, active").eq("active", true),
+  ]);
 
-  const arr = (data ?? []) as unknown as LeaseRow[];
-  const active = arr.filter((l) => l.active);
+  const arr = (pageRes.data ?? []) as unknown as LeaseRow[];
+  const total = pageRes.count ?? 0;
+  const active = (activeSummary.data ?? []) as Array<{ end_date: string; gross_rent_monthly: number }>;
   const monthlyRent = active.reduce((s, l) => s + Number(l.gross_rent_monthly || 0), 0);
   const now = Date.now();
   const expiring60 = active.filter((l) => {
     const d = (new Date(l.end_date).getTime() - now) / 86400000;
     return d >= 0 && d <= 60;
   }).length;
-  const expired = arr.filter((l) => !l.active).length;
+
+  // Past leases = total - active count
+  const past = total - active.length;
 
   return (
     <div>
@@ -60,7 +77,7 @@ export default async function LeasesPage() {
         <Kpi label="Active leases" value={String(active.length)} />
         <Kpi label="Monthly rent (gross)" value={money(monthlyRent)} />
         <Kpi label="Expiring ≤ 60 days" value={String(expiring60)} />
-        <Kpi label="Past leases" value={String(expired)} />
+        <Kpi label="Past leases" value={String(past)} />
       </div>
 
       <div className="card p-0">
@@ -98,6 +115,7 @@ export default async function LeasesPage() {
             {!arr.length && <tr><td colSpan={8} className="text-center text-muted-fg py-8">No leases yet.</td></tr>}
           </tbody>
         </table>
+        <Pagination page={page} total={total} label="leases" />
       </div>
     </div>
   );

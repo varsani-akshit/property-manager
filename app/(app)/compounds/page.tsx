@@ -1,6 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
+import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import Link from "next/link";
 import { has } from "@/lib/permissions";
 import { guardView } from "@/lib/guard";
@@ -9,20 +10,35 @@ import { Plus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function CompoundsPage() {
+export default async function CompoundsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const profile = await guardView("view_compounds");
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   const sb = await supabaseServer();
 
-  const [{ data: compounds }, { data: summary }] = await Promise.all([
-    sb.from("compounds").select("id, name, address, properties(count)").order("name"),
+  const [pageRes, summary] = await Promise.all([
+    sb.from("compounds")
+      .select("id, name, address, properties(count)", { count: "exact" })
+      .order("name")
+      .range(from, to),
     sb.from("v_property_summary").select("compound_id, valuation, area_sqft, total_rent_collected, total_costs"),
   ]);
 
+  const compounds = pageRes.data ?? [];
+  const total = pageRes.count ?? 0;
+
   const byCompound: Record<string, { valuation: number; sqft: number; collected: number; costs: number; count: number }> = {};
-  for (const p of summary ?? []) {
-    const k = (p as { compound_id: string }).compound_id;
-    byCompound[k] ??= { valuation: 0, sqft: 0, collected: 0, costs: 0, count: 0 };
+  for (const p of summary.data ?? []) {
     const row = p as { compound_id: string; valuation: number; area_sqft: number; total_rent_collected: number; total_costs: number };
+    const k = row.compound_id;
+    byCompound[k] ??= { valuation: 0, sqft: 0, collected: 0, costs: 0, count: 0 };
     byCompound[k].valuation += Number(row.valuation || 0);
     byCompound[k].sqft += Number(row.area_sqft || 0);
     byCompound[k].collected += Number(row.total_rent_collected || 0);
@@ -30,9 +46,9 @@ export default async function CompoundsPage() {
     byCompound[k].count += 1;
   }
 
-  const totalProps = (summary ?? []).length;
-  const totalValuation = (summary ?? []).reduce((s: number, r) => s + Number((r as { valuation: number }).valuation || 0), 0);
-  const totalSqft = (summary ?? []).reduce((s: number, r) => s + Number((r as { area_sqft: number }).area_sqft || 0), 0);
+  const totalProps = (summary.data ?? []).length;
+  const totalValuation = (summary.data ?? []).reduce((s, r) => s + Number((r as { valuation: number }).valuation || 0), 0);
+  const totalSqft = (summary.data ?? []).reduce((s, r) => s + Number((r as { area_sqft: number }).area_sqft || 0), 0);
 
   return (
     <div>
@@ -47,7 +63,7 @@ export default async function CompoundsPage() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Kpi label="Compounds" value={String(compounds?.length ?? 0)} />
+        <Kpi label="Compounds" value={String(total)} />
         <Kpi label="Properties" value={String(totalProps)} />
         <Kpi label="Portfolio sqft" value={totalSqft.toLocaleString()} />
         <Kpi label="Portfolio valuation" value={money(totalValuation)} />
@@ -65,7 +81,7 @@ export default async function CompoundsPage() {
             </tr>
           </thead>
           <tbody>
-            {compounds?.map((c) => {
+            {compounds.map((c) => {
               const s = byCompound[c.id] ?? { valuation: 0, sqft: 0, collected: 0, costs: 0, count: 0 };
               return (
                 <tr key={c.id}>
@@ -84,11 +100,12 @@ export default async function CompoundsPage() {
                 </tr>
               );
             })}
-            {!compounds?.length && (
+            {!compounds.length && (
               <tr><td colSpan={6} className="text-center text-muted-fg py-8">No compounds yet.</td></tr>
             )}
           </tbody>
         </table>
+        <Pagination page={page} total={total} label="compounds" />
       </div>
     </div>
   );

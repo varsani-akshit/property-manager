@@ -1,6 +1,7 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
+import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import Link from "next/link";
 import { has } from "@/lib/permissions";
 import { guardView } from "@/lib/guard";
@@ -25,21 +26,36 @@ function compoundName(c: PropertyRow["compounds"]): string {
   return Array.isArray(c) ? c[0]?.name ?? "" : c.name;
 }
 
-export default async function PropertiesPage() {
+export default async function PropertiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   const profile = await guardView("view_properties");
+  const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
+
   const sb = await supabaseServer();
 
-  const { data: props } = await sb
-    .from("properties")
-    .select("id, name, area_sqft, valuation, service_charge_monthly, archived, compounds(name), leases(id, active, lessee_name, gross_rent_monthly)")
-    .eq("archived", false)
-    .order("name");
+  // Page of rows (with count) + a separate summary that aggregates ALL active properties.
+  const [pageRes, summaryRes] = await Promise.all([
+    sb.from("properties")
+      .select("id, name, area_sqft, valuation, service_charge_monthly, archived, compounds(name), leases(id, active, lessee_name, gross_rent_monthly)", { count: "exact" })
+      .eq("archived", false)
+      .order("name")
+      .range(from, to),
+    sb.from("v_property_summary").select("area_sqft, valuation, active_lease_count, current_gross_rent").eq("archived", false),
+  ]);
 
-  const arr = (props ?? []) as unknown as PropertyRow[];
-  const totalSqft = arr.reduce((s, p) => s + Number(p.area_sqft || 0), 0);
-  const totalValuation = arr.reduce((s, p) => s + Number(p.valuation || 0), 0);
-  const occupied = arr.filter((p) => p.leases?.some((l) => l.active)).length;
-  const monthlyRent = arr.reduce((s, p) => s + Number(p.leases?.find((l) => l.active)?.gross_rent_monthly ?? 0), 0);
+  const arr = (pageRes.data ?? []) as unknown as PropertyRow[];
+  const total = pageRes.count ?? 0;
+  const summary = summaryRes.data ?? [];
+  const totalSqft = summary.reduce((s, p) => s + Number((p as { area_sqft: number }).area_sqft || 0), 0);
+  const totalValuation = summary.reduce((s, p) => s + Number((p as { valuation: number }).valuation || 0), 0);
+  const occupied = summary.filter((p) => Number((p as { active_lease_count: number }).active_lease_count) > 0).length;
+  const monthlyRent = summary.reduce((s, p) => s + Number((p as { current_gross_rent: number | null }).current_gross_rent || 0), 0);
 
   return (
     <div>
@@ -53,7 +69,7 @@ export default async function PropertiesPage() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Kpi label="Properties" value={String(arr.length)} hint={`${occupied} occupied · ${arr.length - occupied} vacant`} />
+        <Kpi label="Properties" value={String(summary.length)} hint={`${occupied} occupied · ${summary.length - occupied} vacant`} />
         <Kpi label="Total sqft" value={totalSqft.toLocaleString()} />
         <Kpi label="Total valuation" value={money(totalValuation)} />
         <Kpi label="Monthly rent (gross)" value={money(monthlyRent)} />
@@ -98,6 +114,7 @@ export default async function PropertiesPage() {
             {!arr.length && <tr><td colSpan={9} className="text-center text-muted-fg py-8">No properties yet.</td></tr>}
           </tbody>
         </table>
+        <Pagination page={page} total={total} label="properties" />
       </div>
     </div>
   );

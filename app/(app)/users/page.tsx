@@ -8,6 +8,7 @@ import { guardView } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { fmtDate } from "@/lib/format";
+import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -109,26 +110,31 @@ function statusOf(s: AuthState | null): { label: string; cls: string } {
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; page?: string }>;
 }) {
   await guardView("view_dashboard"); // /users is gated below by manage_users
   await requirePermission("manage_users");
 
-  const { error: flashError, ok: flashOk } = await searchParams;
+  const sp = await searchParams;
+  const { error: flashError, ok: flashOk } = sp;
+  const page = parsePage(sp.page);
+  const from = (page - 1) * PAGE_SIZE;
+  const to = from + PAGE_SIZE - 1;
 
   const sb = await supabaseServer();
   const admin = supabaseAdmin();
 
-  const [{ data: profileData }, authResult] = await Promise.all([
-    sb.from("user_profiles").select("*").order("created_at"),
-    // Wrap admin call: if Supabase is rate limiting or otherwise erroring,
-    // we still want to render the page with the basic profile list.
+  const [pageRes, summaryRes, authResult] = await Promise.all([
+    sb.from("user_profiles").select("*", { count: "exact" }).order("created_at").range(from, to),
+    sb.from("user_profiles").select("id, is_admin"),
     admin.auth.admin.listUsers({ perPage: 200 }).catch((e: Error) => {
       console.error("listUsers failed:", e.message);
       return { data: { users: [] }, error: e } as any;
     }),
   ]);
-  const users = (profileData ?? []) as unknown as UserProfile[];
+  const users = (pageRes.data ?? []) as unknown as UserProfile[];
+  const total = pageRes.count ?? 0;
+  const allProfiles = (summaryRes.data ?? []) as Array<{ id: string; is_admin: boolean }>;
 
   const authById: Record<string, AuthState> = {};
   for (const u of authResult?.data?.users ?? []) {
@@ -139,12 +145,13 @@ export default async function UsersPage({
     };
   }
 
-  const admins = users.filter((u) => u.is_admin).length;
-  const invitedPending = users.filter((u) => {
+  // KPIs computed across the whole user base (not the current page).
+  const admins = allProfiles.filter((u) => u.is_admin).length;
+  const invitedPending = allProfiles.filter((u) => {
     const a = authById[u.id];
     return a && a.invited_at && !a.last_sign_in_at;
   }).length;
-  const active = users.filter((u) => authById[u.id]?.last_sign_in_at).length;
+  const active = allProfiles.filter((u) => authById[u.id]?.last_sign_in_at).length;
 
   return (
     <div>
@@ -167,7 +174,7 @@ export default async function UsersPage({
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Kpi label="Users" value={String(users.length)} />
+        <Kpi label="Users" value={String(total)} />
         <Kpi label="Active" value={String(active)} hint="Have signed in" />
         <Kpi label="Invited / pending" value={String(invitedPending)} hint="Haven't logged in yet" />
         <Kpi label="Admins" value={String(admins)} />
@@ -269,6 +276,10 @@ export default async function UsersPage({
             </details>
           </div>
         ))}
+      </div>
+
+      <div className="mt-4 card p-0">
+        <Pagination page={page} total={total} label="users" searchParams={sp as Record<string, string | undefined>} />
       </div>
     </div>
   );

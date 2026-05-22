@@ -1,18 +1,29 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
+import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { money, fmtDate } from "@/lib/format";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
-import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-export default async function PropertyDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PropertyDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ rent_page?: string; cost_page?: string; lease_page?: string }>;
+}) {
   const { id } = await params;
+  const sp = await searchParams;
+  const rentPage = parsePage(sp.rent_page);
+  const costPage = parsePage(sp.cost_page);
+  const leasePage = parsePage(sp.lease_page);
+
   const profile = await guardView("view_properties");
   const sb = await supabaseServer();
 
@@ -23,16 +34,35 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
     .maybeSingle();
   if (!prop) notFound();
 
-  const [{ data: activeLease }, { data: leaseHistory }, { data: rents }, { data: allocs }] = await Promise.all([
+  const rangeFor = (p: number): [number, number] => [(p - 1) * PAGE_SIZE, p * PAGE_SIZE - 1];
+
+  const [
+    { data: activeLease },
+    rentsPageRes,
+    allocsPageRes,
+    leasesPageRes,
+    rentTotalsRes,
+    costTotalsRes,
+  ] = await Promise.all([
     sb.from("leases").select("*").eq("property_id", id).eq("active", true).maybeSingle(),
-    sb.from("leases").select("*").eq("property_id", id).order("start_date", { ascending: false }),
-    sb.from("rent_collections").select("*").eq("property_id", id).order("due_month", { ascending: false }),
-    sb.from("cost_allocations").select("allocated_amount, costs(description, category, incurred_on)").eq("property_id", id),
+    sb.from("rent_collections").select("*", { count: "exact" }).eq("property_id", id).order("due_month", { ascending: false }).range(...rangeFor(rentPage)),
+    sb.from("cost_allocations").select("allocated_amount, costs(description, category, incurred_on)", { count: "exact" }).eq("property_id", id).order("created_at", { ascending: false }).range(...rangeFor(costPage)),
+    sb.from("leases").select("*", { count: "exact" }).eq("property_id", id).order("start_date", { ascending: false }).range(...rangeFor(leasePage)),
+    // Totals across ALL rent + cost rows (not paginated).
+    sb.from("rent_collections").select("status, net_amount").eq("property_id", id),
+    sb.from("cost_allocations").select("allocated_amount").eq("property_id", id),
   ]);
 
-  const collected = (rents ?? []).filter((r) => r.status === "collected").reduce((s, r) => s + Number(r.net_amount), 0);
-  const dueOutstanding = (rents ?? []).filter((r) => r.status === "due").reduce((s, r) => s + Number(r.net_amount), 0);
-  const totalCosts = (allocs ?? []).reduce((s: number, a: any) => s + Number(a.allocated_amount), 0);
+  const rentRows = rentsPageRes.data ?? [];
+  const rentTotal = rentsPageRes.count ?? 0;
+  const allocsRows = (allocsPageRes.data ?? []) as any[];
+  const costTotal = allocsPageRes.count ?? 0;
+  const leases = leasesPageRes.data ?? [];
+  const leaseTotal = leasesPageRes.count ?? 0;
+
+  const collected = (rentTotalsRes.data ?? []).filter((r) => (r as any).status === "collected").reduce((s: number, r) => s + Number((r as any).net_amount), 0);
+  const dueOutstanding = (rentTotalsRes.data ?? []).filter((r) => (r as any).status === "due").reduce((s: number, r) => s + Number((r as any).net_amount), 0);
+  const totalCosts = (costTotalsRes.data ?? []).reduce((s: number, a) => s + Number((a as any).allocated_amount), 0);
   const net = collected - totalCosts;
   const returnPct = prop.valuation > 0 ? ((net / Number(prop.valuation)) * 100).toFixed(2) : "—";
 
@@ -86,7 +116,7 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
           {activeLease ? (
             <dl className="text-sm space-y-1">
               <div className="flex justify-between"><dt className="text-muted-fg">Lessee</dt><dd>{activeLease.lessee_name}</dd></div>
-              <div className="flex justify-between"><dt className="text-muted-fg">Contact</dt><dd>{activeLease.lessee_contact}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted-fg">Contact</dt><dd>{activeLease.lessee_contact || "—"}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-fg">Start</dt><dd>{fmtDate(activeLease.start_date)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-fg">End</dt><dd>{fmtDate(activeLease.end_date)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted-fg">Gross rent</dt><dd>{money(activeLease.gross_rent_monthly)}</dd></div>
@@ -121,30 +151,37 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
           )}
         </div>
 
-        <div className="card">
-          <h2 className="font-semibold mb-3">Rent history</h2>
+        <div className="card p-0">
+          <div className="flex items-center justify-between px-3 py-3 border-b border-border">
+            <h2 className="font-semibold">Rent history</h2>
+            <span className="text-xs text-muted-fg">{rentTotal.toLocaleString()} row{rentTotal === 1 ? "" : "s"}</span>
+          </div>
           <table className="table">
             <thead><tr><th>Month</th><th>Status</th><th className="text-right">Net</th></tr></thead>
             <tbody>
-              {(rents ?? []).slice(0, 12).map((r: any) => (
+              {rentRows.map((r: any) => (
                 <tr key={r.id}>
                   <td>{fmtDate(r.due_month)}</td>
                   <td>{r.status === "collected" ? <span className="badge-success">Collected</span> : <span className="badge-warning">Due</span>}</td>
                   <td className="text-right">{money(r.net_amount)}</td>
                 </tr>
               ))}
-              {!rents?.length && <tr><td colSpan={3} className="text-muted-fg text-center py-4">No rent history yet.</td></tr>}
+              {!rentRows.length && <tr><td colSpan={3} className="text-muted-fg text-center py-4">No rent history yet.</td></tr>}
             </tbody>
           </table>
+          <Pagination page={rentPage} total={rentTotal} paramName="rent_page" searchParams={sp} label="months" />
         </div>
       </div>
 
-      <div className="card mt-6">
-        <h2 className="font-semibold mb-3">Cost history</h2>
+      <div className="card mt-6 p-0">
+        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
+          <h2 className="font-semibold">Cost history</h2>
+          <span className="text-xs text-muted-fg">{costTotal.toLocaleString()} row{costTotal === 1 ? "" : "s"}</span>
+        </div>
         <table className="table">
           <thead><tr><th>Date</th><th>Description</th><th>Category</th><th className="text-right">Allocated</th></tr></thead>
           <tbody>
-            {(allocs ?? []).map((a: any, i) => (
+            {allocsRows.map((a, i) => (
               <tr key={i}>
                 <td>{fmtDate(a.costs?.incurred_on)}</td>
                 <td>{a.costs?.description}</td>
@@ -152,17 +189,21 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
                 <td className="text-right">{money(a.allocated_amount)}</td>
               </tr>
             ))}
-            {!allocs?.length && <tr><td colSpan={4} className="text-muted-fg text-center py-4">No costs allocated yet.</td></tr>}
+            {!allocsRows.length && <tr><td colSpan={4} className="text-muted-fg text-center py-4">No costs allocated yet.</td></tr>}
           </tbody>
         </table>
+        <Pagination page={costPage} total={costTotal} paramName="cost_page" searchParams={sp} label="entries" />
       </div>
 
-      <div className="card mt-6">
-        <h2 className="font-semibold mb-3">Lease history</h2>
+      <div className="card mt-6 p-0">
+        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
+          <h2 className="font-semibold">Lease history</h2>
+          <span className="text-xs text-muted-fg">{leaseTotal.toLocaleString()} lease{leaseTotal === 1 ? "" : "s"}</span>
+        </div>
         <table className="table">
           <thead><tr><th>Lessee</th><th>Start</th><th>End</th><th>Status</th><th className="text-right">Rent</th></tr></thead>
           <tbody>
-            {(leaseHistory ?? []).map((l: any) => (
+            {leases.map((l: any) => (
               <tr key={l.id}>
                 <td>{l.lessee_name}</td>
                 <td>{fmtDate(l.start_date)}</td>
@@ -171,9 +212,10 @@ export default async function PropertyDetailPage({ params }: { params: Promise<{
                 <td className="text-right">{money(l.gross_rent_monthly)}</td>
               </tr>
             ))}
-            {!leaseHistory?.length && <tr><td colSpan={5} className="text-muted-fg text-center py-4">No leases yet.</td></tr>}
+            {!leases.length && <tr><td colSpan={5} className="text-muted-fg text-center py-4">No leases yet.</td></tr>}
           </tbody>
         </table>
+        <Pagination page={leasePage} total={leaseTotal} paramName="lease_page" searchParams={sp} label="leases" />
       </div>
     </div>
   );
