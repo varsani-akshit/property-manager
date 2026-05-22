@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+
+# build
+.next/
+out/
+build/
+dist/
+
+# env — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# misc
+.DS_Store
+*.pem
+.vercel
+.turbo
+.idea
+.vscode
+*.tsbuildinfo
+next-env.d.ts
+
+# seed artifacts (contain real property data)
+scripts/seed_data.json
