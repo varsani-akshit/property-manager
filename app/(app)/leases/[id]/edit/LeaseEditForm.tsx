@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { money } from "@/lib/format";
+import { DriveUpload } from "@/components/DriveUpload";
 
 export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: FormData) => Promise<void> }) {
   const sc = Number(lease.properties?.service_charge_monthly || 0);
@@ -41,9 +42,14 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
             onChange={(e) => setGross(Number(e.target.value))}
           />
         </div>
-        <div>
-          <label className="label">Lessee document URL</label>
-          <input name="lessee_doc_url" type="url" className="input" defaultValue={lease.lessee_doc_url ?? ""} />
+        <div className="col-span-2">
+          <DriveUpload
+            name="lessee_doc_url"
+            kind="lease-doc"
+            slug={lease.lessee_name}
+            initialUrl={lease.lessee_doc_url}
+            label="Lessee document"
+          />
         </div>
       </div>
 

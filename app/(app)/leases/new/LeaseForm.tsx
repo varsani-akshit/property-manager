@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money } from "@/lib/format";
+import { DriveUpload } from "@/components/DriveUpload";
 
 type Property = {
   id: string;
@@ -91,9 +92,8 @@ export function LeaseForm({
             onChange={(e) => setGross(Number(e.target.value))}
           />
         </div>
-        <div>
-          <label className="label">Lessee document (Google Drive URL)</label>
-          <input name="lessee_doc_url" type="url" className="input" />
+        <div className="col-span-2">
+          <DriveUpload name="lessee_doc_url" kind="lease-doc" label="Lessee document" />
         </div>
       </div>
 
