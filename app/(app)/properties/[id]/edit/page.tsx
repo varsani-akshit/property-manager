@@ -20,17 +20,38 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
     "use server";
     await requirePermission("edit_property");
     const sb = await supabaseServer();
+    const newSC = Number(formData.get("service_charge_monthly") || 0);
+
     const { error } = await sb.from("properties").update({
       compound_id: String(formData.get("compound_id")),
       name: String(formData.get("name") || "").trim(),
       area_sqft: Number(formData.get("area_sqft")),
       valuation: Number(formData.get("valuation") || 0),
-      service_charge_monthly: Number(formData.get("service_charge_monthly") || 0),
+      service_charge_monthly: newSC,
       service_charge_start_date: String(formData.get("service_charge_start_date") || "") || null,
       deed_url: String(formData.get("deed_url") || "").trim() || null,
       notes: String(formData.get("notes") || "").trim() || null,
     }).eq("id", id);
     if (error) throw new Error(error.message);
+
+    if (newSC === 0) {
+      // Property no longer has SC — clear future pending/lessee_direct SC rows for this property.
+      const today = new Date().toISOString().slice(0, 10);
+      await sb.from("service_charges")
+        .delete()
+        .eq("property_id", id)
+        .in("status", ["pending", "lessee_direct"])
+        .gte("due_month", today);
+    } else {
+      // Update pending rows to new amount (paid ones stay frozen as historical).
+      const today = new Date().toISOString().slice(0, 10);
+      await sb.from("service_charges")
+        .update({ amount: newSC })
+        .eq("property_id", id)
+        .in("status", ["pending", "lessee_direct"])
+        .gte("due_month", today);
+    }
+
     redirect(`/properties/${id}`);
   }
 

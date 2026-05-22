@@ -27,11 +27,12 @@ export function LeaseForm({
 }) {
   const [propertyId, setPropertyId] = useState(preselect || properties[0]?.id || "");
   const [gross, setGross] = useState<number>(0);
-  const [lesseePaysSC, setLesseePaysSC] = useState(false);
+  const [scMode, setScMode] = useState<"we_pay" | "lessee_direct">("we_pay");
 
   const selected = useMemo(() => properties.find((p) => p.id === propertyId), [propertyId, properties]);
   const sc = Number(selected?.service_charge_monthly || 0);
-  const net = lesseePaysSC ? gross - sc : gross;
+  const deduction = scMode === "lessee_direct" ? 0 : sc;
+  const net = gross - deduction;
 
   if (!properties.length) {
     return (
@@ -97,23 +98,43 @@ export function LeaseForm({
         </div>
       </div>
 
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          name="lessee_pays_service_charge"
-          checked={lesseePaysSC}
-          onChange={(e) => setLesseePaysSC(e.target.checked)}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="font-medium">Lessee pays the service charge</span>
-          <span className="block text-muted-fg text-xs">
-            Service charge is still posted as a company cost; net rent we receive each month is reduced by {money(sc)}.
-          </span>
-        </span>
-      </label>
+      <div>
+        <label className="label">Service charge handling</label>
+        {sc <= 0 ? (
+          <p className="text-xs text-muted-fg">
+            This property has no service charge configured, so this setting doesn&apos;t apply.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {[
+              { v: "we_pay",        title: "We pay the service charge",                  sub: `Net rent we receive: ${money(net)} (gross ${money(gross)} − SC ${money(sc)}). SC appears in the Service Charges tab as 'pending' for those months — mark paid when paid.` },
+              { v: "lessee_direct", title: "Lessee pays the service charge directly",     sub: `Lessee pays SC straight to the provider. Net rent we receive: ${money(gross)} (no deduction). SC rows for those months are tagged 'lessee direct' (off our pending list).` },
+            ].map((opt) => (
+              <label
+                key={opt.v}
+                className={`block rounded-md border p-3 cursor-pointer text-sm ${scMode === opt.v ? "border-accent bg-accent/5" : "border-border hover:bg-muted/50"}`}
+              >
+                <div className="flex items-start gap-2">
+                  <input
+                    type="radio"
+                    name="sc_payment_mode"
+                    value={opt.v}
+                    checked={scMode === opt.v}
+                    onChange={() => setScMode(opt.v as typeof scMode)}
+                    className="mt-1"
+                  />
+                  <div>
+                    <div className="font-medium">{opt.title}</div>
+                    <div className="text-xs text-muted-fg">{opt.sub}</div>
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
 
-      {selected && (
+      {selected && sc > 0 && (
         <div className="rounded-md bg-muted p-3 text-sm space-y-1">
           <div className="flex justify-between"><span>Service charge / mo</span><span>{money(sc)}</span></div>
           <div className="flex justify-between"><span>Gross rent / mo</span><span>{money(gross)}</span></div>

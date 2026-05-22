@@ -23,24 +23,27 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
     const sb = await supabaseServer();
 
     const newGross = Number(formData.get("gross_rent_monthly"));
-    const lesseePaysSC = formData.get("lessee_pays_service_charge") === "on";
+    const scMode = String(formData.get("sc_payment_mode") || "we_pay");
+    const startDate = String(formData.get("start_date"));
+    const endDate = String(formData.get("end_date"));
+    const property_id = (lease as { property_id: string }).property_id;
 
     const { error } = await sb.from("leases").update({
       lessee_name: String(formData.get("lessee_name") || "").trim(),
       lessee_contact: String(formData.get("lessee_contact") || "").trim() || null,
       lessee_doc_url: String(formData.get("lessee_doc_url") || "").trim() || null,
-      start_date: String(formData.get("start_date")),
-      end_date: String(formData.get("end_date")),
+      start_date: startDate,
+      end_date: endDate,
       gross_rent_monthly: newGross,
-      lessee_pays_service_charge: lesseePaysSC,
+      sc_payment_mode: scMode,
+      lessee_pays_service_charge: scMode !== "lessee_direct",
     }).eq("id", id);
     if (error) throw new Error(error.message);
 
-    // Re-sync uncollected future rent rows: rate change applies going forward.
-    // Collected rows and past-due (overdue) rows keep their original amount.
+    // Re-sync future uncollected rent rows with new math.
     const today = new Date().toISOString().slice(0, 10);
     const sc = Number((lease as { properties?: { service_charge_monthly?: number } }).properties?.service_charge_monthly ?? 0);
-    const deduction = lesseePaysSC ? sc : 0;
+    const deduction = scMode === "lessee_direct" ? 0 : sc;
     const netAmount = newGross - deduction;
     await sb.from("rent_collections").update({
       gross_amount: newGross,
@@ -48,7 +51,30 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
       net_amount: netAmount,
     }).eq("lease_id", id).eq("status", "due").gt("due_date", today);
 
-    redirect(`/properties/${lease.property_id}`);
+    // Re-sync future service_charges rows for the lease months.
+    if (sc > 0) {
+      const startMonth = startDate.slice(0, 7) + "-01";
+      const endMonth = endDate.slice(0, 7) + "-01";
+      if (scMode === "lessee_direct") {
+        // Move any pending future SC rows in this lease's months to lessee_direct.
+        await sb.from("service_charges")
+          .update({ status: "lessee_direct" })
+          .eq("property_id", property_id)
+          .eq("status", "pending")
+          .gte("due_month", startMonth)
+          .lte("due_month", endMonth);
+      } else {
+        // Move any lessee_direct rows back to pending (we_pay mode).
+        await sb.from("service_charges")
+          .update({ status: "pending" })
+          .eq("property_id", property_id)
+          .eq("status", "lessee_direct")
+          .gte("due_month", startMonth)
+          .lte("due_month", endMonth);
+      }
+    }
+
+    redirect(`/properties/${property_id}`);
   }
 
   return (

@@ -24,6 +24,7 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
     const sb = await supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
     const property_id = String(formData.get("property_id"));
+    const sc_payment_mode = String(formData.get("sc_payment_mode") || "we_pay");
     const payload = {
       property_id,
       lessee_name: String(formData.get("lessee_name") || "").trim(),
@@ -32,11 +33,27 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
       start_date: String(formData.get("start_date")),
       end_date: String(formData.get("end_date")),
       gross_rent_monthly: Number(formData.get("gross_rent_monthly")),
-      lessee_pays_service_charge: formData.get("lessee_pays_service_charge") === "on",
+      sc_payment_mode,
+      // legacy boolean kept in sync for any older code paths
+      lessee_pays_service_charge: sc_payment_mode !== "lessee_direct",
       created_by: user?.id,
     };
     const { error } = await sb.from("leases").insert(payload);
     if (error) throw new Error(error.message);
+
+    // Mark SC rows for this lease period as lessee_direct if applicable
+    if (sc_payment_mode === "lessee_direct") {
+      await sb.rpc("daily_worker"); // ensure rows exist
+      const startMonth = String(formData.get("start_date")).slice(0, 7) + "-01";
+      const endMonth = String(formData.get("end_date")).slice(0, 7) + "-01";
+      await sb.from("service_charges")
+        .update({ status: "lessee_direct" })
+        .eq("property_id", property_id)
+        .eq("status", "pending")
+        .gte("due_month", startMonth)
+        .lte("due_month", endMonth);
+    }
+
     redirect(`/properties/${property_id}`);
   }
 

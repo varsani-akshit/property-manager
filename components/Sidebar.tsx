@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { Home, Building2, FileText, Banknote, Receipt, Users, LogOut, Building, X } from "lucide-react";
+import { Home, Building2, FileText, Banknote, Receipt, Users, LogOut, Building, X, Wrench } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { has, type Permission, type UserProfile } from "@/lib/permissions";
 
@@ -15,6 +15,7 @@ const NAV: NavItem[] = [
   { href: "/leases",      label: "Leases",          icon: FileText, perm: "view_leases" },
   { href: "/rent",        label: "Rent Collection", icon: Banknote, perm: "view_rent" },
   { href: "/costs",       label: "Costs",           icon: Receipt,  perm: "view_costs" },
+  { href: "/service-charges", label: "Service Charges", icon: Wrench, perm: "view_service_charges" },
   { href: "/users",       label: "Users",           icon: Users,    perm: "manage_users" },
 ];
 
@@ -39,7 +40,7 @@ export function Sidebar({
   const visible = NAV.filter((n) => has(profile, n.perm));
 
   return (
-    <aside className="w-60 h-screen border-r border-border bg-bg flex flex-col">
+    <aside className="w-60 h-full border-r border-border bg-bg flex flex-col">
       <div className="p-4 border-b border-border flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-semibold">Rental Manager</div>

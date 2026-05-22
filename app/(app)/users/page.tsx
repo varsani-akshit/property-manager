@@ -24,6 +24,7 @@ const FIELD_MAP: Record<Permission, keyof UserProfile> = {
   view_leases: "can_view_leases",
   view_rent: "can_view_rent",
   view_costs: "can_view_costs",
+  view_service_charges: "can_view_service_charges",
   create_property: "can_create_property",
   edit_property: "can_edit_property",
   delete_property: "can_delete_property",
@@ -32,6 +33,7 @@ const FIELD_MAP: Record<Permission, keyof UserProfile> = {
   mark_rent: "can_mark_rent",
   add_cost: "can_add_cost",
   delete_cost: "can_delete_cost",
+  pay_service_charges: "can_pay_service_charges",
   manage_users: "can_manage_users",
 };
 

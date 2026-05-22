@@ -25,6 +25,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .eq("status", "due")
     .gt("due_date", today);
 
+  // 3) Flip future "lessee_direct" SC rows back to "pending" since the property
+  //    is now vacant (no lessee covering the SC).
+  if (lease?.property_id) {
+    await sb.from("service_charges")
+      .update({ status: "pending" })
+      .eq("property_id", lease.property_id)
+      .eq("status", "lessee_direct")
+      .gte("due_month", today.slice(0, 7) + "-01");
+  }
+
   const url = new URL(`/properties/${lease?.property_id ?? ""}`, req.url);
   return NextResponse.redirect(url, { status: 303 });
 }

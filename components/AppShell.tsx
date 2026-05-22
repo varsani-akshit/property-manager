@@ -38,11 +38,11 @@ export function AppShell({ profile, children }: { profile: UserProfile; children
         />
       )}
 
-      {/* Sidebar — drawer on mobile, static on desktop */}
+      {/* Sidebar — drawer on mobile, sticky on desktop so it stays in view while scrolling */}
       <div
         className={cn(
           "fixed inset-y-0 left-0 w-60 z-50 transform transition-transform duration-200 ease-out",
-          "lg:static lg:translate-x-0 lg:z-auto",
+          "lg:sticky lg:top-0 lg:h-screen lg:self-start lg:translate-x-0 lg:z-auto",
           open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
