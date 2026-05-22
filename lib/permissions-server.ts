@@ -1,9 +1,12 @@
 // Server-only permission helpers. Do not import from client components.
 import "server-only";
+import { cache } from "react";
 import { supabaseServer } from "./supabase/server";
 import { has, type Permission, type UserProfile } from "./permissions";
 
-export async function getCurrentProfile(): Promise<UserProfile | null> {
+// React.cache() dedupes within a single request: if 3 different server components
+// call getCurrentProfile(), the auth + DB lookup runs exactly once.
+export const getCurrentProfile = cache(async (): Promise<UserProfile | null> => {
   const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
   if (!user) return null;
@@ -18,7 +21,7 @@ export async function getCurrentProfile(): Promise<UserProfile | null> {
     .select("*")
     .maybeSingle();
   return (inserted as UserProfile) ?? null;
-}
+});
 
 export async function requirePermission(perm: Permission): Promise<UserProfile> {
   const profile = await getCurrentProfile();

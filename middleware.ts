@@ -19,16 +19,18 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // Cheap session check via getSession (reads cookie, no network round-trip
+  // to Supabase auth server). Page-level code re-verifies with getUser() when needed.
+  const { data: { session } } = await supabase.auth.getSession();
   const path = req.nextUrl.pathname;
-  const isAuthPage = path.startsWith("/login") || path.startsWith("/signup");
+  const isAuthPage = path === "/login";
 
-  if (!user && !isAuthPage) {
+  if (!session && !isAuthPage) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
-  if (user && isAuthPage) {
+  if (session && isAuthPage) {
     const url = req.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
@@ -37,5 +39,8 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  // Skip middleware for static assets, images, favicons, and API routes that handle their own auth.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf)$).*)",
+  ],
 };
