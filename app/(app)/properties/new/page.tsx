@@ -3,7 +3,6 @@ import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { DriveUpload } from "@/components/DriveUpload";
 
 export default async function NewPropertyPage() {
   await requirePermission("create_property");
@@ -75,7 +74,10 @@ export default async function NewPropertyPage() {
             <input name="service_charge_start_date" type="date" className="input" />
           </div>
         </div>
-        <DriveUpload name="deed_url" kind="deed" label="Property deed" />
+        <div>
+          <label className="label">Deed link (Google Drive URL)</label>
+          <input name="deed_url" type="url" className="input" placeholder="https://drive.google.com/..." />
+        </div>
         <div>
           <label className="label">Notes</label>
           <textarea name="notes" className="input" rows={3} />
