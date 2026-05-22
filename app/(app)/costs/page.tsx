@@ -2,6 +2,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
+import { SearchBar } from "@/components/SearchBar";
 import { money, fmtDate, firstOfMonthISO } from "@/lib/format";
 import Link from "next/link";
 import { has } from "@/lib/permissions";
@@ -34,10 +35,11 @@ async function deleteCost(formData: FormData) {
 export default async function CostsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
   const profile = await guardView("view_costs");
   const sp = await searchParams;
+  const q = sp.q?.trim() || "";
   const page = parsePage(sp.page);
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
@@ -46,12 +48,25 @@ export default async function CostsPage({
   const ytdStart = `${new Date().getFullYear()}-01-01`;
   const month = firstOfMonthISO();
 
-  // Paginated page rows + aggregate KPIs computed over the entire YTD.
+  // Resolve search: cost description / category / property name → cost IDs
+  let allowedCostIds: string[] | null = null;
+  if (q) {
+    const like = `%${q}%`;
+    const [{ data: byDesc }, { data: byAlloc }] = await Promise.all([
+      sb.from("costs").select("id").or(`description.ilike.${like},category.ilike.${like}`),
+      sb.from("cost_allocations").select("cost_id, properties!inner(name)").ilike("properties.name", like),
+    ]);
+    const set = new Set<string>();
+    for (const r of byDesc ?? []) set.add((r as { id: string }).id);
+    for (const r of byAlloc ?? []) set.add((r as { cost_id: string }).cost_id);
+    allowedCostIds = Array.from(set);
+    if (!allowedCostIds.length) allowedCostIds = ["00000000-0000-0000-0000-000000000000"];
+  }
+
+  let listQ = sb.from("costs").select("id, description, category, amount, incurred_on, is_auto_service_charge, cost_allocations(allocated_amount, properties(id, name))", { count: "exact" });
+  if (allowedCostIds) listQ = listQ.in("id", allowedCostIds);
   const [pageRes, ytdSummary, monthSummary] = await Promise.all([
-    sb.from("costs")
-      .select("id, description, category, amount, incurred_on, is_auto_service_charge, cost_allocations(allocated_amount, properties(id, name))", { count: "exact" })
-      .order("incurred_on", { ascending: false })
-      .range(from, to),
+    listQ.order("incurred_on", { ascending: false }).range(from, to),
     sb.from("costs").select("amount, category, incurred_on").gte("incurred_on", ytdStart),
     sb.from("costs").select("amount").gte("incurred_on", month),
   ]);
@@ -77,6 +92,8 @@ export default async function CostsPage({
         subtitle="Single property or multi-property (auto-split by sqft)"
         actions={has(profile, "add_cost") ? <Link href="/costs/new" className="btn-primary"><Plus size={14}/> Add cost</Link> : null}
       />
+
+      <SearchBar placeholder="Search by description, category, or property…" q={q} searchParams={sp} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Costs this month" value={money(totalThisMonth)} />
@@ -127,7 +144,7 @@ export default async function CostsPage({
             {!arr.length && <tr><td colSpan={6} className="text-center text-muted-fg py-8">No costs yet.</td></tr>}
           </tbody>
         </table></div>
-        <Pagination page={page} total={total} label="costs" />
+        <Pagination page={page} total={total} label="costs" searchParams={sp} />
       </div>
     </div>
   );

@@ -3,23 +3,46 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money, todayISO } from "@/lib/format";
 
-type Property = { id: string; name: string; area_sqft: number; compounds: { name: string } | { name: string }[] | null };
+type Property = {
+  id: string;
+  name: string;
+  area_sqft: number;
+  compounds: { name: string } | { name: string }[] | null;
+  active_lessee?: string | null;
+};
 
 function compoundName(c: Property["compounds"]): string {
   if (!c) return "";
   return Array.isArray(c) ? c[0]?.name ?? "" : c.name;
 }
 
-const CATEGORIES = ["general", "maintenance", "utilities", "tax", "service_charge", "insurance", "other"];
-
-export function CostForm({ properties, action }: { properties: Property[]; action: (fd: FormData) => Promise<void> }) {
+export function CostForm({
+  properties,
+  categories,
+  action,
+}: {
+  properties: Property[];
+  categories: string[];
+  action: (fd: FormData) => Promise<void>;
+}) {
   const [picked, setPicked] = useState<string[]>([]);
   const [amount, setAmount] = useState<number>(0);
+  const [search, setSearch] = useState("");
 
   const totalSqft = useMemo(
     () => properties.filter((p) => picked.includes(p.id)).reduce((s, p) => s + Number(p.area_sqft), 0),
     [picked, properties]
   );
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return properties;
+    const needle = search.toLowerCase().trim();
+    return properties.filter((p) =>
+      p.name.toLowerCase().includes(needle) ||
+      compoundName(p.compounds).toLowerCase().includes(needle) ||
+      (p.active_lessee?.toLowerCase().includes(needle) ?? false)
+    );
+  }, [properties, search]);
 
   function toggle(id: string) {
     setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
@@ -34,9 +57,18 @@ export function CostForm({ properties, action }: { properties: Property[]; actio
         </div>
         <div>
           <label className="label">Category</label>
-          <select name="category" required className="input" defaultValue="general">
-            {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
+          <input
+            name="category"
+            required
+            list="cost-categories"
+            className="input"
+            placeholder="Type or pick"
+            defaultValue=""
+          />
+          <datalist id="cost-categories">
+            {categories.map((c) => <option key={c} value={c} />)}
+          </datalist>
+          <p className="text-xs text-muted-fg mt-1">Type a new category to create it.</p>
         </div>
         <div>
           <label className="label">Amount (KES)</label>
@@ -58,12 +90,22 @@ export function CostForm({ properties, action }: { properties: Property[]; actio
       </div>
 
       <div>
-        <label className="label">Apply to property/properties</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="label !mb-0">Apply to property/properties</label>
+          <span className="text-xs text-muted-fg">{picked.length} selected · {filtered.length} shown</span>
+        </div>
         <p className="text-xs text-muted-fg mb-2">
           Pick one for a single-property cost. Pick multiple to auto-split the amount by sqft.
         </p>
+        <input
+          type="search"
+          className="input mb-2 text-sm"
+          placeholder="Search by property, compound, or lessee…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
         <div className="border border-border rounded-md max-h-72 overflow-auto divide-y">
-          {properties.map((p) => {
+          {filtered.map((p) => {
             const checked = picked.includes(p.id);
             const share = checked && totalSqft > 0 ? (Number(p.area_sqft) / totalSqft) * amount : 0;
             return (
@@ -75,15 +117,16 @@ export function CostForm({ properties, action }: { properties: Property[]; actio
                   checked={checked}
                   onChange={() => toggle(p.id)}
                 />
-                <span className="flex-1">
+                <span className="flex-1 min-w-0">
                   <span className="font-medium">{p.name}</span>
                   <span className="text-muted-fg"> · {compoundName(p.compounds)} · {Number(p.area_sqft).toLocaleString()} sqft</span>
+                  {p.active_lessee && <span className="text-xs text-muted-fg block truncate">Lessee: {p.active_lessee}</span>}
                 </span>
-                {checked && picked.length > 1 && <span className="text-xs text-muted-fg">≈ {money(share)}</span>}
+                {checked && picked.length > 1 && <span className="text-xs text-muted-fg whitespace-nowrap">≈ {money(share)}</span>}
               </label>
             );
           })}
-          {!properties.length && <div className="p-4 text-sm text-muted-fg">No properties available.</div>}
+          {!filtered.length && <div className="p-4 text-sm text-muted-fg">No matching properties.</div>}
         </div>
       </div>
 

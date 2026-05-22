@@ -6,22 +6,30 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-const CATEGORIES = ["general", "maintenance", "utilities", "tax", "service_charge", "insurance", "other"];
-
 export default async function EditCostPage({ params }: { params: Promise<{ id: string }> }) {
   await requirePermission("add_cost");
   const { id } = await params;
   const sb = await supabaseServer();
-  const { data: cost } = await sb.from("costs").select("*").eq("id", id).maybeSingle();
+  const [costRes, catsRes] = await Promise.all([
+    sb.from("costs").select("*").eq("id", id).maybeSingle(),
+    sb.from("cost_categories").select("name").order("name"),
+  ]);
+  const cost = costRes.data;
   if (!cost) notFound();
+  const categories = (catsRes.data ?? []).map((c) => (c as { name: string }).name);
 
   async function update(formData: FormData) {
     "use server";
     await requirePermission("add_cost");
     const sb = await supabaseServer();
+    const { data: { user } } = await sb.auth.getUser();
+    const category = String(formData.get("category") || "").trim().toLowerCase();
+    if (!category) throw new Error("Category is required");
+    await sb.from("cost_categories").upsert({ name: category, created_by: user?.id ?? null }, { onConflict: "name", ignoreDuplicates: true });
+
     const { error } = await sb.from("costs").update({
       description: String(formData.get("description") || "").trim(),
-      category: String(formData.get("category") || "general"),
+      category,
       incurred_on: String(formData.get("incurred_on")),
       notes: String(formData.get("notes") || "").trim() || null,
     }).eq("id", id);
@@ -40,9 +48,17 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Category</label>
-            <select name="category" required className="input" defaultValue={cost.category}>
-              {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <input
+              name="category"
+              required
+              list="cost-categories-edit"
+              className="input"
+              defaultValue={cost.category}
+            />
+            <datalist id="cost-categories-edit">
+              {categories.map((c) => <option key={c} value={c} />)}
+            </datalist>
+            <p className="text-xs text-muted-fg mt-1">Type a new category to create it.</p>
           </div>
           <div>
             <label className="label">Date</label>

@@ -115,6 +115,20 @@ export default async function RentPage({
         subtitle="Due dates follow each lease's start day-of-month. Buckets update automatically every day."
       />
 
+      <form action="" method="get" className="card mb-4 flex flex-col sm:flex-row gap-2">
+        <input
+          type="search"
+          name="lessee"
+          defaultValue={filterLessee ?? ""}
+          placeholder="Search by lessee name…"
+          className="input flex-1"
+        />
+        <button className="btn-primary text-sm">Search</button>
+        {(filterLessee || filterProperty) && (
+          <Link href="/rent" className="btn-secondary text-sm">Clear</Link>
+        )}
+      </form>
+
       {(filterLessee || filterProperty) && (
         <div className="card mb-4 flex items-center justify-between gap-3 bg-accent/5 border-accent/30">
           <p className="text-sm">

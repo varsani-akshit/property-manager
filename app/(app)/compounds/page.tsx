@@ -2,6 +2,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
+import { SearchBar } from "@/components/SearchBar";
 import Link from "next/link";
 import { has } from "@/lib/permissions";
 import { guardView } from "@/lib/guard";
@@ -13,21 +14,21 @@ export const dynamic = "force-dynamic";
 export default async function CompoundsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
   const profile = await guardView("view_compounds");
   const sp = await searchParams;
+  const q = sp.q?.trim() || "";
   const page = parsePage(sp.page);
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
   const sb = await supabaseServer();
 
+  let listQ = sb.from("compounds").select("id, name, address, properties(count)", { count: "exact" });
+  if (q) listQ = listQ.or(`name.ilike.%${q}%,address.ilike.%${q}%`);
   const [pageRes, summary] = await Promise.all([
-    sb.from("compounds")
-      .select("id, name, address, properties(count)", { count: "exact" })
-      .order("name")
-      .range(from, to),
+    listQ.order("name").range(from, to),
     sb.from("v_property_summary").select("compound_id, valuation, area_sqft, total_rent_collected, total_costs"),
   ]);
 
@@ -61,6 +62,8 @@ export default async function CompoundsPage({
           ) : null
         }
       />
+
+      <SearchBar placeholder="Search by name or address…" q={q} searchParams={sp} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Compounds" value={String(total)} />
@@ -105,7 +108,7 @@ export default async function CompoundsPage({
             )}
           </tbody>
         </table></div>
-        <Pagination page={page} total={total} label="compounds" />
+        <Pagination page={page} total={total} label="compounds" searchParams={sp} />
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
+import { SearchBar } from "@/components/SearchBar";
 import Link from "next/link";
 import { has } from "@/lib/permissions";
 import { guardView } from "@/lib/guard";
@@ -29,25 +30,47 @@ function compoundName(c: PropertyRow["compounds"]): string {
 export default async function PropertiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
   const profile = await guardView("view_properties");
   const sp = await searchParams;
+  const q = sp.q?.trim() || "";
   const page = parsePage(sp.page);
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
   const sb = await supabaseServer();
 
-  // Page of rows (with count) + a separate summary that aggregates ALL active properties.
-  const [pageRes, summaryRes] = await Promise.all([
-    sb.from("properties")
-      .select("id, name, area_sqft, valuation, service_charge_monthly, archived, compounds(name), leases(id, active, lessee_name, gross_rent_monthly)", { count: "exact" })
-      .eq("archived", false)
-      .order("name")
-      .range(from, to),
-    sb.from("v_property_summary").select("area_sqft, valuation, active_lease_count, current_gross_rent").eq("archived", false),
-  ]);
+  // If there's a search, pre-resolve matching property IDs from any of:
+  // property name, compound name, active lessee name.
+  let allowedPropertyIds: string[] | null = null;
+  if (q) {
+    const like = `%${q}%`;
+    const [{ data: byProp }, { data: byCompound }, { data: byLease }] = await Promise.all([
+      sb.from("properties").select("id").eq("archived", false).ilike("name", like),
+      sb.from("properties").select("id, compounds!inner(name)").eq("archived", false).ilike("compounds.name", like),
+      sb.from("leases").select("property_id").eq("active", true).ilike("lessee_name", like),
+    ]);
+    const ids = new Set<string>();
+    for (const r of byProp ?? []) ids.add((r as { id: string }).id);
+    for (const r of byCompound ?? []) ids.add((r as { id: string }).id);
+    for (const r of byLease ?? []) ids.add((r as { property_id: string }).property_id);
+    allowedPropertyIds = Array.from(ids);
+    if (allowedPropertyIds.length === 0) allowedPropertyIds = ["00000000-0000-0000-0000-000000000000"];
+  }
+
+  let baseQ = sb.from("properties")
+    .select("id, name, area_sqft, valuation, service_charge_monthly, archived, compounds(name), leases(id, active, lessee_name, gross_rent_monthly)", { count: "exact" })
+    .eq("archived", false);
+  if (allowedPropertyIds) baseQ = baseQ.in("id", allowedPropertyIds);
+  const pageRes = await baseQ.order("name").range(from, to);
+
+  // Summary always reflects the search filter so KPIs match what's shown.
+  let summaryQ = sb.from("v_property_summary")
+    .select("area_sqft, valuation, active_lease_count, current_gross_rent")
+    .eq("archived", false);
+  if (allowedPropertyIds) summaryQ = summaryQ.in("id", allowedPropertyIds);
+  const summaryRes = await summaryQ;
 
   const arr = (pageRes.data ?? []) as unknown as PropertyRow[];
   const total = pageRes.count ?? 0;
@@ -68,6 +91,8 @@ export default async function PropertiesPage({
         }
       />
 
+      <SearchBar placeholder="Search by property, compound, or lessee…" q={q} searchParams={sp} />
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Properties" value={String(summary.length)} hint={`${occupied} occupied · ${summary.length - occupied} vacant`} />
         <Kpi label="Total sqft" value={totalSqft.toLocaleString()} />
@@ -76,45 +101,47 @@ export default async function PropertiesPage({
       </div>
 
       <div className="card p-0">
-        <div className="table-wrap"><table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Compound</th>
-              <th className="text-right">Sqft</th>
-              <th className="text-right">Valuation</th>
-              <th className="text-right">SC / mo</th>
-              <th>Status</th>
-              <th>Lessee</th>
-              <th className="text-right">Rent / mo</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {arr.map((p) => {
-              const lease = p.leases?.find((l) => l.active);
-              return (
-                <tr key={p.id}>
-                  <td><Link href={`/properties/${p.id}`} className="font-medium hover:underline">{p.name}</Link></td>
-                  <td>{compoundName(p.compounds)}</td>
-                  <td className="text-right">{Number(p.area_sqft).toLocaleString()}</td>
-                  <td className="text-right">{money(p.valuation)}</td>
-                  <td className="text-right">{money(p.service_charge_monthly)}</td>
-                  <td>{lease ? <span className="badge-success">Rented</span> : <span className="badge-muted">Vacant</span>}</td>
-                  <td>{lease?.lessee_name || "—"}</td>
-                  <td className="text-right">{lease ? money(lease.gross_rent_monthly) : "—"}</td>
-                  <td className="text-right">
-                    {has(profile, "edit_property") && (
-                      <Link href={`/properties/${p.id}/edit`} className="btn-secondary text-xs">Edit</Link>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {!arr.length && <tr><td colSpan={9} className="text-center text-muted-fg py-8">No properties yet.</td></tr>}
-          </tbody>
-        </table></div>
-        <Pagination page={page} total={total} label="properties" />
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Compound</th>
+                <th className="text-right">Sqft</th>
+                <th className="text-right">Valuation</th>
+                <th className="text-right">SC / mo</th>
+                <th>Status</th>
+                <th>Lessee</th>
+                <th className="text-right">Rent / mo</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {arr.map((p) => {
+                const lease = p.leases?.find((l) => l.active);
+                return (
+                  <tr key={p.id}>
+                    <td><Link href={`/properties/${p.id}`} className="font-medium hover:underline">{p.name}</Link></td>
+                    <td>{compoundName(p.compounds)}</td>
+                    <td className="text-right">{Number(p.area_sqft).toLocaleString()}</td>
+                    <td className="text-right">{money(p.valuation)}</td>
+                    <td className="text-right">{money(p.service_charge_monthly)}</td>
+                    <td>{lease ? <span className="badge-success">Rented</span> : <span className="badge-muted">Vacant</span>}</td>
+                    <td>{lease?.lessee_name || "—"}</td>
+                    <td className="text-right">{lease ? money(lease.gross_rent_monthly) : "—"}</td>
+                    <td className="text-right">
+                      {has(profile, "edit_property") && (
+                        <Link href={`/properties/${p.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {!arr.length && <tr><td colSpan={9} className="text-center text-muted-fg py-8">{q ? "No properties match." : "No properties yet."}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <Pagination page={page} total={total} label="properties" searchParams={sp} />
       </div>
     </div>
   );
