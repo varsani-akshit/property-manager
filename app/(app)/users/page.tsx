@@ -6,9 +6,15 @@ import { PERMISSION_LABELS, VIEW_PERMS, ACTION_PERMS, type Permission, type User
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { fmtDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+function flash(key: "error" | "ok", msg: string): never {
+  // Server-action helper: redirect back to /users with a flash message in the URL.
+  redirect(`/users?${key}=${encodeURIComponent(msg)}`);
+}
 
 const FIELD_MAP: Record<Permission, keyof UserProfile> = {
   view_dashboard: "can_view_dashboard",
@@ -34,18 +40,16 @@ async function inviteUser(formData: FormData) {
   "use server";
   await requirePermission("manage_users");
   const email = String(formData.get("email") || "").trim().toLowerCase();
-  if (!email) throw new Error("Email is required");
+  if (!email) flash("error", "Email is required");
 
   const admin = supabaseAdmin();
-  // Send invite email — link redirects to /auth/callback, which exchanges the
-  // code for a session, then forwards to /auth/set-password (first-time users).
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${site}/auth/callback?next=/`,
   });
-  if (error) throw new Error(error.message);
-  // user_profiles row will be created automatically by the on_auth_user_created trigger.
+  if (error) flash("error", `Invite failed: ${error.message}`);
   revalidatePath("/users");
+  flash("ok", `Invite sent to ${email}.`);
 }
 
 async function updateUser(formData: FormData) {
@@ -60,22 +64,25 @@ async function updateUser(formData: FormData) {
   for (const p of ALL_PERMS) {
     patch[FIELD_MAP[p]] = formData.get(p) === "on";
   }
-  await sb.from("user_profiles").update(patch).eq("id", id);
+  const { error } = await sb.from("user_profiles").update(patch).eq("id", id);
+  if (error) flash("error", `Update failed: ${error.message}`);
   revalidatePath("/users");
+  flash("ok", "Permissions saved.");
 }
 
 async function resendInvite(formData: FormData) {
   "use server";
   await requirePermission("manage_users");
   const email = String(formData.get("email") || "").trim().toLowerCase();
-  if (!email) throw new Error("Email required");
+  if (!email) flash("error", "Email required");
   const admin = supabaseAdmin();
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const { error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${site}/auth/callback?next=/`,
   });
-  if (error) throw new Error(error.message);
+  if (error) flash("error", `Resend failed: ${error.message}`);
   revalidatePath("/users");
+  flash("ok", `Invite re-sent to ${email}.`);
 }
 
 async function deleteUser(formData: FormData) {
@@ -83,10 +90,10 @@ async function deleteUser(formData: FormData) {
   await requirePermission("manage_users");
   const id = String(formData.get("id"));
   const admin = supabaseAdmin();
-  // Remove from auth (cascades to user_profiles via FK)
   const { error } = await admin.auth.admin.deleteUser(id);
-  if (error) throw new Error(error.message);
+  if (error) flash("error", `Delete failed: ${error.message}`);
   revalidatePath("/users");
+  flash("ok", "User deleted.");
 }
 
 type AuthState = { invited_at: string | null; email_confirmed_at: string | null; last_sign_in_at: string | null };
@@ -99,21 +106,32 @@ function statusOf(s: AuthState | null): { label: string; cls: string } {
   return { label: "no auth record", cls: "badge-muted" };
 }
 
-export default async function UsersPage() {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; ok?: string }>;
+}) {
   await guardView("view_dashboard"); // /users is gated below by manage_users
   await requirePermission("manage_users");
+
+  const { error: flashError, ok: flashOk } = await searchParams;
 
   const sb = await supabaseServer();
   const admin = supabaseAdmin();
 
-  const [{ data: profileData }, { data: authList }] = await Promise.all([
+  const [{ data: profileData }, authResult] = await Promise.all([
     sb.from("user_profiles").select("*").order("created_at"),
-    admin.auth.admin.listUsers({ perPage: 200 }),
+    // Wrap admin call: if Supabase is rate limiting or otherwise erroring,
+    // we still want to render the page with the basic profile list.
+    admin.auth.admin.listUsers({ perPage: 200 }).catch((e: Error) => {
+      console.error("listUsers failed:", e.message);
+      return { data: { users: [] }, error: e } as any;
+    }),
   ]);
   const users = (profileData ?? []) as unknown as UserProfile[];
 
   const authById: Record<string, AuthState> = {};
-  for (const u of authList?.users ?? []) {
+  for (const u of authResult?.data?.users ?? []) {
     authById[u.id] = {
       invited_at: u.invited_at ?? null,
       email_confirmed_at: u.email_confirmed_at ?? null,
@@ -131,6 +149,22 @@ export default async function UsersPage() {
   return (
     <div>
       <PageHeader title="Users & permissions" subtitle="Invite teammates, toggle granular permissions. Admins implicitly have all permissions." />
+
+      {flashError && (
+        <div className="card mb-4 border-danger/30 bg-danger/5">
+          <p className="text-sm text-danger">{flashError}</p>
+          {flashError.toLowerCase().includes("rate limit") && (
+            <p className="text-xs text-muted-fg mt-1">
+              Supabase free tier limits invite emails (~3–4/hour). Wait a few minutes or configure a custom SMTP provider in Supabase → Authentication → Emails.
+            </p>
+          )}
+        </div>
+      )}
+      {flashOk && (
+        <div className="card mb-4 border-success/30 bg-success/5">
+          <p className="text-sm text-success">{flashOk}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Users" value={String(users.length)} />
