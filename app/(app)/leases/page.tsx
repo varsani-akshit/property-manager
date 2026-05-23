@@ -117,16 +117,19 @@ export default async function LeasesPage({
                       {p && <Link href={`/properties/${p.id}`} className="font-medium hover:underline">{p.name}</Link>}
                       <div className="text-xs text-muted-fg">{compoundName(p?.compounds ?? null)}</div>
                     </td>
-                    <td>{l.lessee_name}</td>
+                    <td><Link href={`/leases/${l.id}`} className="font-medium hover:underline">{l.lessee_name}</Link></td>
                     <td>{l.lessee_contact || "—"}</td>
                     <td>{fmtDate(l.start_date)}</td>
                     <td>{fmtDate(l.end_date)}</td>
                     <td className="text-right">{money(l.gross_rent_monthly)}</td>
                     <td>{l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}</td>
                     <td className="text-right">
-                      {has(profile, "create_lease") && l.active && (
-                        <Link href={`/leases/${l.id}/edit`} className="btn-secondary text-xs">Edit</Link>
-                      )}
+                      <div className="flex gap-1 justify-end">
+                        <Link href={`/leases/${l.id}`} className="btn-secondary text-xs">View</Link>
+                        {has(profile, "create_lease") && l.active && (
+                          <Link href={`/leases/${l.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
