@@ -10,6 +10,7 @@ import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
 import { Plus } from "lucide-react";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -148,10 +149,12 @@ export default async function CostsPage({
                         <Link href={`/costs/${c.id}/edit`} className="btn-secondary text-xs">Edit</Link>
                       )}
                       {has(profile, "delete_cost") && !c.is_auto_service_charge && (
-                        <form action={deleteCost}>
-                          <input type="hidden" name="id" value={c.id} />
-                          <button className="btn-danger text-xs">Delete</button>
-                        </form>
+                        <ConfirmButton
+                          action={deleteCost}
+                          hiddenInputs={{ id: c.id }}
+                          confirm={`Delete cost "${c.description}"? This removes all its line items and property allocations. This cannot be undone.`}
+                          label="Delete"
+                        />
                       )}
                     </div>
                   </td>

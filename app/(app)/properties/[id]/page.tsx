@@ -8,6 +8,7 @@ import { notFound, redirect } from "next/navigation";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
+import { ConfirmButton, ConfirmPostButton } from "@/components/ConfirmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -88,9 +89,12 @@ export default async function PropertyDetailPage({
               <Link href={`/leases/new?property=${prop.id}`} className="btn-primary">Put on rent</Link>
             )}
             {has(profile, "delete_property") && (
-              <form action={deleteProperty}>
-                <button className="btn-danger">Archive</button>
-              </form>
+              <ConfirmButton
+                action={deleteProperty}
+                confirm={`Archive "${prop.name}"? It will be hidden from lists. You can restore it later directly in the database.`}
+                label="Archive"
+                className="btn-danger"
+              />
             )}
           </>
         }
@@ -135,9 +139,11 @@ export default async function PropertyDetailPage({
                   <Link href={`/leases/${activeLease.id}/edit`} className="btn-secondary text-xs">Edit lease</Link>
                 )}
                 {has(profile, "cancel_lease") && (
-                  <form action={`/api/leases/${activeLease.id}/cancel`} method="post">
-                    <button className="btn-danger text-xs">Cancel rental</button>
-                  </form>
+                  <ConfirmPostButton
+                    action={`/api/leases/${activeLease.id}/cancel`}
+                    confirm={`Cancel the active lease for ${activeLease.lessee_name}? Future unpaid rent rows will be removed. Past payments and overdue rows stay as history.`}
+                    label="Cancel rental"
+                  />
                 )}
               </div>
             </dl>

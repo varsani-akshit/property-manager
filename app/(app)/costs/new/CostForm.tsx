@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money, todayISO } from "@/lib/format";
 import { Plus, X } from "lucide-react";
+import { Combobox } from "@/components/Combobox";
 
 type Property = {
   id: string;
@@ -15,6 +16,34 @@ type Property = {
 function compoundName(c: Property["compounds"]): string {
   if (!c) return "";
   return Array.isArray(c) ? c[0]?.name ?? "" : c.name;
+}
+
+function CategoryCell({
+  value,
+  onChange,
+  options,
+  index,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  index: number;
+}) {
+  // The Combobox renders its own hidden input under this name, picked up by the server action.
+  return (
+    <div onBlur={(e) => {
+      const v = (e.target as HTMLInputElement).value;
+      if (v !== value && v) onChange(v.toLowerCase());
+    }}>
+      <Combobox
+        name={`line_category_${index}`}
+        options={options}
+        initial={value}
+        placeholder="Category"
+        required
+      />
+    </div>
+  );
 }
 
 type Line = { id: string; category: string; amount: string };
@@ -111,21 +140,15 @@ export function CostForm({
           <label className="label !mb-0">Line items</label>
           <span className="text-xs text-muted-fg">Total: <span className="font-medium text-fg">{money(totalAmount)}</span></span>
         </div>
-        <p className="text-xs text-muted-fg mb-2">Add one line per cost category. e.g. Plumbing 15,000 + Electrical 8,000.</p>
-        <datalist id="cost-categories">
-          {categories.map((c) => <option key={c} value={c} />)}
-        </datalist>
+        <p className="text-xs text-muted-fg mb-2">Add one line per cost category. e.g. Plumbing 15,000 + Electrical 8,000. Click the dropdown to see existing categories.</p>
         <div className="space-y-2">
           {lines.map((l, i) => (
-            <div key={l.id} className="grid grid-cols-[1fr_8rem_auto] gap-2 items-center">
-              <input
-                list="cost-categories"
-                name={`line_category_${i}`}
-                required
-                className="input"
-                placeholder="Category (e.g. maintenance)"
+            <div key={l.id} className="grid grid-cols-[1fr_8rem_auto] gap-2 items-start">
+              <CategoryCell
                 value={l.category}
-                onChange={(e) => setLineField(l.id, "category", e.target.value.toLowerCase())}
+                onChange={(v) => setLineField(l.id, "category", v)}
+                options={categories}
+                index={i}
               />
               <input
                 type="number"
@@ -142,7 +165,7 @@ export function CostForm({
                 type="button"
                 onClick={() => removeLine(l.id)}
                 disabled={lines.length === 1}
-                className="btn-secondary px-2 disabled:opacity-30"
+                className="btn-secondary px-2 disabled:opacity-30 h-10"
                 aria-label="Remove line"
               >
                 <X size={14} />

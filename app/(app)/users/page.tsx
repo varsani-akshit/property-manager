@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { fmtDate } from "@/lib/format";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -268,13 +269,17 @@ export default async function UsersPage({
             {/* Separate, sibling form for delete — never nested inside the permissions form. */}
             <details className="mt-3 pt-3 border-t border-border">
               <summary className="text-xs text-danger cursor-pointer">Delete this user permanently</summary>
-              <form action={deleteUser} className="mt-2 flex items-center gap-2">
-                <input type="hidden" name="id" value={u.id} />
+              <div className="mt-2 flex items-center gap-2">
                 <p className="text-xs text-muted-fg flex-1">
                   Removes the auth user and their profile row. Cannot be undone.
                 </p>
-                <button type="submit" className="btn-danger text-xs">Permanently delete</button>
-              </form>
+                <ConfirmButton
+                  action={deleteUser}
+                  hiddenInputs={{ id: u.id }}
+                  confirm={`Permanently delete ${u.email}? They will be signed out and removed from the system. This cannot be undone.`}
+                  label="Permanently delete"
+                />
+              </div>
             </details>
           </div>
         ))}
