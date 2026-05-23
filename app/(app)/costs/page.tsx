@@ -1,171 +1,182 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
-import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
+import { DateFilter, resolvePeriod, type Range } from "@/components/DateFilter";
+import { DonutChart } from "@/components/Charts";
 import { SearchBar } from "@/components/SearchBar";
-import { money, fmtDate, firstOfMonthISO } from "@/lib/format";
+import { money, fmtDate } from "@/lib/format";
 import Link from "next/link";
 import { has } from "@/lib/permissions";
-import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
-import { revalidatePath } from "next/cache";
-import { Plus } from "lucide-react";
-import { ConfirmButton } from "@/components/ConfirmButton";
+import { Plus, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
-
-type CostRow = {
-  id: string;
-  description: string;
-  amount: number;
-  incurred_on: string;
-  is_auto_service_charge: boolean;
-  cost_line_items: { category: string; amount: number }[] | null;
-  cost_allocations: { allocated_amount: number; properties: { id: string; name: string } | null }[] | null;
-};
-
-async function deleteCost(formData: FormData) {
-  "use server";
-  await requirePermission("delete_cost");
-  const id = String(formData.get("id"));
-  const sb = await supabaseServer();
-  await sb.from("costs").delete().eq("id", id);
-  revalidatePath("/costs");
-}
 
 export default async function CostsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ range?: string; from?: string; to?: string; q?: string }>;
 }) {
   const profile = await guardView("view_costs");
   const sp = await searchParams;
+  const period = resolvePeriod(sp);
   const q = sp.q?.trim() || "";
-  const page = parsePage(sp.page);
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
 
   const sb = await supabaseServer();
-  const ytdStart = `${new Date().getFullYear()}-01-01`;
-  const month = firstOfMonthISO();
 
-  let allowedCostIds: string[] | null = null;
-  if (q) {
-    const like = `%${q}%`;
-    const [{ data: byDesc }, { data: byCat }, { data: byAlloc }] = await Promise.all([
-      sb.from("costs").select("id").ilike("description", like),
-      sb.from("cost_line_items").select("cost_id").ilike("category", like),
-      sb.from("cost_allocations").select("cost_id, properties!inner(name)").ilike("properties.name", like),
-    ]);
-    const set = new Set<string>();
-    for (const r of byDesc ?? []) set.add((r as { id: string }).id);
-    for (const r of byCat ?? []) set.add((r as { cost_id: string }).cost_id);
-    for (const r of byAlloc ?? []) set.add((r as { cost_id: string }).cost_id);
-    allowedCostIds = Array.from(set);
-    if (!allowedCostIds.length) allowedCostIds = ["00000000-0000-0000-0000-000000000000"];
+  // All line items in the period (optionally filtered by category search)
+  let liQ = sb.from("cost_line_items")
+    .select("category, amount, cost_id, costs!inner(incurred_on, description)")
+    .gte("costs.incurred_on", period.from)
+    .lte("costs.incurred_on", period.to);
+  if (q) liQ = liQ.ilike("category", `%${q}%`);
+  const { data: lineItems } = await liQ;
+  const lis = (lineItems ?? []) as any[];
+
+  // Aggregate by category
+  const byCategory: Record<string, { total: number; costIds: Set<string>; lineCount: number }> = {};
+  for (const li of lis) {
+    const cat = li.category as string;
+    if (!byCategory[cat]) byCategory[cat] = { total: 0, costIds: new Set(), lineCount: 0 };
+    byCategory[cat].total += Number(li.amount || 0);
+    byCategory[cat].costIds.add(li.cost_id);
+    byCategory[cat].lineCount += 1;
   }
+  const categories = Object.entries(byCategory)
+    .map(([name, v]) => ({ name, total: v.total, costCount: v.costIds.size, lineCount: v.lineCount }))
+    .sort((a, b) => b.total - a.total);
 
-  let listQ = sb.from("costs").select(
-    "id, description, amount, incurred_on, is_auto_service_charge, cost_line_items(category, amount), cost_allocations(allocated_amount, properties(id, name))",
-    { count: "exact" }
-  );
-  if (allowedCostIds) listQ = listQ.in("id", allowedCostIds);
-  const [pageRes, ytdSummary, monthSummary, ytdCats] = await Promise.all([
-    listQ.order("incurred_on", { ascending: false }).range(from, to),
-    sb.from("costs").select("amount").gte("incurred_on", ytdStart),
-    sb.from("costs").select("amount").gte("incurred_on", month),
-    // Top-category aggregation uses line items so multi-category costs are split.
-    sb.from("cost_line_items").select("category, amount, costs!inner(incurred_on)").gte("costs.incurred_on", ytdStart),
-  ]);
+  const grandTotal = categories.reduce((s, c) => s + c.total, 0);
 
-  const arr = (pageRes.data ?? []) as unknown as CostRow[];
-  const total = pageRes.count ?? 0;
-  const totalYTD = (ytdSummary.data ?? []).reduce((s, c) => s + Number((c as { amount: number }).amount), 0);
-  const totalThisMonth = (monthSummary.data ?? []).reduce((s, c) => s + Number((c as { amount: number }).amount), 0);
-
-  const byCategory: Record<string, number> = {};
-  for (const li of ytdCats.data ?? []) {
-    const row = li as { category: string; amount: number };
-    byCategory[row.category] = (byCategory[row.category] ?? 0) + Number(row.amount);
-  }
-  const topCat = Object.entries(byCategory).sort((a, b) => b[1] - a[1])[0];
+  // Recent entries (for context at the bottom)
+  const { data: recent } = await sb
+    .from("costs")
+    .select("id, description, amount, incurred_on, cost_line_items(category)")
+    .gte("incurred_on", period.from)
+    .lte("incurred_on", period.to)
+    .order("incurred_on", { ascending: false })
+    .limit(6);
 
   return (
     <div>
       <PageHeader
         title="Costs"
-        subtitle="Each cost can have multiple categorized line items. Allocate to one property or split across many by sqft."
+        subtitle="Browse by category. Click any category to see every cost entry that touched it."
         actions={has(profile, "add_cost") ? <Link href="/costs/new" className="btn-primary"><Plus size={14}/> Add cost</Link> : null}
       />
 
-      <SearchBar placeholder="Search by description, category, or property…" q={q} searchParams={sp} />
+      <DateFilter active={period.range as Range} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <Kpi label="Costs this month" value={money(totalThisMonth)} />
-        <Kpi label="Costs YTD" value={money(totalYTD)} />
-        <Kpi label="Total entries" value={total.toLocaleString()} />
-        <Kpi label="Top category YTD" value={topCat ? topCat[0] : "—"} hint={topCat ? money(topCat[1]) : undefined} />
+        <Kpi label="Total costs (period)" value={money(grandTotal)} />
+        <Kpi label="Categories used" value={String(categories.length)} />
+        <Kpi label="Cost entries (period)" value={String(new Set(lis.map((l) => l.cost_id)).size)} />
+        <Kpi label="Line items (period)" value={String(lis.length)} />
       </div>
 
+      {/* Donut + legend */}
+      {categories.length > 0 && (
+        <div className="card mb-6">
+          <h2 className="font-semibold mb-3">Spend by category — {period.label}</h2>
+          <DonutChart
+            data={categories.map((c) => ({ label: c.name, value: c.total }))}
+            formatValue={(n) => money(n)}
+          />
+        </div>
+      )}
+
+      {q && <p className="text-xs text-muted-fg mb-2">Filtered to categories matching &ldquo;{q}&rdquo;.</p>}
+      <SearchBar placeholder="Search categories…" q={q} searchParams={sp} />
+
+      {/* Category cards grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        {categories.map((c) => {
+          const pct = grandTotal > 0 ? (c.total / grandTotal) * 100 : 0;
+          return (
+            <Link
+              key={c.name}
+              href={makeCategoryHref(c.name, period.range, period.from, period.to)}
+              className="card hover:border-accent transition-colors flex flex-col gap-2 group"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs uppercase tracking-wide text-muted-fg">Category</div>
+                  <div className="font-semibold capitalize truncate">{c.name}</div>
+                </div>
+                <ArrowRight size={16} className="text-muted-fg group-hover:text-accent shrink-0 mt-1" />
+              </div>
+              <div className="text-2xl font-semibold">{money(c.total)}</div>
+              <div className="flex items-center justify-between text-xs text-muted-fg">
+                <span>{c.costCount} cost {c.costCount === 1 ? "entry" : "entries"} · {c.lineCount} line {c.lineCount === 1 ? "item" : "items"}</span>
+                <span className="font-medium">{pct.toFixed(1)}%</span>
+              </div>
+              <div className="h-1.5 bg-muted rounded overflow-hidden">
+                <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
+              </div>
+            </Link>
+          );
+        })}
+        {!categories.length && (
+          <div className="card text-sm text-muted-fg sm:col-span-2 lg:col-span-3 text-center">
+            No costs recorded in {period.label}.
+          </div>
+        )}
+      </div>
+
+      {/* Recent entries strip */}
       <div className="card p-0">
+        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
+          <h2 className="font-semibold">Latest cost entries</h2>
+          <span className="text-xs text-muted-fg">Showing 6 most recent in {period.label}</span>
+        </div>
         <div className="table-wrap">
           <table className="table">
             <thead>
               <tr>
                 <th>Date</th>
                 <th>Description</th>
-                <th>Categories &amp; line items</th>
-                <th>Properties</th>
+                <th>Categories</th>
                 <th className="text-right">Total</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {arr.map((c) => (
+              {(recent ?? []).map((c: any) => (
                 <tr key={c.id}>
-                  <td className="align-top">{fmtDate(c.incurred_on)}</td>
-                  <td className="align-top">
-                    <div className="font-medium">{c.description}</div>
-                    {c.is_auto_service_charge && <span className="badge-muted">auto</span>}
-                  </td>
-                  <td className="align-top">
-                    <div className="flex flex-wrap gap-1.5">
-                      {(c.cost_line_items ?? []).map((li, i) => (
-                        <span key={i} className="badge-muted whitespace-nowrap">
-                          {li.category} · {money(li.amount)}
-                        </span>
+                  <td>{fmtDate(c.incurred_on)}</td>
+                  <td>{c.description}</td>
+                  <td>
+                    <div className="flex flex-wrap gap-1">
+                      {(c.cost_line_items ?? []).map((li: any, i: number) => (
+                        <span key={i} className="badge-muted">{li.category}</span>
                       ))}
                     </div>
                   </td>
-                  <td className="text-xs align-top">
-                    {c.cost_allocations?.length === 1 && c.cost_allocations[0].properties
-                      ? <Link href={`/properties/${c.cost_allocations[0].properties.id}`} className="hover:underline">{c.cost_allocations[0].properties.name}</Link>
-                      : `${c.cost_allocations?.length ?? 0} properties (split by sqft)`}
-                  </td>
-                  <td className="text-right font-medium align-top">{money(c.amount)}</td>
-                  <td className="text-right align-top">
-                    <div className="flex gap-2 justify-end">
-                      {has(profile, "add_cost") && !c.is_auto_service_charge && (
-                        <Link href={`/costs/${c.id}/edit`} className="btn-secondary text-xs">Edit</Link>
-                      )}
-                      {has(profile, "delete_cost") && !c.is_auto_service_charge && (
-                        <ConfirmButton
-                          action={deleteCost}
-                          hiddenInputs={{ id: c.id }}
-                          confirm={`Delete cost "${c.description}"? This removes all its line items and property allocations. This cannot be undone.`}
-                          label="Delete"
-                        />
-                      )}
-                    </div>
+                  <td className="text-right font-medium">{money(c.amount)}</td>
+                  <td className="text-right">
+                    {has(profile, "add_cost") && (
+                      <Link href={`/costs/${c.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                    )}
                   </td>
                 </tr>
               ))}
-              {!arr.length && <tr><td colSpan={6} className="text-center text-muted-fg py-8">{q ? "No matching costs." : "No costs yet."}</td></tr>}
+              {!recent?.length && (
+                <tr><td colSpan={5} className="text-center text-muted-fg py-6">Nothing in this period.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
-        <Pagination page={page} total={total} label="costs" searchParams={sp} />
       </div>
     </div>
   );
+}
+
+function makeCategoryHref(name: string, range: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  params.set("range", range);
+  if (range === "custom" && from && to) {
+    params.set("from", from);
+    params.set("to", to);
+  }
+  return `/costs/by-category/${encodeURIComponent(name)}?${params.toString()}`;
 }
