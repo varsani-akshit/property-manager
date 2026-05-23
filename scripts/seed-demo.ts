@@ -23,25 +23,39 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { r
 (async () => {
   await client.connect();
 
-  // 0) Wipe any previous demo data
+  // 0) Wipe any previous demo data — both old DEMO-prefixed and our new named leases.
+  const SEED_LESSEES = [
+    "Acme Holdings Ltd",
+    "Bluebird Logistics",
+    "Catalyst Travels",
+    "Drexton Kenya",
+    "Efficaxx Consultants",
+    "Faraja Traders Ltd",
+  ];
   await client.query(`
     delete from public.rent_collections rc
     using public.leases l
-    where rc.lease_id = l.id and l.lessee_name like 'DEMO —%'
-  `);
-  await client.query(`delete from public.leases where lessee_name like 'DEMO —%'`);
+    where rc.lease_id = l.id and (l.lessee_name like 'DEMO —%' or l.lessee_name = any($1))
+  `, [SEED_LESSEES]);
+  await client.query(
+    `delete from public.leases where lessee_name like 'DEMO —%' or lessee_name = any($1)`,
+    [SEED_LESSEES]
+  );
 
-  // 1) Pick 6 properties — prefer ones with SC=0 for cleaner demo math; fall back if not enough.
+  // 1) Pick 6 distinct properties — prefer SC=0 for cleaner demo math; fall back if not enough.
   const { rows: props } = await client.query(`
-    (select id, name from public.properties
-       where archived = false and service_charge_monthly = 0
-         and not exists (select 1 from public.leases l where l.property_id = properties.id and l.active = true)
-       order by random() limit 6)
-    union all
-    (select id, name from public.properties
-       where archived = false
-         and not exists (select 1 from public.leases l where l.property_id = properties.id and l.active = true)
-       order by random() limit 6)
+    select id, name from (
+      (select id, name, 1 as priority from public.properties
+         where archived = false and service_charge_monthly = 0
+           and not exists (select 1 from public.leases l where l.property_id = properties.id and l.active = true)
+         order by random() limit 6)
+      union
+      (select id, name, 2 as priority from public.properties
+         where archived = false
+           and not exists (select 1 from public.leases l where l.property_id = properties.id and l.active = true)
+         order by random() limit 6)
+    ) t
+    order by priority
     limit 6
   `);
 
@@ -66,7 +80,7 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { r
 
   const plans: Plan[] = [
     // Lease A — due 5th, May 5 is overdue, multiple months collected
-    { prop_idx: 0, lessee: "DEMO — Acme Holdings Ltd",     contact: "+254 700 100 001",
+    { prop_idx: 0, lessee: "Acme Holdings Ltd",     contact: "+254 700 100 001",
       start: { y: 2026, m: 1, d: 5 }, end: { y: 2027, m: 12, d: 31 }, rent: 80000,
       history: [
         { y: 2026, m: 1, status: "collected" },
@@ -77,7 +91,7 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { r
       ],
     },
     // Lease B — due 15th, May 15 overdue
-    { prop_idx: 1, lessee: "DEMO — Bluebird Logistics",    contact: "bluebird@example.co.ke",
+    { prop_idx: 1, lessee: "Bluebird Logistics",    contact: "bluebird@example.co.ke",
       start: { y: 2026, m: 2, d: 15 }, end: { y: 2028, m: 6, d: 30 }, rent: 120000,
       history: [
         { y: 2026, m: 2, status: "collected" },
@@ -87,7 +101,7 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { r
       ],
     },
     // Lease C — due 25th, May 25 falls in due-soon window (3 days away)
-    { prop_idx: 2, lessee: "DEMO — Catalyst Travels",      contact: "+254 720 555 003",
+    { prop_idx: 2, lessee: "Catalyst Travels",      contact: "+254 720 555 003",
       start: { y: 2025, m: 12, d: 25 }, end: { y: 2027, m: 12, d: 31 }, rent: 150000,
       history: [
         { y: 2025, m: 12, status: "collected" },
@@ -99,7 +113,7 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { r
       ],
     },
     // Lease D — due 23rd, May 23 due-soon (1 day away)
-    { prop_idx: 3, lessee: "DEMO — Drexton Kenya",         contact: "drexton.ke@example.com",
+    { prop_idx: 3, lessee: "Drexton Kenya",         contact: "drexton.ke@example.com",
       start: { y: 2026, m: 4, d: 23 }, end: { y: 2027, m: 4, d: 22 }, rent: 95000,
       history: [
         { y: 2026, m: 4, status: "collected" },
@@ -107,7 +121,7 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { r
       ],
     },
     // Lease E — due 28th, May 28 due-soon (6 days away)
-    { prop_idx: 4, lessee: "DEMO — Efficaxx Consultants",  contact: "+254 733 800 005",
+    { prop_idx: 4, lessee: "Efficaxx Consultants",  contact: "+254 733 800 005",
       start: { y: 2026, m: 1, d: 28 }, end: { y: 2027, m: 12, d: 31 }, rent: 70000,
       history: [
         { y: 2026, m: 1, status: "collected" },
@@ -118,7 +132,7 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { r
       ],
     },
     // Lease F — due 15th, May 15 overdue (third overdue)
-    { prop_idx: 5, lessee: "DEMO — Faraja Traders Ltd",    contact: "faraja@example.org",
+    { prop_idx: 5, lessee: "Faraja Traders Ltd",    contact: "faraja@example.org",
       start: { y: 2026, m: 3, d: 15 }, end: { y: 2027, m: 9, d: 30 }, rent: 100000,
       history: [
         { y: 2026, m: 3, status: "collected" },
@@ -193,13 +207,13 @@ const client = new Client({ connectionString: process.env.DATABASE_URL, ssl: { r
              rc.net_amount
       from public.rent_collections rc
       join public.leases l on l.id = rc.lease_id
-      where l.lessee_name like 'DEMO —%'
+      where l.lessee_name = any($1)
     )
     select bucket, count(*) as rows, sum(net_amount)::numeric(14,2) as total
     from bucketed
     group by bucket
     order by bucket
-  `);
+  `, [SEED_LESSEES]);
   console.log("\nDemo data summary:");
   console.table(summary.rows);
 

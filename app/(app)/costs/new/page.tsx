@@ -31,34 +31,53 @@ export default async function NewCostPage() {
     const propIds = (formData.getAll("property_ids") as string[]).filter(Boolean);
     if (!propIds.length) throw new Error("Pick at least one property");
 
-    const category = String(formData.get("category") || "").trim().toLowerCase();
-    if (!category) throw new Error("Category is required");
+    const lineCount = Number(formData.get("line_count") || 0);
+    const lines: { category: string; amount: number }[] = [];
+    for (let i = 0; i < lineCount; i++) {
+      const cat = String(formData.get(`line_category_${i}`) || "").trim().toLowerCase();
+      const amt = Number(formData.get(`line_amount_${i}`));
+      if (cat && amt > 0) lines.push({ category: cat, amount: amt });
+    }
+    if (!lines.length) throw new Error("Add at least one line item with a positive amount");
 
-    // Ensure the category exists (create if first time)
-    await sb.from("cost_categories").upsert({ name: category, created_by: user?.id ?? null }, { onConflict: "name", ignoreDuplicates: true });
+    // Ensure all categories exist (insert if missing)
+    const uniqueCats = Array.from(new Set(lines.map((l) => l.category)));
+    for (const cat of uniqueCats) {
+      await sb.from("cost_categories").upsert({ name: cat, created_by: user?.id ?? null }, { onConflict: "name", ignoreDuplicates: true });
+    }
+
+    const totalAmount = lines.reduce((s, l) => s + l.amount, 0);
+    const primaryCategory = lines[0].category; // legacy column = first line's category
 
     const { data: cost, error: e1 } = await sb.from("costs").insert({
       description: String(formData.get("description") || "").trim(),
-      category,
-      amount: Number(formData.get("amount")),
+      category: primaryCategory,
+      amount: totalAmount,
       incurred_on: String(formData.get("incurred_on")),
       notes: String(formData.get("notes") || "").trim() || null,
       created_by: user?.id,
     }).select("id").maybeSingle();
-    if (e1 || !cost) throw new Error(e1?.message || "insert failed");
+    if (e1 || !cost) throw new Error(e1?.message || "Cost insert failed");
 
+    // Insert line items
+    const { error: e2 } = await sb.from("cost_line_items").insert(
+      lines.map((l) => ({ cost_id: cost.id, category: l.category, amount: l.amount }))
+    );
+    if (e2) throw new Error(e2.message);
+
+    // Allocate to properties
     if (propIds.length === 1) {
       await sb.from("cost_allocations").insert({
         cost_id: cost.id,
         property_id: propIds[0],
-        allocated_amount: Number(formData.get("amount")),
+        allocated_amount: totalAmount,
       });
     } else {
-      const { error: e2 } = await sb.rpc("allocate_cost_by_sqft", {
+      const { error: e3 } = await sb.rpc("allocate_cost_by_sqft", {
         p_cost_id: cost.id,
         p_property_ids: propIds,
       });
-      if (e2) throw new Error(e2.message);
+      if (e3) throw new Error(e3.message);
     }
 
     redirect("/costs");

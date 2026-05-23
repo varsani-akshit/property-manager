@@ -79,11 +79,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       .eq("status", "due")
       .gt("due_date", today)
       .lte("due_date", horizon90.toISOString().slice(0, 10)),
-    // Costs by category in period — separate query so we get every category
-    sb.from("costs")
-      .select("category, amount, incurred_on, cost_allocations(allocated_amount)")
-      .gte("incurred_on", period.from)
-      .lte("incurred_on", period.to),
+    // Costs by category in period — query line items so multi-category costs
+    // contribute to every category they include.
+    sb.from("cost_line_items")
+      .select("category, amount, costs!inner(incurred_on)")
+      .gte("costs.incurred_on", period.from)
+      .lte("costs.incurred_on", period.to),
   ]);
 
   const collected = collectedRes.data ?? [];
@@ -212,10 +213,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const next90 = upcomingDues.reduce((s, d) => s + Number(d.net_amount || 0), 0);
   const expectedMonthly = activeLeases.reduce((s, l) => s + Number(l.gross_rent_monthly || 0), 0);
 
-  // === COSTS BY CATEGORY (period) ===
+  // === COSTS BY CATEGORY (period) — sums each line item by its own category ===
   const byCategory: Record<string, number> = {};
-  for (const c of costsWithCat) {
-    byCategory[c.category] = (byCategory[c.category] ?? 0) + Number(c.amount || 0);
+  for (const li of costsWithCat) {
+    const row = li as { category: string; amount: number };
+    byCategory[row.category] = (byCategory[row.category] ?? 0) + Number(row.amount || 0);
   }
   const categoryRows = Object.entries(byCategory).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
 
