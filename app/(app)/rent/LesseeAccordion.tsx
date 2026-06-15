@@ -1,0 +1,327 @@
+"use client";
+import { useMemo, useState, Fragment } from "react";
+import Link from "next/link";
+import { ChevronRight, ChevronDown } from "lucide-react";
+import { money, fmtDate } from "@/lib/format";
+import { cn } from "@/lib/cn";
+
+export type RawRentRow = {
+  id: string;
+  due_date: string;
+  gross_amount: number;
+  service_charge_deduction: number;
+  net_amount: number;
+  collected_amount: number;
+  status: string;
+  collected_at: string | null;
+  lease_id: string;
+  property_id: string;
+  properties: { name: string } | { name: string }[] | null;
+  leases: { id: string; lessee_name: string; lessee_contact: string | null } | { id: string; lessee_name: string; lessee_contact: string | null }[] | null;
+};
+
+function pickOne<T>(v: T | T[] | null): T | null {
+  return Array.isArray(v) ? v[0] ?? null : v;
+}
+
+type Bucket = "outstanding" | "upcoming" | "collected";
+
+type LesseeGroup = {
+  lessee_name: string;
+  contact: string | null;
+  properties: string[];
+  outstanding_total: number;
+  outstanding_count: number;
+  upcoming_total: number;
+  upcoming_count: number;
+  collected_total: number;
+  collected_count: number;
+  rows: RawRentRow[];
+};
+
+function bucketOf(r: RawRentRow, today: string, upcomingHorizon: string): Bucket | null {
+  if (r.status === "collected") return "collected";
+  if (r.status === "due" || r.status === "partial") {
+    if (r.due_date <= today) return "outstanding";
+    if (r.due_date <= upcomingHorizon) return "upcoming";
+  }
+  return null;
+}
+
+function remainder(r: RawRentRow): number {
+  return Math.max(0, Number(r.net_amount) - Number(r.collected_amount));
+}
+
+export function LesseeAccordion({
+  rows,
+  today,
+  upcomingHorizon,
+  canMarkRent,
+  markFullAction,
+}: {
+  rows: RawRentRow[];
+  today: string;
+  upcomingHorizon: string;
+  canMarkRent: boolean;
+  markFullAction: (fd: FormData) => Promise<void>;
+}) {
+  const groups: LesseeGroup[] = useMemo(() => {
+    const map = new Map<string, LesseeGroup>();
+    for (const r of rows) {
+      const lease = pickOne(r.leases);
+      if (!lease) continue;
+      const lessee = lease.lessee_name || "(unknown)";
+      const prop = pickOne(r.properties)?.name ?? "";
+      const bucket = bucketOf(r, today, upcomingHorizon);
+      if (!bucket) continue;
+
+      if (!map.has(lessee)) {
+        map.set(lessee, {
+          lessee_name: lessee,
+          contact: lease.lessee_contact ?? null,
+          properties: [],
+          outstanding_total: 0,
+          outstanding_count: 0,
+          upcoming_total: 0,
+          upcoming_count: 0,
+          collected_total: 0,
+          collected_count: 0,
+          rows: [],
+        });
+      }
+      const g = map.get(lessee)!;
+      if (prop && !g.properties.includes(prop)) g.properties.push(prop);
+      g.rows.push(r);
+      if (bucket === "outstanding") {
+        g.outstanding_total += remainder(r);
+        g.outstanding_count += 1;
+      } else if (bucket === "upcoming") {
+        g.upcoming_total += remainder(r);
+        g.upcoming_count += 1;
+      } else if (bucket === "collected") {
+        g.collected_total += Number(r.collected_amount || 0);
+        g.collected_count += 1;
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      // Most urgent first: largest outstanding, then largest upcoming
+      if (b.outstanding_total !== a.outstanding_total) return b.outstanding_total - a.outstanding_total;
+      return b.upcoming_total - a.upcoming_total;
+    });
+  }, [rows, today, upcomingHorizon]);
+
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [tabs, setTabs] = useState<Record<string, Bucket>>({});
+
+  function toggle(name: string) {
+    setOpen((cur) => {
+      const next = new Set(cur);
+      if (next.has(name)) next.delete(name);
+      else {
+        next.add(name);
+        if (!tabs[name]) {
+          // Default tab = whichever has rows, preferring outstanding
+          const g = groups.find((x) => x.lessee_name === name)!;
+          const def: Bucket = g.outstanding_count > 0 ? "outstanding" : g.upcoming_count > 0 ? "upcoming" : "collected";
+          setTabs((t) => ({ ...t, [name]: def }));
+        }
+      }
+      return next;
+    });
+  }
+
+  return (
+    <div className="card p-0">
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th className="w-8"></th>
+              <th>Lessee</th>
+              <th>Properties</th>
+              <th className="text-right">Outstanding</th>
+              <th className="text-right">Upcoming (3 mo)</th>
+              <th className="text-right">Collected (4 mo)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g) => {
+              const isOpen = open.has(g.lessee_name);
+              const activeTab: Bucket = tabs[g.lessee_name] ?? "outstanding";
+              return (
+                <Fragment key={g.lessee_name}>
+                  <tr
+                    onClick={() => toggle(g.lessee_name)}
+                    className="cursor-pointer hover:bg-muted/50"
+                  >
+                    <td className="text-muted-fg">
+                      {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </td>
+                    <td>
+                      <div className="font-medium">{g.lessee_name}</div>
+                      {g.contact && <div className="text-xs text-muted-fg">{g.contact}</div>}
+                    </td>
+                    <td className="text-xs text-muted-fg max-w-xs truncate" title={g.properties.join(", ")}>
+                      {g.properties.join(", ")}
+                    </td>
+                    <td className={cn("text-right tabular-nums", g.outstanding_total > 0 && "text-danger font-medium")}>
+                      {money(g.outstanding_total)}
+                      {g.outstanding_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.outstanding_count})</span>}
+                    </td>
+                    <td className="text-right tabular-nums">
+                      {money(g.upcoming_total)}
+                      {g.upcoming_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.upcoming_count})</span>}
+                    </td>
+                    <td className="text-right tabular-nums text-success">
+                      {money(g.collected_total)}
+                      {g.collected_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.collected_count})</span>}
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="bg-muted/30">
+                      <td colSpan={6} className="p-3">
+                        <Tabs
+                          group={g}
+                          today={today}
+                          upcomingHorizon={upcomingHorizon}
+                          active={activeTab}
+                          setActive={(t) => setTabs((s) => ({ ...s, [g.lessee_name]: t }))}
+                          canMarkRent={canMarkRent}
+                          markFullAction={markFullAction}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+            {!groups.length && (
+              <tr>
+                <td colSpan={6} className="text-center text-muted-fg py-8">
+                  No rent activity in the current scope.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Tabs({
+  group,
+  today,
+  upcomingHorizon,
+  active,
+  setActive,
+  canMarkRent,
+  markFullAction,
+}: {
+  group: LesseeGroup;
+  today: string;
+  upcomingHorizon: string;
+  active: Bucket;
+  setActive: (t: Bucket) => void;
+  canMarkRent: boolean;
+  markFullAction: (fd: FormData) => Promise<void>;
+}) {
+  const labels: { key: Bucket; label: string; count: number }[] = [
+    { key: "outstanding", label: "Due", count: group.outstanding_count },
+    { key: "upcoming",   label: "Upcoming", count: group.upcoming_count },
+    { key: "collected",  label: "Collected", count: group.collected_count },
+  ];
+
+  const filtered = group.rows.filter((r) => bucketOf(r, today, upcomingHorizon) === active);
+  // Sort: due/upcoming oldest first; collected newest first
+  filtered.sort((a, b) => {
+    if (active === "collected") {
+      return (b.collected_at ?? "").localeCompare(a.collected_at ?? "");
+    }
+    return a.due_date.localeCompare(b.due_date);
+  });
+
+  return (
+    <div>
+      <div className="flex gap-1 mb-3">
+        {labels.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setActive(t.key)}
+            className={cn(
+              "px-3 py-1 text-xs rounded border transition-colors",
+              active === t.key
+                ? "bg-primary text-primary-fg border-primary"
+                : "border-border bg-surface text-fg-soft hover:border-primary hover:text-primary"
+            )}
+          >
+            {t.label} <span className="opacity-70">({t.count})</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="table-wrap rounded border border-border bg-surface">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>{active === "collected" ? "Collected on" : "Due date"}</th>
+              <th>Property</th>
+              <th className="text-right">Gross</th>
+              <th className="text-right">SC ded.</th>
+              <th className="text-right">Net</th>
+              <th className="text-right">Paid</th>
+              <th className="text-right">{active === "collected" ? "" : "Outstanding"}</th>
+              <th>Status</th>
+              {canMarkRent && active !== "collected" && <th></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((r) => {
+              const p = pickOne(r.properties);
+              const rem = remainder(r);
+              const statusLabel =
+                r.status === "collected" ? "collected" :
+                r.status === "partial" ? "partial" :
+                active === "outstanding" ? "overdue" : "due";
+              const statusBadge =
+                r.status === "collected" ? "badge-success" :
+                r.status === "partial" ? "badge-warning" :
+                active === "outstanding" ? "badge-danger" : "badge-warning";
+              return (
+                <tr key={r.id}>
+                  <td>{active === "collected" ? fmtDate(r.collected_at) : fmtDate(r.due_date)}</td>
+                  <td>{p?.name}</td>
+                  <td className="text-right">{money(r.gross_amount)}</td>
+                  <td className="text-right text-muted-fg">{money(r.service_charge_deduction)}</td>
+                  <td className="text-right">{money(r.net_amount)}</td>
+                  <td className="text-right">{money(r.collected_amount)}</td>
+                  <td className={cn("text-right tabular-nums", active !== "collected" && rem > 0 && "text-danger font-medium")}>
+                    {active === "collected" ? "" : money(rem)}
+                  </td>
+                  <td><span className={statusBadge}>{statusLabel}</span></td>
+                  {canMarkRent && active !== "collected" && (
+                    <td className="text-right">
+                      <div className="flex gap-1 justify-end">
+                        <form action={markFullAction}>
+                          <input type="hidden" name="id" value={r.id} />
+                          <button className="btn-primary text-xs">Mark collected</button>
+                        </form>
+                        <Link href={`/rent/${r.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+            {!filtered.length && (
+              <tr><td colSpan={canMarkRent ? 9 : 8} className="text-center text-muted-fg py-4">
+                Nothing here.
+              </td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
