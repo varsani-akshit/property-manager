@@ -213,26 +213,38 @@ export default async function PropertyDetailPage({
       <div className="card mt-6 p-0">
         <div className="flex items-center justify-between px-3 py-3 border-b border-border">
           <h2 className="font-semibold">Cost history ({period.label})</h2>
-          <span className="text-xs text-muted-fg">{costTotal.toLocaleString()} row{costTotal === 1 ? "" : "s"}</span>
+          <span className="text-xs text-muted-fg">{costTotal.toLocaleString()} cost{costTotal === 1 ? "" : "s"}</span>
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Date</th><th>Description</th><th>Categories</th><th className="text-right">Allocated</th></tr></thead>
+            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th className="text-right">Allocated to this property</th></tr></thead>
             <tbody>
-              {allocsRows.map((a, i) => {
-                const li = (a.costs?.cost_line_items ?? []) as any[];
-                return (
-                  <tr key={i}>
-                    <td>{fmtDate(a.costs?.incurred_on)}</td>
-                    <td>{a.costs?.description}</td>
-                    <td>
-                      <div className="flex flex-wrap gap-1">
-                        {li.map((l: any, j: number) => <span key={j} className="badge-muted">{l.category}</span>)}
-                      </div>
-                    </td>
-                    <td className="text-right">{money(a.allocated_amount)}</td>
-                  </tr>
-                );
+              {allocsRows.flatMap((a, i) => {
+                const cost = a.costs;
+                const lineItems = (cost?.cost_line_items ?? []) as any[];
+                const allocated = Number(a.allocated_amount);
+                const costTotal = Number(cost?.amount ?? lineItems.reduce((s: number, l: any) => s + Number(l.amount || 0), 0));
+                if (!lineItems.length) {
+                  return [(
+                    <tr key={`${i}-only`}>
+                      <td>{fmtDate(cost?.incurred_on)}</td>
+                      <td>{cost?.description}</td>
+                      <td><span className="badge-muted">—</span></td>
+                      <td className="text-right">{money(allocated)}</td>
+                    </tr>
+                  )];
+                }
+                return lineItems.map((li: any, j: number) => {
+                  const share = costTotal > 0 ? (Number(li.amount) / costTotal) * allocated : 0;
+                  return (
+                    <tr key={`${i}-${j}`}>
+                      <td>{j === 0 ? fmtDate(cost?.incurred_on) : ""}</td>
+                      <td>{j === 0 ? cost?.description : <span className="text-muted-fg pl-3">↳</span>}</td>
+                      <td><span className="badge-muted">{li.category}</span></td>
+                      <td className="text-right">{money(share)}</td>
+                    </tr>
+                  );
+                });
               })}
               {!allocsRows.length && <tr><td colSpan={4} className="text-muted-fg text-center py-4">No costs in this period.</td></tr>}
             </tbody>
