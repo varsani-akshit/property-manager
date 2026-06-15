@@ -113,31 +113,27 @@ export default async function PropertiesPage({
                 <th>Status</th>
                 <th>Lessee</th>
                 <th className="text-right">Rent / mo</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
               {arr.map((p) => {
                 const lease = p.leases?.find((l) => l.active);
                 return (
-                  <tr key={p.id}>
-                    <td><Link href={`/properties/${p.id}`} className="font-medium hover:underline">{p.name}</Link></td>
-                    <td>{compoundName(p.compounds)}</td>
-                    <td className="text-right">{Number(p.area_sqft).toLocaleString()}</td>
-                    <td className="text-right">{money(p.valuation)}</td>
-                    <td className="text-right">{money(p.service_charge_monthly)}</td>
-                    <td>{lease ? <span className="badge-success">Rented</span> : <span className="badge-muted">Vacant</span>}</td>
-                    <td>{lease?.lessee_name || "—"}</td>
-                    <td className="text-right">{lease ? money(lease.gross_rent_monthly) : "—"}</td>
-                    <td className="text-right">
-                      {has(profile, "edit_property") && (
-                        <Link href={`/properties/${p.id}/edit`} className="btn-secondary text-xs">Edit</Link>
-                      )}
+                  <tr key={p.id} className="cursor-pointer">
+                    <td>
+                      <Link href={`/properties/${p.id}`} className="block font-medium">{p.name}</Link>
                     </td>
+                    <td><Link href={`/properties/${p.id}`} className="block">{compoundName(p.compounds)}</Link></td>
+                    <td className="text-right"><Link href={`/properties/${p.id}`} className="block">{Number(p.area_sqft).toLocaleString()}</Link></td>
+                    <td className="text-right"><Link href={`/properties/${p.id}`} className="block">{money(p.valuation)}</Link></td>
+                    <td className="text-right"><Link href={`/properties/${p.id}`} className="block">{money(p.service_charge_monthly)}</Link></td>
+                    <td><Link href={`/properties/${p.id}`} className="block">{lease ? <span className="badge-success">Rented</span> : <span className="badge-muted">Vacant</span>}</Link></td>
+                    <td><Link href={`/properties/${p.id}`} className="block">{lease?.lessee_name || "—"}</Link></td>
+                    <td className="text-right"><Link href={`/properties/${p.id}`} className="block">{lease ? money(lease.gross_rent_monthly) : "—"}</Link></td>
                   </tr>
                 );
               })}
-              {!arr.length && <tr><td colSpan={9} className="text-center text-muted-fg py-8">{q ? "No properties match." : "No properties yet."}</td></tr>}
+              {!arr.length && <tr><td colSpan={8} className="text-center text-muted-fg py-8">{q ? "No properties match." : "No properties yet."}</td></tr>}
             </tbody>
           </table>
         </div>

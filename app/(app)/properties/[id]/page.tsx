@@ -103,15 +103,6 @@ export default async function PropertyDetailPage({
     redirect("/properties");
   }
 
-  async function hardDeleteProperty() {
-    "use server";
-    await requirePermission("delete_property");
-    const sb = await supabaseServer();
-    const { error } = await sb.from("properties").delete().eq("id", id);
-    if (error) throw new Error(error.message);
-    redirect("/properties");
-  }
-
   return (
     <div>
       <PageHeader
@@ -126,20 +117,12 @@ export default async function PropertyDetailPage({
               <Link href={`/leases/new?property=${prop.id}`} className="btn-primary">Put on rent</Link>
             )}
             {has(profile, "delete_property") && (
-              <>
-                <ConfirmButton
-                  action={archiveProperty}
-                  confirm={`Archive "${prop.name}"? It will be hidden from lists but kept in the database with all its history.`}
-                  label="Archive"
-                  className="btn-secondary"
-                />
-                <ConfirmButton
-                  action={hardDeleteProperty}
-                  confirm={`PERMANENTLY DELETE "${prop.name}"?\n\nThis will also delete:\n- All leases on this property and their rent rows\n- All service charge rows for this property\n- All cost allocations to this property\n\nCosts themselves are kept. This cannot be undone.`}
-                  label="Delete"
-                  className="btn-danger"
-                />
-              </>
+              <ConfirmButton
+                action={archiveProperty}
+                confirm={`Archive "${prop.name}"? It will be hidden from lists but kept in the database with all its history.`}
+                label="Archive"
+                className="btn-danger"
+              />
             )}
           </>
         }
