@@ -55,7 +55,7 @@ export default async function CompoundsPage({
     <div>
       <PageHeader
         title="Compounds"
-        subtitle="Areas / buildings that group your properties"
+       
         actions={
           has(profile, "create_property") ? (
             <Link href="/compounds/new" className="btn-primary"><Plus size={14} /> New compound</Link>
@@ -63,7 +63,7 @@ export default async function CompoundsPage({
         }
       />
 
-      <SearchBar placeholder="Search by name or address…" q={q} searchParams={sp} />
+      <SearchBar placeholder="Search by name or address…" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Compounds" value={String(total)} />

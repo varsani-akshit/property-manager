@@ -108,10 +108,10 @@ export function StackedBarTrend({
           const hCost = (d.costs / (max || 1)) * innerH;
           return (
             <g key={d.label}>
-              <rect x={cx - barW} y={innerH - hCol} width={barW * 0.9} height={hCol} fill="hsl(142 71% 45%)" rx="2">
+              <rect x={cx - barW} y={innerH - hCol} width={barW * 0.9} height={hCol} fill="hsl(22 92% 52%)" rx="3">
                 <title>Collected {formatValue(d.collected)}</title>
               </rect>
-              <rect x={cx + barW * 0.05} y={innerH - hCost} width={barW * 0.9} height={hCost} fill="hsl(0 72% 51%)" rx="2">
+              <rect x={cx + barW * 0.05} y={innerH - hCost} width={barW * 0.9} height={hCost} fill="hsl(24 15% 35%)" rx="3">
                 <title>Costs {formatValue(d.costs)}</title>
               </rect>
               <text x={cx} y={height - 10} textAnchor="middle" fontSize="10" fill="hsl(215 16% 47%)">
@@ -121,9 +121,9 @@ export function StackedBarTrend({
           );
         })}
       </svg>
-      <div className="flex gap-4 text-xs text-muted-fg mt-1">
-        <span><span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ background: "hsl(142 71% 45%)" }} />Collected</span>
-        <span><span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ background: "hsl(0 72% 51%)" }} />Costs</span>
+      <div className="flex gap-4 text-xs text-muted-fg mt-2">
+        <span><span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ background: "hsl(22 92% 52%)" }} />Collected</span>
+        <span><span className="inline-block w-3 h-3 rounded-sm align-middle mr-1" style={{ background: "hsl(24 15% 35%)" }} />Costs</span>
       </div>
     </div>
   );
@@ -144,7 +144,7 @@ export function DonutChart({
   if (total <= 0) return <p className="text-sm text-muted-fg">No data.</p>;
   const r = size / 2;
   const innerR = r - thickness;
-  const palette = ["hsl(221 83% 53%)", "hsl(142 71% 45%)", "hsl(38 92% 50%)", "hsl(0 72% 51%)", "hsl(280 60% 55%)", "hsl(200 80% 50%)", "hsl(160 60% 45%)"];
+  const palette = ["hsl(22 92% 52%)","hsl(34 92% 56%)","hsl(45 92% 56%)","hsl(12 80% 55%)","hsl(2 75% 55%)","hsl(160 55% 42%)","hsl(220 70% 55%)","hsl(280 55% 55%)"];
 
   let acc = 0;
   const slices = data

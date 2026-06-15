@@ -91,7 +91,7 @@ export default async function PropertiesPage({
         }
       />
 
-      <SearchBar placeholder="Search by property, compound, or lessee…" q={q} searchParams={sp} />
+      <SearchBar placeholder="Search by property, compound, or lessee…" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Properties" value={String(summary.length)} hint={`${occupied} occupied · ${summary.length - occupied} vacant`} />

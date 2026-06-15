@@ -113,7 +113,7 @@ export default async function RentPage({
     <div>
       <PageHeader
         title="Rent Collection"
-        subtitle="Due dates follow each lease's start day-of-month. Partial collections supported."
+       
       />
 
       {(filterLessee || filterProperty) && (

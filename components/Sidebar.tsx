@@ -40,11 +40,14 @@ export function Sidebar({
   const visible = NAV.filter((n) => has(profile, n.perm));
 
   return (
-    <aside className="w-60 h-full border-r border-border bg-bg flex flex-col">
+    <aside className="w-60 h-full border-r border-border bg-surface flex flex-col">
       <div className="p-4 border-b border-border flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-semibold">Rental Manager</div>
-          <div className="text-xs text-muted-fg truncate">{profile.email}</div>
+          <div className="font-semibold flex items-center gap-2">
+            <span className="inline-flex w-6 h-6 rounded-md bg-primary text-primary-fg items-center justify-center text-xs font-bold">R</span>
+            Rental
+          </div>
+          <div className="text-xs text-muted-fg truncate mt-0.5">{profile.email}</div>
         </div>
         {mobileClose && (
           <button onClick={mobileClose} className="lg:hidden p-1 rounded-md hover:bg-muted shrink-0" aria-label="Close menu">
@@ -61,10 +64,8 @@ export function Sidebar({
               key={n.href}
               href={n.href}
               onClick={onNavigate}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-md text-sm",
-                active ? "bg-primary text-primary-fg" : "text-fg hover:bg-muted"
-              )}
+              prefetch
+              className={cn("nav-link", active ? "nav-link-active" : "nav-link-inactive")}
             >
               <Icon size={16} />
               <span>{n.label}</span>
@@ -72,7 +73,7 @@ export function Sidebar({
           );
         })}
       </nav>
-      <button onClick={signOut} className="m-2 btn-secondary text-sm">
+      <button onClick={signOut} className="m-2 btn-ghost text-sm">
         <LogOut size={14} /> Sign out
       </button>
     </aside>

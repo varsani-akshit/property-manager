@@ -61,7 +61,7 @@ export default async function CostsPage({
     <div>
       <PageHeader
         title="Costs"
-        subtitle="Browse by category. Click any category to see every cost entry that touched it."
+       
         actions={has(profile, "add_cost") ? <Link href="/costs/new" className="btn-primary"><Plus size={14}/> Add cost</Link> : null}
       />
 
@@ -86,7 +86,7 @@ export default async function CostsPage({
       )}
 
       {q && <p className="text-xs text-muted-fg mb-2">Filtered to categories matching &ldquo;{q}&rdquo;.</p>}
-      <SearchBar placeholder="Search categories…" q={q} searchParams={sp} />
+      <SearchBar placeholder="Search categories…" />
 
       {/* Category cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

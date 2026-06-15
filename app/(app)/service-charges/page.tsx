@@ -151,7 +151,7 @@ export default async function ServiceChargesPage({
 
   return (
     <div>
-      <PageHeader title="Service Charges" subtitle="Each property's monthly service charge — mark paid, skip, or bulk-process." />
+      <PageHeader title="Service Charges" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Pending" value={money(sumOf(pendingSum.data))} hint={`${(pendingSum.data ?? []).length} rows`} />
@@ -174,7 +174,7 @@ export default async function ServiceChargesPage({
         </div>
       </div>
 
-      <SearchBar placeholder="Search by property or compound…" q={q} searchParams={sp} />
+      <SearchBar placeholder="Search by property or compound…" />
 
       <form action={bulkAction}>
         <div className="card p-0">

@@ -100,7 +100,7 @@ export default async function CategoryDetailPage({
         <Kpi label="Period" value={period.label} />
       </div>
 
-      <SearchBar placeholder="Search by cost description…" q={q} searchParams={sp} />
+      <SearchBar placeholder="Search by cost description…" />
 
       <div className="card p-0">
         <div className="px-3 py-3 border-b border-border">

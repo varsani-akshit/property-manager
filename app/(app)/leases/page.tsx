@@ -89,7 +89,7 @@ export default async function LeasesPage({
         actions={has(profile, "create_lease") ? <Link href="/leases/new" className="btn-primary"><Plus size={14}/> New lease</Link> : null}
       />
 
-      <SearchBar placeholder="Search by lessee, property, or compound…" q={q} searchParams={sp} />
+      <SearchBar placeholder="Search by lessee, property, or compound…" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Active leases" value={String(active.length)} />
