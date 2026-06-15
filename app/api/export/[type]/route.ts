@@ -94,6 +94,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ type
     const { data } = await sb
       .from("costs")
       .select("incurred_on, description, category, amount, cost_allocations(allocated_amount, properties(name))")
+      .eq("payable_by_lessee", false)
       .gte("incurred_on", period.from)
       .lte("incurred_on", period.to)
       .order("incurred_on", { ascending: false });

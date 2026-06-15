@@ -58,8 +58,9 @@ export default async function PropertyDetailPage({
       .order("due_date", { ascending: false })
       .range(...rangeFor(rentPage)),
     // Cost allocations in period
-    sb.from("cost_allocations").select("allocated_amount, costs!inner(description, incurred_on, cost_line_items(category, amount))", { count: "exact" })
+    sb.from("cost_allocations").select("allocated_amount, costs!inner(description, incurred_on, payable_by_lessee, cost_line_items(category, amount))", { count: "exact" })
       .eq("property_id", id)
+      .eq("costs.payable_by_lessee", false)
       .gte("costs.incurred_on", period.from)
       .lte("costs.incurred_on", period.to)
       .order("costs(incurred_on)", { ascending: false })
@@ -75,8 +76,9 @@ export default async function PropertyDetailPage({
       .gte("due_date", period.from)
       .lte("due_date", period.to),
     // Period totals for costs
-    sb.from("cost_allocations").select("allocated_amount, costs!inner(incurred_on)")
+    sb.from("cost_allocations").select("allocated_amount, costs!inner(incurred_on, payable_by_lessee)")
       .eq("property_id", id)
+      .eq("costs.payable_by_lessee", false)
       .gte("costs.incurred_on", period.from)
       .lte("costs.incurred_on", period.to),
   ]);

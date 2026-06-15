@@ -62,8 +62,9 @@ export default async function CompoundDetailPage({
           .lte("due_date", period.to)
       : Promise.resolve({ data: [] }),
     propIds.length
-      ? sb.from("cost_allocations").select("allocated_amount, costs!inner(incurred_on)")
+      ? sb.from("cost_allocations").select("allocated_amount, costs!inner(incurred_on, payable_by_lessee)")
           .in("property_id", propIds)
+          .eq("costs.payable_by_lessee", false)
           .gte("costs.incurred_on", period.from)
           .lte("costs.incurred_on", period.to)
       : Promise.resolve({ data: [] }),

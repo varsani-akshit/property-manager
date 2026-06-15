@@ -14,6 +14,13 @@ type Property = {
   active_lessee?: string | null;
 };
 
+export type LeaseOption = {
+  id: string;
+  property_id: string;
+  property_name: string;
+  lessee_name: string;
+};
+
 function compoundName(c: Property["compounds"]): string {
   if (!c) return "";
   return Array.isArray(c) ? c[0]?.name ?? "" : c.name;
@@ -53,11 +60,13 @@ const newLine = (): Line => ({ id: crypto.randomUUID(), category: "", amount: ""
 
 export function CostForm({
   properties,
+  leases,
   categories,
   action,
   initial,
 }: {
   properties: Property[];
+  leases: LeaseOption[];
   categories: string[];
   action: (fd: FormData) => Promise<void>;
   initial?: {
@@ -66,6 +75,9 @@ export function CostForm({
     notes: string;
     lines: { category: string; amount: number }[];
     propertyIds: string[];
+    payable_by_lessee?: boolean;
+    lease_id?: string | null;
+    due_date?: string | null;
   };
 }) {
   const [lines, setLines] = useState<Line[]>(
@@ -75,6 +87,9 @@ export function CostForm({
   );
   const [picked, setPicked] = useState<string[]>(initial?.propertyIds ?? []);
   const [search, setSearch] = useState("");
+  const [billToLessee, setBillToLessee] = useState<boolean>(initial?.payable_by_lessee ?? false);
+  const [leaseId, setLeaseId] = useState<string>(initial?.lease_id ?? "");
+  const [dueDate, setDueDate] = useState<string>(initial?.due_date ?? "");
 
   const totalAmount = useMemo(
     () => lines.reduce((s, l) => s + (Number(l.amount) || 0), 0),
@@ -180,17 +195,82 @@ export function CostForm({
         <input type="hidden" name="line_count" value={lines.length} />
       </div>
 
-      {/* PROPERTY / COMPOUND ALLOCATION */}
-      <CompoundPicker
-        properties={filtered}
-        allProperties={properties}
-        picked={picked}
-        setPicked={setPicked}
-        totalAmount={totalAmount}
-        totalSqft={totalSqft}
-        search={search}
-        setSearch={setSearch}
-      />
+      {/* BILL TO LESSEE TOGGLE */}
+      <div className="border border-border rounded-md p-3 bg-muted/30">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            name="payable_by_lessee"
+            value="1"
+            checked={billToLessee}
+            onChange={(e) => setBillToLessee(e.target.checked)}
+            className="mt-1"
+          />
+          <div className="text-sm">
+            <div className="font-medium">Bill this cost to a lessee</div>
+            <div className="text-xs text-muted-fg">
+              The lessee owes us the full amount. It will appear under them in /rent as a &ldquo;Cost Due&rdquo; row,
+              collectible like rent (full or partial). Not counted as a landlord expense.
+            </div>
+          </div>
+        </label>
+
+        {billToLessee && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pl-6">
+            <div>
+              <label className="label">Lessee / lease</label>
+              <select
+                name="lease_id"
+                required={billToLessee}
+                className="input"
+                value={leaseId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setLeaseId(id);
+                  // Auto-pick the lease's property for allocation symmetry
+                  const lease = leases.find((l) => l.id === id);
+                  if (lease) setPicked([lease.property_id]);
+                }}
+              >
+                <option value="">Select lease…</option>
+                {leases.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.lessee_name} — {l.property_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Due date</label>
+              <input
+                name="due_date"
+                type="date"
+                required={billToLessee}
+                className="input"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PROPERTY / COMPOUND ALLOCATION — only when NOT billing a lessee */}
+      {!billToLessee && (
+        <CompoundPicker
+          properties={filtered}
+          allProperties={properties}
+          picked={picked}
+          setPicked={setPicked}
+          totalAmount={totalAmount}
+          totalSqft={totalSqft}
+          search={search}
+          setSearch={setSearch}
+        />
+      )}
+      {billToLessee && picked.map((id) => (
+        <input key={id} type="hidden" name="property_ids" value={id} />
+      ))}
 
       <div className="flex gap-2">
         <SubmitButton loadingText="Saving…">{initial ? "Save changes" : "Save cost"}</SubmitButton>

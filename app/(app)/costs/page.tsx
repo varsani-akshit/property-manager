@@ -27,9 +27,10 @@ export default async function CostsPage({
 
   // All line items in the period (optionally filtered by category search)
   let liQ = sb.from("cost_line_items")
-    .select("category, amount, cost_id, costs!inner(incurred_on, description)")
+    .select("category, amount, cost_id, costs!inner(incurred_on, description, payable_by_lessee)")
     .gte("costs.incurred_on", period.from)
-    .lte("costs.incurred_on", period.to);
+    .lte("costs.incurred_on", period.to)
+    .eq("costs.payable_by_lessee", false);
   if (q) liQ = liQ.ilike("category", `%${q}%`);
   const { data: lineItems } = await liQ;
   const lis = (lineItems ?? []) as any[];
@@ -53,6 +54,7 @@ export default async function CostsPage({
   const { data: recent } = await sb
     .from("costs")
     .select("id, description, amount, incurred_on, cost_line_items(category)")
+    .eq("payable_by_lessee", false)
     .gte("incurred_on", period.from)
     .lte("incurred_on", period.to)
     .order("incurred_on", { ascending: false })

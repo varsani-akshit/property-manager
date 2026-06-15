@@ -69,9 +69,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       .lte("due_date", today)
       .order("due_date", { ascending: true }),
     sb.from("cost_allocations")
-      .select("allocated_amount, property_id, costs!inner(incurred_on, category)")
+      .select("allocated_amount, property_id, costs!inner(incurred_on, category, payable_by_lessee)")
       .gte("costs.incurred_on", period.from)
-      .lte("costs.incurred_on", period.to),
+      .lte("costs.incurred_on", period.to)
+      .eq("costs.payable_by_lessee", false),
     sb.from("properties").select("id, name, valuation, compound_id, compounds(id, name)").eq("archived", false),
     sb.from("leases").select("id, lessee_name, property_id, gross_rent_monthly, end_date, active, start_date").eq("active", true),
     // Upcoming dues (next 90 days) — for cash flow projection
@@ -83,9 +84,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     // Costs by category in period — query line items so multi-category costs
     // contribute to every category they include.
     sb.from("cost_line_items")
-      .select("category, amount, costs!inner(incurred_on)")
+      .select("category, amount, costs!inner(incurred_on, payable_by_lessee)")
       .gte("costs.incurred_on", period.from)
-      .lte("costs.incurred_on", period.to),
+      .lte("costs.incurred_on", period.to)
+      .eq("costs.payable_by_lessee", false),
   ]);
 
   const collected = collectedRes.data ?? [];

@@ -45,8 +45,9 @@ export default async function CategoryDetailPage({
 
   // 1) Find cost_ids that have a line item with this category in the period
   let liQ = sb.from("cost_line_items")
-    .select("cost_id, amount, costs!inner(incurred_on, description)")
+    .select("cost_id, amount, costs!inner(incurred_on, description, payable_by_lessee)")
     .eq("category", category)
+    .eq("costs.payable_by_lessee", false)
     .gte("costs.incurred_on", period.from)
     .lte("costs.incurred_on", period.to);
   if (q) liQ = liQ.ilike("costs.description", `%${q}%`);
