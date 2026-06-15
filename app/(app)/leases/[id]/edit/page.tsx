@@ -28,13 +28,10 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
     const endDate = String(formData.get("end_date"));
     const property_id = (lease as { property_id: string }).property_id;
 
-    const lessee_doc_url = String(formData.get("lessee_doc_url") || "").trim();
-    if (!lessee_doc_url) throw new Error("Lessee document URL is required");
-
     const { error } = await sb.from("leases").update({
       lessee_name: String(formData.get("lessee_name") || "").trim(),
       lessee_contact: String(formData.get("lessee_contact") || "").trim() || null,
-      lessee_doc_url,
+      lessee_doc_url: String(formData.get("lessee_doc_url") || "").trim() || null,
       start_date: startDate,
       end_date: endDate,
       gross_rent_monthly: newGross,

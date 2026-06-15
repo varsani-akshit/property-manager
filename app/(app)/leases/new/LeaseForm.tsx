@@ -107,15 +107,14 @@ export function LeaseForm({
           <p className="text-xs text-muted-fg mt-1">Tracked separately from monthly rent; refundable at lease end.</p>
         </div>
         <div>
-          <label className="label">Lessee document (Google Drive URL) <span className="text-danger">*</span></label>
+          <label className="label">Lessee document (Google Drive URL)</label>
           <input
             name="lessee_doc_url"
             type="url"
-            required
             className="input"
             placeholder="https://drive.google.com/..."
           />
-          <p className="text-xs text-muted-fg mt-1">Required. Upload the signed lease document to Drive and paste the share link.</p>
+          <p className="text-xs text-muted-fg mt-1">Optional — paste a link to the signed lease document.</p>
         </div>
       </div>
 
