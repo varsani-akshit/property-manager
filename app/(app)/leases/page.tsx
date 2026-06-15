@@ -105,36 +105,29 @@ export default async function LeasesPage({
               <tr>
                 <th>Property</th><th>Lessee</th><th>Contact</th>
                 <th>Start</th><th>End</th>
-                <th className="text-right">Gross rent</th><th>Status</th><th></th>
+                <th className="text-right">Gross rent</th><th>Status</th>
               </tr>
             </thead>
             <tbody>
               {arr.map((l) => {
                 const p = propertyOf(l);
+                const href = `/leases/${l.id}`;
                 return (
-                  <tr key={l.id}>
+                  <tr key={l.id} className="cursor-pointer">
                     <td>
-                      {p && <Link href={`/properties/${p.id}`} className="font-medium hover:underline">{p.name}</Link>}
-                      <div className="text-xs text-muted-fg">{compoundName(p?.compounds ?? null)}</div>
+                      <Link href={href} className="block font-medium">{p?.name ?? "—"}</Link>
+                      <Link href={href} className="block text-xs text-muted-fg">{compoundName(p?.compounds ?? null)}</Link>
                     </td>
-                    <td><Link href={`/leases/${l.id}`} className="font-medium hover:underline">{l.lessee_name}</Link></td>
-                    <td>{l.lessee_contact || "—"}</td>
-                    <td>{fmtDate(l.start_date)}</td>
-                    <td>{fmtDate(l.end_date)}</td>
-                    <td className="text-right">{money(l.gross_rent_monthly)}</td>
-                    <td>{l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}</td>
-                    <td className="text-right">
-                      <div className="flex gap-1 justify-end">
-                        <Link href={`/leases/${l.id}`} className="btn-secondary text-xs">View</Link>
-                        {has(profile, "create_lease") && l.active && (
-                          <Link href={`/leases/${l.id}/edit`} className="btn-secondary text-xs">Edit</Link>
-                        )}
-                      </div>
-                    </td>
+                    <td><Link href={href} className="block font-medium">{l.lessee_name}</Link></td>
+                    <td><Link href={href} className="block">{l.lessee_contact || "—"}</Link></td>
+                    <td><Link href={href} className="block">{fmtDate(l.start_date)}</Link></td>
+                    <td><Link href={href} className="block">{fmtDate(l.end_date)}</Link></td>
+                    <td className="text-right"><Link href={href} className="block">{money(l.gross_rent_monthly)}</Link></td>
+                    <td><Link href={href} className="block">{l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}</Link></td>
                   </tr>
                 );
               })}
-              {!arr.length && <tr><td colSpan={8} className="text-center text-muted-fg py-8">{q ? "No leases match." : "No leases yet."}</td></tr>}
+              {!arr.length && <tr><td colSpan={7} className="text-center text-muted-fg py-8">{q ? "No leases match." : "No leases yet."}</td></tr>}
             </tbody>
           </table>
         </div>

@@ -7,10 +7,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const sb = await supabaseServer();
 
-  // 1) Deactivate the lease (don't delete — preserve history)
+  // 1) Deactivate the lease (don't delete — preserve history).
+  //    Also bring end_date forward to today so the lease timeline reflects actual tenure.
+  const today = new Date().toISOString().slice(0, 10);
   const { data: lease, error: e1 } = await sb
     .from("leases")
-    .update({ active: false, cancelled_at: new Date().toISOString() })
+    .update({
+      active: false,
+      cancelled_at: new Date().toISOString(),
+      end_date: today, // shorten lease to actual end
+    })
     .eq("id", id)
     .select("property_id")
     .maybeSingle();
@@ -18,7 +24,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // 2) Clean up future uncollected rent rows for this lease — they're no longer valid.
   //    Past dues (overdue) and already-collected rows are preserved as history.
-  const today = new Date().toISOString().slice(0, 10);
   await sb.from("rent_collections")
     .delete()
     .eq("lease_id", id)

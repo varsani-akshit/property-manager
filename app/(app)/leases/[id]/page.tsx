@@ -54,14 +54,6 @@ export default async function LeaseDetailPage({
     redirect(`/leases/${id}?msg=${encodeURIComponent(`Inserted ${data ?? 0} rent rows`)}`);
   }
 
-  async function hardDeleteLease() {
-    "use server";
-    await requirePermission("cancel_lease");
-    const sb = await supabaseServer();
-    const { error } = await sb.from("leases").delete().eq("id", id);
-    if (error) throw new Error(error.message);
-    redirect("/leases");
-  }
 
   const leaseStart = (lease as { start_date: string }).start_date;
   const leaseEffectiveEnd =
@@ -142,21 +134,16 @@ export default async function LeaseDetailPage({
               />
             )}
             {has(profile, "create_lease") && (lease as { active: boolean }).active && (
+              <Link href={`/leases/${id}/raise-rent`} className="btn-secondary text-xs">Raise rent</Link>
+            )}
+            {has(profile, "create_lease") && (lease as { active: boolean }).active && (
               <Link href={`/leases/${id}/edit`} className="btn-secondary text-xs">Edit lease</Link>
             )}
             {has(profile, "cancel_lease") && (lease as { active: boolean }).active && (
               <ConfirmPostButton
                 action={`/api/leases/${id}/cancel`}
-                confirm={`Cancel the lease for ${(lease as any).lessee_name}? Future unpaid rent rows will be removed. Past data stays as archive.`}
+                confirm={`Cancel the lease for ${(lease as any).lessee_name}? The lease end date will be set to today and future unpaid rent rows will be removed. Past data stays as archive.`}
                 label="Cancel rental"
-                className="btn-secondary text-xs"
-              />
-            )}
-            {has(profile, "cancel_lease") && (
-              <ConfirmButton
-                action={hardDeleteLease}
-                confirm={`PERMANENTLY DELETE the lease for "${(lease as any).lessee_name}"?\n\nThis also deletes every rent row tied to this lease (collected and outstanding).\n\nIf you just want to end the lease but keep the history, use "Cancel rental" instead. This cannot be undone.`}
-                label="Delete lease"
                 className="btn-danger text-xs"
               />
             )}

@@ -80,31 +80,23 @@ export default async function CompoundsPage({
               <th className="text-right">Properties</th>
               <th className="text-right">Valuation</th>
               <th className="text-right">Net (collected − costs)</th>
-              <th></th>
             </tr>
           </thead>
           <tbody>
             {compounds.map((c) => {
               const s = byCompound[c.id] ?? { valuation: 0, sqft: 0, collected: 0, costs: 0, count: 0 };
               return (
-                <tr key={c.id}>
-                  <td>
-                    <Link href={`/compounds/${c.id}`} className="font-medium hover:underline">{c.name}</Link>
-                  </td>
-                  <td className="text-muted-fg">{c.address || "—"}</td>
-                  <td className="text-right">{c.properties?.[0]?.count ?? 0}</td>
-                  <td className="text-right">{money(s.valuation)}</td>
-                  <td className="text-right">{money(s.collected - s.costs)}</td>
-                  <td className="text-right">
-                    {has(profile, "edit_property") && (
-                      <Link href={`/compounds/${c.id}/edit`} className="btn-secondary text-xs">Edit</Link>
-                    )}
-                  </td>
+                <tr key={c.id} className="cursor-pointer">
+                  <td><Link href={`/compounds/${c.id}`} className="block font-medium">{c.name}</Link></td>
+                  <td><Link href={`/compounds/${c.id}`} className="block text-muted-fg">{c.address || "—"}</Link></td>
+                  <td className="text-right"><Link href={`/compounds/${c.id}`} className="block">{c.properties?.[0]?.count ?? 0}</Link></td>
+                  <td className="text-right"><Link href={`/compounds/${c.id}`} className="block">{money(s.valuation)}</Link></td>
+                  <td className="text-right"><Link href={`/compounds/${c.id}`} className="block">{money(s.collected - s.costs)}</Link></td>
                 </tr>
               );
             })}
             {!compounds.length && (
-              <tr><td colSpan={6} className="text-center text-muted-fg py-8">No compounds yet.</td></tr>
+              <tr><td colSpan={5} className="text-center text-muted-fg py-8">No compounds yet.</td></tr>
             )}
           </tbody>
         </table></div>

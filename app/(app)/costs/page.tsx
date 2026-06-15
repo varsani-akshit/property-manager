@@ -138,31 +138,30 @@ export default async function CostsPage({
                 <th>Description</th>
                 <th>Categories</th>
                 <th className="text-right">Total</th>
-                <th></th>
               </tr>
             </thead>
             <tbody>
-              {(recent ?? []).map((c: any) => (
-                <tr key={c.id}>
-                  <td>{fmtDate(c.incurred_on)}</td>
-                  <td>{c.description}</td>
-                  <td>
-                    <div className="flex flex-wrap gap-1">
-                      {(c.cost_line_items ?? []).map((li: any, i: number) => (
-                        <span key={i} className="badge-muted">{li.category}</span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="text-right font-medium">{money(c.amount)}</td>
-                  <td className="text-right">
-                    {has(profile, "add_cost") && (
-                      <Link href={`/costs/${c.id}/edit`} className="btn-secondary text-xs">Edit</Link>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {(recent ?? []).map((c: any) => {
+                const href = has(profile, "add_cost") ? `/costs/${c.id}/edit` : "#";
+                return (
+                  <tr key={c.id} className={has(profile, "add_cost") ? "cursor-pointer" : ""}>
+                    <td><Link href={href} className="block">{fmtDate(c.incurred_on)}</Link></td>
+                    <td><Link href={href} className="block">{c.description}</Link></td>
+                    <td>
+                      <Link href={href} className="block">
+                        <div className="flex flex-wrap gap-1">
+                          {(c.cost_line_items ?? []).map((li: any, i: number) => (
+                            <span key={i} className="badge-muted">{li.category}</span>
+                          ))}
+                        </div>
+                      </Link>
+                    </td>
+                    <td className="text-right"><Link href={href} className="block font-medium">{money(c.amount)}</Link></td>
+                  </tr>
+                );
+              })}
               {!recent?.length && (
-                <tr><td colSpan={5} className="text-center text-muted-fg py-6">Nothing in this period.</td></tr>
+                <tr><td colSpan={4} className="text-center text-muted-fg py-6">Nothing in this period.</td></tr>
               )}
             </tbody>
           </table>
