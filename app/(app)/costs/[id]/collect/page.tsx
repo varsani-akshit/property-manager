@@ -123,9 +123,6 @@ export default async function CollectCostPage({ params }: { params: Promise<{ id
             className="input"
             defaultValue={alreadyPaid}
           />
-          <p className="text-xs text-muted-fg mt-1">
-            Enter the cumulative amount collected. 0 → due · &gt;0 and &lt; total → partial · = total → collected.
-          </p>
         </div>
 
         <div className="flex gap-2">

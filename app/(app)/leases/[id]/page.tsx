@@ -204,10 +204,6 @@ export default async function LeaseDetailPage({
 
       <DateFilter active={filterPeriod.range as Range} />
 
-      <p className="text-xs text-muted-fg mb-4">
-        Showing data for {fmtDate(periodFrom)} → {fmtDate(periodTo)} ({days} days). Intersected with lease lifetime.
-      </p>
-
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Rent collected" value={money(collected)} />
         <Kpi label="Outstanding" value={money(outstanding)} />
@@ -252,9 +248,6 @@ export default async function LeaseDetailPage({
           <h2 className="font-semibold">Costs allocated to this property (during this period)</h2>
           <span className="text-xs text-muted-fg">{costTotal.toLocaleString()} entr{costTotal === 1 ? "y" : "ies"}</span>
         </div>
-        <p className="text-xs text-muted-fg px-3 pt-2">
-          Costs allocated to {prop?.name} between {fmtDate(periodFrom)} and {fmtDate(periodTo)}. Includes both lease-specific and compound-wide costs.
-        </p>
         <div className="table-wrap">
           <table className="table">
             <thead><tr><th>Date</th><th>Description</th><th>Category</th><th className="text-right">Allocated</th></tr></thead>

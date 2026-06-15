@@ -159,16 +159,11 @@ export default async function UsersPage({
 
   return (
     <div>
-      <PageHeader title="Users & permissions" subtitle="Invite teammates, toggle granular permissions. Admins implicitly have all permissions." />
+      <PageHeader title="Users & permissions" />
 
       {flashError && (
         <div className="card mb-4 border-danger/30 bg-danger/5">
           <p className="text-sm text-danger">{flashError}</p>
-          {flashError.toLowerCase().includes("rate limit") && (
-            <p className="text-xs text-muted-fg mt-1">
-              Supabase free tier limits invite emails (~3–4/hour). Wait a few minutes or configure a custom SMTP provider in Supabase → Authentication → Emails.
-            </p>
-          )}
         </div>
       )}
       {flashOk && (
@@ -196,10 +191,6 @@ export default async function UsersPage({
           />
           <SubmitButton loadingText="Sending…">Send invite</SubmitButton>
         </form>
-        <p className="text-xs text-muted-fg mt-2">
-          They&apos;ll get an email with a magic link to set their password. Once they sign in, come back here to grant
-          permissions.
-        </p>
       </div>
 
       <div className="space-y-4">
@@ -270,10 +261,7 @@ export default async function UsersPage({
             {/* Separate, sibling form for delete — never nested inside the permissions form. */}
             <details className="mt-3 pt-3 border-t border-border">
               <summary className="text-xs text-danger cursor-pointer">Delete this user permanently</summary>
-              <div className="mt-2 flex items-center gap-2">
-                <p className="text-xs text-muted-fg flex-1">
-                  Removes the auth user and their profile row. Cannot be undone.
-                </p>
+              <div className="mt-2 flex items-center gap-2 justify-end">
                 <ConfirmButton
                   action={deleteUser}
                   hiddenInputs={{ id: u.id }}

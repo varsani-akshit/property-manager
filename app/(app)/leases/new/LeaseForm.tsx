@@ -104,7 +104,6 @@ export function LeaseForm({
             defaultValue={0}
             placeholder="e.g. 2 months rent"
           />
-          <p className="text-xs text-muted-fg mt-1">Tracked separately from monthly rent; refundable at lease end.</p>
         </div>
         <div>
           <label className="label">Lessee document (Google Drive URL)</label>
@@ -114,7 +113,6 @@ export function LeaseForm({
             className="input"
             placeholder="https://drive.google.com/..."
           />
-          <p className="text-xs text-muted-fg mt-1">Optional — paste a link to the signed lease document.</p>
         </div>
       </div>
 
@@ -127,8 +125,8 @@ export function LeaseForm({
         ) : (
           <div className="space-y-2">
             {[
-              { v: "we_pay",        title: "We pay the service charge",                  sub: `Net rent we receive: ${money(net)} (gross ${money(gross)} − SC ${money(sc)}). SC appears in the Service Charges tab as 'pending' for those months — mark paid when paid.` },
-              { v: "lessee_direct", title: "Lessee pays the service charge directly",     sub: `Lessee pays SC straight to the provider. Net rent we receive: ${money(gross)} (no deduction). SC rows for those months are tagged 'lessee direct' (off our pending list).` },
+              { v: "we_pay",        title: "We pay the service charge",                  sub: "" },
+              { v: "lessee_direct", title: "Lessee pays the service charge directly",     sub: "" },
             ].map((opt) => (
               <label
                 key={opt.v}
@@ -145,7 +143,6 @@ export function LeaseForm({
                   />
                   <div>
                     <div className="font-medium">{opt.title}</div>
-                    <div className="text-xs text-muted-fg">{opt.sub}</div>
                   </div>
                 </div>
               </label>

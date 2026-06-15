@@ -65,7 +65,6 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
             defaultValue={lease.lessee_doc_url ?? ""}
             placeholder="https://drive.google.com/..."
           />
-          <p className="text-xs text-muted-fg mt-1">Optional — link to the signed lease in Drive.</p>
         </div>
       </div>
 
@@ -78,8 +77,8 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
         ) : (
           <div className="space-y-2">
             {[
-              { v: "we_pay",        title: "We pay the service charge",                sub: `Net rent we receive: ${money(net)} (gross ${money(gross)} − SC ${money(sc)}). SC appears in Service Charges as 'pending' — mark paid each month.` },
-              { v: "lessee_direct", title: "Lessee pays the service charge directly",  sub: `Net rent we receive: ${money(gross)}. SC rows for these lease months tagged 'lessee direct'.` },
+              { v: "we_pay",        title: "We pay the service charge",                sub: "" },
+              { v: "lessee_direct", title: "Lessee pays the service charge directly",  sub: "" },
             ].map((opt) => (
               <label
                 key={opt.v}
@@ -96,7 +95,6 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
                   />
                   <div>
                     <div className="font-medium">{opt.title}</div>
-                    <div className="text-xs text-muted-fg">{opt.sub}</div>
                   </div>
                 </div>
               </label>
@@ -115,10 +113,6 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
           </div>
         </div>
       )}
-
-      <p className="text-xs text-muted-fg">
-        Changes apply going forward. Rent already marked &quot;collected&quot; or overdue for past months keeps its original amount.
-      </p>
 
       <div className="flex gap-2">
         <SubmitButton>Save changes</SubmitButton>

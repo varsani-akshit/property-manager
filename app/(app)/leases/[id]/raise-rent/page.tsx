@@ -121,10 +121,6 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
             className="input"
             defaultValue={today}
           />
-          <p className="text-xs text-muted-fg mt-1">
-            Any unpaid rent rows due on or after this date will be updated to the new amount.
-            Past collected and overdue rent rows are not changed.
-          </p>
         </div>
 
         <div>

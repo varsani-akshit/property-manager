@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { CostForm, type LeaseOption } from "./CostForm";
+import { CostForm } from "./CostForm";
 
 export default async function NewCostPage() {
   await requirePermission("add_cost");
@@ -10,7 +10,7 @@ export default async function NewCostPage() {
 
   const [propsRes, leasesRes, catsRes] = await Promise.all([
     sb.from("properties").select("id, name, area_sqft, compounds(name)").eq("archived", false).order("name"),
-    sb.from("leases").select("id, property_id, lessee_name, properties(name)").eq("active", true).order("lessee_name"),
+    sb.from("leases").select("property_id, lessee_name").eq("active", true),
     sb.from("cost_categories").select("name").order("name"),
   ]);
 
@@ -20,15 +20,6 @@ export default async function NewCostPage() {
     ...(p as any),
     active_lessee: lesseeByProp.get((p as { id: string }).id) ?? null,
   }));
-  const leases: LeaseOption[] = (leasesRes.data ?? []).map((l: any) => {
-    const prop = Array.isArray(l.properties) ? l.properties[0] : l.properties;
-    return {
-      id: l.id,
-      property_id: l.property_id,
-      property_name: prop?.name ?? "—",
-      lessee_name: l.lessee_name,
-    };
-  });
   const categories = (catsRes.data ?? []).map((c) => (c as { name: string }).name);
 
   async function create(formData: FormData) {
@@ -38,14 +29,24 @@ export default async function NewCostPage() {
     const { data: { user } } = await sb.auth.getUser();
 
     const payableByLessee = formData.get("payable_by_lessee") === "1";
-    const leaseId = payableByLessee ? String(formData.get("lease_id") || "").trim() : "";
     const dueDate = payableByLessee ? String(formData.get("due_date") || "").trim() : "";
-    if (payableByLessee && (!leaseId || !dueDate)) {
-      throw new Error("Pick a lessee and due date");
-    }
 
     const propIds = (formData.getAll("property_ids") as string[]).filter(Boolean);
     if (!propIds.length) throw new Error("Pick at least one property");
+    if (payableByLessee && propIds.length !== 1) {
+      throw new Error("Pick exactly one leased property to bill");
+    }
+    if (payableByLessee && !dueDate) {
+      throw new Error("Pick a due date");
+    }
+
+    let leaseId: string | null = null;
+    if (payableByLessee) {
+      const { data: l } = await sb.from("leases")
+        .select("id").eq("property_id", propIds[0]).eq("active", true).maybeSingle();
+      if (!l) throw new Error("That property has no active lease");
+      leaseId = (l as { id: string }).id;
+    }
 
     const lineCount = Number(formData.get("line_count") || 0);
     const lines: { category: string; amount: number }[] = [];
@@ -73,7 +74,7 @@ export default async function NewCostPage() {
       notes: String(formData.get("notes") || "").trim() || null,
       created_by: user?.id,
       payable_by_lessee: payableByLessee,
-      lease_id: payableByLessee ? leaseId : null,
+      lease_id: leaseId,
       due_date: payableByLessee ? dueDate : null,
       collection_status: payableByLessee ? "due" : null,
       collected_amount: 0,
@@ -107,7 +108,7 @@ export default async function NewCostPage() {
   return (
     <div className="max-w-2xl">
       <PageHeader title="Add cost" />
-      <CostForm properties={properties} leases={leases} categories={categories} action={create} />
+      <CostForm properties={properties} categories={categories} action={create} />
     </div>
   );
 }

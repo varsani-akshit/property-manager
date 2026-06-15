@@ -89,7 +89,6 @@ export default async function CategoryDetailPage({
     <div>
       <PageHeader
         title={category.charAt(0).toUpperCase() + category.slice(1)}
-        subtitle="Cost category drill-down"
         actions={<Link href="/costs" className="btn-secondary text-xs">← All categories</Link>}
       />
 

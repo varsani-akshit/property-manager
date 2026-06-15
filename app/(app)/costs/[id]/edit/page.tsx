@@ -2,7 +2,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
-import { CostForm, type LeaseOption } from "../../new/CostForm";
+import { CostForm } from "../../new/CostForm";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
     sb.from("cost_line_items").select("category, amount").eq("cost_id", id).order("created_at"),
     sb.from("cost_allocations").select("property_id").eq("cost_id", id),
     sb.from("properties").select("id, name, area_sqft, compounds(name)").eq("archived", false).order("name"),
-    sb.from("leases").select("id, property_id, lessee_name, properties(name)").eq("active", true).order("lessee_name"),
+    sb.from("leases").select("property_id, lessee_name").eq("active", true),
     sb.from("cost_categories").select("name").order("name"),
   ]);
 
@@ -32,15 +32,6 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
   const categories = (catsRes.data ?? []).map((c) => (c as { name: string }).name);
   const initialLines = (linesRes.data ?? []).map((l: any) => ({ category: l.category, amount: Number(l.amount) }));
   const initialPropertyIds = (allocsRes.data ?? []).map((a: any) => a.property_id);
-  const leases: LeaseOption[] = (leasesRes.data ?? []).map((l: any) => {
-    const prop = Array.isArray(l.properties) ? l.properties[0] : l.properties;
-    return {
-      id: l.id,
-      property_id: l.property_id,
-      property_name: prop?.name ?? "—",
-      lessee_name: l.lessee_name,
-    };
-  });
 
   async function update(formData: FormData) {
     "use server";
@@ -49,14 +40,24 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
     const { data: { user } } = await sb.auth.getUser();
 
     const payableByLessee = formData.get("payable_by_lessee") === "1";
-    const leaseId = payableByLessee ? String(formData.get("lease_id") || "").trim() : "";
     const dueDate = payableByLessee ? String(formData.get("due_date") || "").trim() : "";
-    if (payableByLessee && (!leaseId || !dueDate)) {
-      throw new Error("Pick a lessee and due date");
-    }
 
     const propIds = (formData.getAll("property_ids") as string[]).filter(Boolean);
     if (!propIds.length) throw new Error("Pick at least one property");
+    if (payableByLessee && propIds.length !== 1) {
+      throw new Error("Pick exactly one leased property to bill");
+    }
+    if (payableByLessee && !dueDate) {
+      throw new Error("Pick a due date");
+    }
+
+    let leaseId: string | null = null;
+    if (payableByLessee) {
+      const { data: l } = await sb.from("leases")
+        .select("id").eq("property_id", propIds[0]).eq("active", true).maybeSingle();
+      if (!l) throw new Error("That property has no active lease");
+      leaseId = (l as { id: string }).id;
+    }
 
     const lineCount = Number(formData.get("line_count") || 0);
     const lines: { category: string; amount: number }[] = [];
@@ -85,7 +86,7 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
       incurred_on: String(formData.get("incurred_on")),
       notes: String(formData.get("notes") || "").trim() || null,
       payable_by_lessee: payableByLessee,
-      lease_id: payableByLessee ? leaseId : null,
+      lease_id: leaseId,
       due_date: payableByLessee ? dueDate : null,
     };
     if (!keepCollection) {
@@ -128,7 +129,6 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
       <PageHeader title="Edit cost" />
       <CostForm
         properties={properties}
-        leases={leases}
         categories={categories}
         action={update}
         initial={{
@@ -138,7 +138,6 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
           lines: initialLines,
           propertyIds: initialPropertyIds,
           payable_by_lessee: Boolean((cost as any).payable_by_lessee),
-          lease_id: (cost as any).lease_id ?? null,
           due_date: (cost as any).due_date ?? null,
         }}
       />

@@ -104,10 +104,6 @@ export default async function EditRentPage({ params }: { params: Promise<{ id: s
             className="input"
             defaultValue={alreadyPaid}
           />
-          <p className="text-xs text-muted-fg mt-1">
-            Enter the cumulative amount collected. Status auto-updates:
-            0 → due · &gt;0 and &lt; net → partial · = net → collected.
-          </p>
         </div>
 
         <div className="flex gap-2">

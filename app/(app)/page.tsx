@@ -354,9 +354,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <div className="text-lg font-semibold">{money(next90)}</div>
           </div>
         </div>
-        <p className="text-xs text-muted-fg mt-2">
-          Sum of due (uncollected) rent with due_date in the next N days. Daily cron extends this window automatically.
-        </p>
       </div>
 
       {/* MONTHLY TREND CHART */}
@@ -546,9 +543,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="card p-0 mb-6">
         <div className="px-3 py-3 border-b border-border">
           <h2 className="font-semibold">Tenant payment punctuality (period)</h2>
-          <p className="text-xs text-muted-fg mt-1">
-            Average delay between due date and collection. Negative means paid early.
-          </p>
         </div>
         <div className="table-wrap">
           <table className="table">

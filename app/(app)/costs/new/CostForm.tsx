@@ -5,6 +5,7 @@ import { money, todayISO } from "@/lib/format";
 import { Plus, X, ChevronDown, ChevronRight } from "lucide-react";
 import { Combobox } from "@/components/Combobox";
 import { SubmitButton } from "@/components/SubmitButton";
+import { cn } from "@/lib/cn";
 
 type Property = {
   id: string;
@@ -14,12 +15,6 @@ type Property = {
   active_lessee?: string | null;
 };
 
-export type LeaseOption = {
-  id: string;
-  property_id: string;
-  property_name: string;
-  lessee_name: string;
-};
 
 function compoundName(c: Property["compounds"]): string {
   if (!c) return "";
@@ -60,13 +55,11 @@ const newLine = (): Line => ({ id: crypto.randomUUID(), category: "", amount: ""
 
 export function CostForm({
   properties,
-  leases,
   categories,
   action,
   initial,
 }: {
   properties: Property[];
-  leases: LeaseOption[];
   categories: string[];
   action: (fd: FormData) => Promise<void>;
   initial?: {
@@ -88,7 +81,6 @@ export function CostForm({
   const [picked, setPicked] = useState<string[]>(initial?.propertyIds ?? []);
   const [search, setSearch] = useState("");
   const [billToLessee, setBillToLessee] = useState<boolean>(initial?.payable_by_lessee ?? false);
-  const [leaseId, setLeaseId] = useState<string>(initial?.lease_id ?? "");
   const [dueDate, setDueDate] = useState<string>(initial?.due_date ?? "");
 
   const totalAmount = useMemo(
@@ -101,15 +93,21 @@ export function CostForm({
     [picked, properties]
   );
 
+  // When billing to a lessee, restrict the pool to actively-leased properties only.
+  const propertyPool = useMemo(
+    () => (billToLessee ? properties.filter((p) => !!p.active_lessee) : properties),
+    [properties, billToLessee]
+  );
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return properties;
+    if (!search.trim()) return propertyPool;
     const needle = search.toLowerCase().trim();
-    return properties.filter((p) =>
+    return propertyPool.filter((p) =>
       p.name.toLowerCase().includes(needle) ||
       compoundName(p.compounds).toLowerCase().includes(needle) ||
       (p.active_lessee?.toLowerCase().includes(needle) ?? false)
     );
-  }, [properties, search]);
+  }, [propertyPool, search]);
 
   function toggle(id: string) {
     setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
@@ -156,7 +154,6 @@ export function CostForm({
           <label className="label !mb-0">Line items</label>
           <span className="text-xs text-muted-fg">Total: <span className="font-medium text-fg">{money(totalAmount)}</span></span>
         </div>
-        <p className="text-xs text-muted-fg mb-2">Add one line per cost category. e.g. Plumbing 15,000 + Electrical 8,000. Click the dropdown to see existing categories.</p>
         <div className="space-y-2">
           {lines.map((l, i) => (
             <div key={l.id} className="grid grid-cols-[1fr_8rem_auto] gap-2 items-start">
@@ -197,80 +194,49 @@ export function CostForm({
 
       {/* BILL TO LESSEE TOGGLE */}
       <div className="border border-border rounded-md p-3 bg-muted/30">
-        <label className="flex items-start gap-2 cursor-pointer">
+        <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             name="payable_by_lessee"
             value="1"
             checked={billToLessee}
-            onChange={(e) => setBillToLessee(e.target.checked)}
-            className="mt-1"
+            onChange={(e) => {
+              const next = e.target.checked;
+              setBillToLessee(next);
+              if (next) setPicked((cur) => cur.slice(0, 1)); // collapse multi-pick to first
+            }}
           />
-          <div className="text-sm">
-            <div className="font-medium">Bill this cost to a lessee</div>
-            <div className="text-xs text-muted-fg">
-              The lessee owes us the full amount. It will appear under them in /rent as a &ldquo;Cost Due&rdquo; row,
-              collectible like rent (full or partial). Not counted as a landlord expense.
-            </div>
-          </div>
+          <span className="text-sm font-medium">Bill this cost to a lessee</span>
         </label>
 
         {billToLessee && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3 pl-6">
-            <div>
-              <label className="label">Lessee / lease</label>
-              <select
-                name="lease_id"
-                required={billToLessee}
-                className="input"
-                value={leaseId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setLeaseId(id);
-                  // Auto-pick the lease's property for allocation symmetry
-                  const lease = leases.find((l) => l.id === id);
-                  if (lease) setPicked([lease.property_id]);
-                }}
-              >
-                <option value="">Select lease…</option>
-                {leases.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.lessee_name} — {l.property_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="label">Due date</label>
-              <input
-                name="due_date"
-                type="date"
-                required={billToLessee}
-                className="input"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
-            </div>
+          <div className="mt-3 pl-6">
+            <label className="label">Due date</label>
+            <input
+              name="due_date"
+              type="date"
+              required={billToLessee}
+              className="input max-w-xs"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
           </div>
         )}
       </div>
 
-      {/* PROPERTY / COMPOUND ALLOCATION — only when NOT billing a lessee */}
-      {!billToLessee && (
-        <CompoundPicker
-          properties={filtered}
-          allProperties={properties}
-          picked={picked}
-          setPicked={setPicked}
-          totalAmount={totalAmount}
-          totalSqft={totalSqft}
-          search={search}
-          setSearch={setSearch}
-        />
-      )}
-      {billToLessee && picked.map((id) => (
-        <input key={id} type="hidden" name="property_ids" value={id} />
-      ))}
+      {/* PROPERTY PICKER — filtered to leased properties when billing a lessee, single-select */}
+      <CompoundPicker
+        properties={filtered}
+        allProperties={propertyPool}
+        picked={picked}
+        setPicked={setPicked}
+        totalAmount={totalAmount}
+        totalSqft={totalSqft}
+        search={search}
+        setSearch={setSearch}
+        singleSelect={billToLessee}
+        title={billToLessee ? "Pick the leased property" : "Apply to compound / properties"}
+      />
 
       <div className="flex gap-2">
         <SubmitButton loadingText="Saving…">{initial ? "Save changes" : "Save cost"}</SubmitButton>
@@ -295,6 +261,8 @@ function CompoundPicker({
   totalSqft,
   search,
   setSearch,
+  singleSelect = false,
+  title = "Apply to compound / properties",
 }: {
   properties: Property[];
   allProperties: Property[];
@@ -304,6 +272,8 @@ function CompoundPicker({
   totalSqft: number;
   search: string;
   setSearch: (v: string) => void;
+  singleSelect?: boolean;
+  title?: string;
 }) {
   // Group filtered properties by compound name.
   const groups = useMemo(() => {
@@ -326,10 +296,14 @@ function CompoundPicker({
   });
 
   function toggleProperty(id: string) {
-    setPicked((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+    setPicked((cur) => {
+      if (singleSelect) return cur.includes(id) ? [] : [id];
+      return cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+    });
   }
 
   function setGroupSelection(groupName: string, props: Property[], shouldCheck: boolean) {
+    if (singleSelect) return; // group-select doesn't apply in single-select mode
     const ids = props.map((p) => p.id);
     setPicked((cur) => {
       const others = cur.filter((x) => !ids.includes(x));
@@ -340,13 +314,9 @@ function CompoundPicker({
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="label !mb-0">Apply to compound / properties</label>
+        <label className="label !mb-0">{title}</label>
         <span className="text-xs text-muted-fg">{picked.length} selected</span>
       </div>
-      <p className="text-xs text-muted-fg mb-2">
-        Pick a whole compound (all its properties get selected) or individual properties.
-        Multi-selection auto-splits the total ({money(totalAmount)}) by sqft.
-      </p>
       <input
         type="search"
         className="input mb-2 text-sm"
@@ -374,11 +344,13 @@ function CompoundPicker({
                 >
                   {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                 </button>
-                <CompoundCheckbox
-                  checked={allChecked}
-                  indeterminate={someChecked}
-                  onChange={(v) => setGroupSelection(compoundLabel, props, v)}
-                />
+                {!singleSelect && (
+                  <CompoundCheckbox
+                    checked={allChecked}
+                    indeterminate={someChecked}
+                    onChange={(v) => setGroupSelection(compoundLabel, props, v)}
+                  />
+                )}
                 <div className="flex-1 min-w-0 text-sm">
                   <span className="font-semibold">{compoundLabel}</span>
                   <span className="text-muted-fg"> · {props.length} {props.length === 1 ? "property" : "properties"} · {groupSqft.toLocaleString()} sqft</span>
@@ -389,21 +361,27 @@ function CompoundPicker({
               </div>
               {!isCollapsed && props.map((p) => {
                 const checked = picked.includes(p.id);
-                const share = checked && totalSqft > 0 ? (Number(p.area_sqft) / totalSqft) * totalAmount : 0;
+                const share = checked && !singleSelect && totalSqft > 0 ? (Number(p.area_sqft) / totalSqft) * totalAmount : 0;
                 return (
                   <label key={p.id} className="flex items-center gap-3 pl-9 pr-3 py-2 hover:bg-muted/50 cursor-pointer text-sm">
-                    {/* Pure UI checkbox; the source of truth is the hidden inputs rendered below. */}
                     <input
-                      type="checkbox"
+                      type={singleSelect ? "radio" : "checkbox"}
+                      name={singleSelect ? "property_pick_radio" : undefined}
                       checked={checked}
                       onChange={() => toggleProperty(p.id)}
                     />
                     <span className="flex-1 min-w-0">
                       <span className="font-medium">{p.name}</span>
                       <span className="text-muted-fg"> · {Number(p.area_sqft).toLocaleString()} sqft</span>
-                      {p.active_lessee && <span className="text-xs text-muted-fg block truncate">Lessee: {p.active_lessee}</span>}
+                      {p.active_lessee && (
+                        <span className={cn("text-xs block truncate", singleSelect ? "text-primary font-medium" : "text-muted-fg")}>
+                          Lessee: {p.active_lessee}
+                        </span>
+                      )}
                     </span>
-                    {checked && picked.length > 1 && <span className="text-xs text-muted-fg whitespace-nowrap">≈ {money(share)}</span>}
+                    {checked && !singleSelect && picked.length > 1 && (
+                      <span className="text-xs text-muted-fg whitespace-nowrap">≈ {money(share)}</span>
+                    )}
                   </label>
                 );
               })}
