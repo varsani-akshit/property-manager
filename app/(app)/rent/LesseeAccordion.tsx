@@ -140,7 +140,7 @@ export function LesseeAccordion({
               <th>Lessee</th>
               <th>Properties</th>
               <th className="text-right">Outstanding</th>
-              <th className="text-right">Upcoming (3 mo)</th>
+              <th className="text-right">Upcoming (6 mo)</th>
               <th className="text-right">Collected (4 mo)</th>
             </tr>
           </thead>

@@ -47,7 +47,7 @@ export default async function RentPage({
 
   const sb = await supabaseServer();
   const today = todayISO();
-  const upcomingHorizon = plusDaysISO(today, 90);
+  const upcomingHorizon = plusDaysISO(today, 183); // ~6 months
   const collectedFloor = plusDaysISO(today, -120);
 
   // Resolve lessee filter → lease IDs
@@ -112,7 +112,7 @@ export default async function RentPage({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Kpi label="Outstanding (overdue)" value={money(sumOutstandingRemainder)} hint={`${(outstandingRes.data ?? []).length} rows`} />
-        <Kpi label="Upcoming (next 3 months)" value={money(sumUpcoming)} hint={`${(upcomingRes.data ?? []).length} rows`} />
+        <Kpi label="Upcoming (next 6 months)" value={money(sumUpcoming)} hint={`${(upcomingRes.data ?? []).length} rows · collectible in advance`} />
         <Kpi label="Collected (last 4 months)" value={money(sumCollected)} hint={`${(recentCollectedRes.data ?? []).length} rows`} />
       </div>
 

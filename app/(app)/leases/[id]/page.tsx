@@ -128,7 +128,7 @@ export default async function LeaseDetailPage({
             {has(profile, "create_lease") && (
               <ConfirmButton
                 action={backfillRents}
-                confirm={`Backfill rent rows for every month from the lease start (${fmtDate((lease as any).start_date)}) through this month? Existing rows are kept; only missing months get added as 'due'.`}
+                confirm={`Backfill rent rows for every month from the lease start (${fmtDate((lease as any).start_date)}) through the next 6 months? Existing rows are kept; only missing months get added as 'due'. Upcoming months can be collected in advance.`}
                 label="Backfill rents"
                 className="btn-secondary text-xs"
               />
