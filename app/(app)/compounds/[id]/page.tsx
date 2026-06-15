@@ -5,9 +5,11 @@ import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { DateFilter, resolvePeriod, periodDays, type Range } from "@/components/DateFilter";
 import { money } from "@/lib/format";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { has } from "@/lib/permissions";
+import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
+import { ConfirmButton } from "@/components/ConfirmButton";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +33,17 @@ export default async function CompoundDetailPage({
 
   const { data: compound } = await sb.from("compounds").select("*").eq("id", id).maybeSingle();
   if (!compound) notFound();
+
+  async function deleteCompoundAction() {
+    "use server";
+    await requirePermission("delete_property");
+    const sb = await supabaseServer();
+    const { count } = await sb.from("properties").select("id", { count: "exact", head: true }).eq("compound_id", id);
+    if ((count ?? 0) > 0) throw new Error("Compound is not empty");
+    const { error } = await sb.from("compounds").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+    redirect("/compounds");
+  }
 
   // Get the IDs of all properties in this compound (we'll need them for the period queries)
   const { data: allCompoundProps } = await sb
@@ -73,7 +86,23 @@ export default async function CompoundDetailPage({
       <PageHeader
         title={compound.name}
         subtitle={compound.address || undefined}
-        actions={has(profile, "edit_property") ? <Link href={`/compounds/${id}/edit`} className="btn-secondary">Edit</Link> : null}
+        actions={
+          <>
+            {has(profile, "edit_property") && <Link href={`/compounds/${id}/edit`} className="btn-secondary">Edit</Link>}
+            {has(profile, "delete_property") && (
+              <ConfirmButton
+                action={deleteCompoundAction}
+                confirm={
+                  allProps.length > 0
+                    ? `Cannot delete "${compound.name}" — it still has ${allProps.length} ${allProps.length === 1 ? "property" : "properties"}. Move or delete them first.`
+                    : `Permanently delete the compound "${compound.name}"? This cannot be undone.`
+                }
+                label="Delete"
+                className="btn-danger"
+              />
+            )}
+          </>
+        }
       />
 
       <DateFilter active={period.range as Range} />

@@ -95,11 +95,20 @@ export default async function PropertyDetailPage({
   const annualROI = prop.valuation > 0 ? ((net / Number(prop.valuation)) * (365 / Math.max(1, days)) * 100).toFixed(2) : "—";
   const periodROI = prop.valuation > 0 ? ((net / Number(prop.valuation)) * 100).toFixed(2) : "—";
 
-  async function deleteProperty() {
+  async function archiveProperty() {
     "use server";
     await requirePermission("delete_property");
     const sb = await supabaseServer();
     await sb.from("properties").update({ archived: true }).eq("id", id);
+    redirect("/properties");
+  }
+
+  async function hardDeleteProperty() {
+    "use server";
+    await requirePermission("delete_property");
+    const sb = await supabaseServer();
+    const { error } = await sb.from("properties").delete().eq("id", id);
+    if (error) throw new Error(error.message);
     redirect("/properties");
   }
 
@@ -117,12 +126,20 @@ export default async function PropertyDetailPage({
               <Link href={`/leases/new?property=${prop.id}`} className="btn-primary">Put on rent</Link>
             )}
             {has(profile, "delete_property") && (
-              <ConfirmButton
-                action={deleteProperty}
-                confirm={`Archive "${prop.name}"? It will be hidden from lists.`}
-                label="Archive"
-                className="btn-danger"
-              />
+              <>
+                <ConfirmButton
+                  action={archiveProperty}
+                  confirm={`Archive "${prop.name}"? It will be hidden from lists but kept in the database with all its history.`}
+                  label="Archive"
+                  className="btn-secondary"
+                />
+                <ConfirmButton
+                  action={hardDeleteProperty}
+                  confirm={`PERMANENTLY DELETE "${prop.name}"?\n\nThis will also delete:\n- All leases on this property and their rent rows\n- All service charge rows for this property\n- All cost allocations to this property\n\nCosts themselves are kept. This cannot be undone.`}
+                  label="Delete"
+                  className="btn-danger"
+                />
+              </>
             )}
           </>
         }
