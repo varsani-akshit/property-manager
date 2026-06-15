@@ -182,6 +182,11 @@ export default async function LeaseDetailPage({
               SC mode: {(lease as any).sc_payment_mode === "lessee_direct" ? "Lessee pays directly" : "We pay"}
             </div>
           </div>
+          <div>
+            <div className="text-xs text-muted-fg uppercase">Deposit held</div>
+            <div className="font-medium">{money((lease as any).deposit_amount ?? 0)}</div>
+            <div className="text-xs text-muted-fg">Refundable at end of lease</div>
+          </div>
         </div>
         {(lease as any).lessee_doc_url && (
           <div className="mt-3 pt-3 border-t border-border">

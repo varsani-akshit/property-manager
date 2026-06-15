@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { fmtDate } from "@/lib/format";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -193,7 +194,7 @@ export default async function UsersPage({
             placeholder="teammate@company.com"
             className="input flex-1"
           />
-          <button className="btn-primary">Send invite</button>
+          <SubmitButton loadingText="Sending…">Send invite</SubmitButton>
         </form>
         <p className="text-xs text-muted-fg mt-2">
           They&apos;ll get an email with a magic link to set their password. Once they sign in, come back here to grant
@@ -248,7 +249,7 @@ export default async function UsersPage({
 
               <div className="mt-4 flex justify-end items-center gap-3">
                 <span className="text-xs text-muted-fg">Joined {fmtDate(u.created_at)}</span>
-                <button className="btn-primary text-sm">Save permissions</button>
+                <SubmitButton className="btn-primary text-sm">Save permissions</SubmitButton>
               </div>
             </form>
 

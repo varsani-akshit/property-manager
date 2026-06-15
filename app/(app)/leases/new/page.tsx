@@ -36,6 +36,7 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
       start_date: String(formData.get("start_date")),
       end_date: String(formData.get("end_date")),
       gross_rent_monthly: Number(formData.get("gross_rent_monthly")),
+      deposit_amount: Number(formData.get("deposit_amount") || 0),
       sc_payment_mode,
       // legacy boolean kept in sync for any older code paths
       lessee_pays_service_charge: sc_payment_mode !== "lessee_direct",

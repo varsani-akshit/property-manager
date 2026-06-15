@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money } from "@/lib/format";
+import { SubmitButton } from "@/components/SubmitButton";
 
 type Property = {
   id: string;
@@ -93,6 +94,19 @@ export function LeaseForm({
           />
         </div>
         <div>
+          <label className="label">Deposit collected (KES)</label>
+          <input
+            name="deposit_amount"
+            type="number"
+            step="0.01"
+            min="0"
+            className="input"
+            defaultValue={0}
+            placeholder="e.g. 2 months rent"
+          />
+          <p className="text-xs text-muted-fg mt-1">Tracked separately from monthly rent; refundable at lease end.</p>
+        </div>
+        <div>
           <label className="label">Lessee document (Google Drive URL) <span className="text-danger">*</span></label>
           <input
             name="lessee_doc_url"
@@ -153,7 +167,7 @@ export function LeaseForm({
       )}
 
       <div className="flex gap-2">
-        <button className="btn-primary">Create lease</button>
+        <SubmitButton loadingText="Creating…">Create lease</SubmitButton>
         <Link href="/leases" className="btn-secondary">Cancel</Link>
       </div>
     </form>

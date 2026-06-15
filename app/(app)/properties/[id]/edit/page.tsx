@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -96,7 +97,7 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
           <textarea name="notes" className="input" rows={3} defaultValue={prop.notes ?? ""} />
         </div>
         <div className="flex gap-2">
-          <button className="btn-primary">Save changes</button>
+          <SubmitButton>Save changes</SubmitButton>
           <Link href={`/properties/${id}`} className="btn-secondary">Cancel</Link>
         </div>
       </form>

@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,7 @@ export default async function EditCompoundPage({ params }: { params: Promise<{ i
           <input name="address" className="input" defaultValue={c.address ?? ""} />
         </div>
         <div className="flex gap-2">
-          <button className="btn-primary">Save changes</button>
+          <SubmitButton>Save changes</SubmitButton>
           <Link href={`/compounds/${id}`} className="btn-secondary">Cancel</Link>
         </div>
       </form>

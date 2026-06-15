@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { money, fmtDate } from "@/lib/format";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export const dynamic = "force-dynamic";
 
@@ -110,7 +111,7 @@ export default async function EditRentPage({ params }: { params: Promise<{ id: s
         </div>
 
         <div className="flex gap-2">
-          <button className="btn-primary">Save</button>
+          <SubmitButton>Save</SubmitButton>
           <Link href="/rent" className="btn-secondary">Cancel</Link>
         </div>
       </form>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { money, todayISO } from "@/lib/format";
 import { Plus, X, ChevronDown, ChevronRight } from "lucide-react";
 import { Combobox } from "@/components/Combobox";
+import { SubmitButton } from "@/components/SubmitButton";
 
 type Property = {
   id: string;
@@ -192,7 +193,7 @@ export function CostForm({
       />
 
       <div className="flex gap-2">
-        <button className="btn-primary">{initial ? "Save changes" : "Save cost"}</button>
+        <SubmitButton loadingText="Saving…">{initial ? "Save changes" : "Save cost"}</SubmitButton>
         <Link href="/costs" className="btn-secondary">Cancel</Link>
       </div>
     </form>

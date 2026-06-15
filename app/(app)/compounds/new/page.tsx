@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function NewCompoundPage() {
   await requirePermission("create_property");
@@ -32,7 +33,7 @@ export default async function NewCompoundPage() {
           <label className="label">Address (optional)</label>
           <input name="address" className="input" />
         </div>
-        <button className="btn-primary">Create compound</button>
+        <SubmitButton loadingText="Creating…">Create compound</SubmitButton>
       </form>
     </div>
   );

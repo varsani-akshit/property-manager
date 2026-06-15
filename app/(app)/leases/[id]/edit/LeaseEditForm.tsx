@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { money } from "@/lib/format";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: FormData) => Promise<void> }) {
   const sc = Number(lease.properties?.service_charge_monthly || 0);
@@ -42,6 +43,17 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
             className="input"
             value={gross || ""}
             onChange={(e) => setGross(Number(e.target.value))}
+          />
+        </div>
+        <div>
+          <label className="label">Deposit collected (KES)</label>
+          <input
+            name="deposit_amount"
+            type="number"
+            step="0.01"
+            min="0"
+            className="input"
+            defaultValue={Number(lease.deposit_amount ?? 0)}
           />
         </div>
         <div>
@@ -110,7 +122,7 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
       </p>
 
       <div className="flex gap-2">
-        <button className="btn-primary">Save changes</button>
+        <SubmitButton>Save changes</SubmitButton>
         <Link href={`/properties/${lease.property_id}`} className="btn-secondary">Cancel</Link>
       </div>
     </form>

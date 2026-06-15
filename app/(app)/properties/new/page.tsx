@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function NewPropertyPage() {
   await requirePermission("create_property");
@@ -83,7 +84,7 @@ export default async function NewPropertyPage() {
           <textarea name="notes" className="input" rows={3} />
         </div>
         <div className="flex gap-2">
-          <button className="btn-primary">Create property</button>
+          <SubmitButton loadingText="Creating…">Create property</SubmitButton>
           <Link href="/properties" className="btn-secondary">Cancel</Link>
         </div>
       </form>

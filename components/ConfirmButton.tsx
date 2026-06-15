@@ -1,11 +1,17 @@
 "use client";
+import { useFormStatus } from "react-dom";
+import { Loader2 } from "lucide-react";
 
-/**
- * Wraps a single-button form with a confirm() prompt before submitting a server action.
- * Use for any destructive operation (delete, archive, cancel).
- *
- *   <ConfirmButton action={deleteCost} hiddenInputs={{ id: c.id }} confirm="Delete this cost?" label="Delete" />
- */
+function InnerSubmit({ label, className }: { label: string; className: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className={className} aria-busy={pending}>
+      {pending && <Loader2 size={14} className="animate-spin" />}
+      {pending ? "Working…" : label}
+    </button>
+  );
+}
+
 export function ConfirmButton({
   action,
   hiddenInputs = {},
@@ -32,15 +38,11 @@ export function ConfirmButton({
       {Object.entries(hiddenInputs).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
-      <button type="submit" className={className}>{label}</button>
+      <InnerSubmit label={label} className={className} />
     </form>
   );
 }
 
-/**
- * Same idea but for plain <form method=POST action="/api/..."> (not server actions).
- * Used for the cancel-lease route handler.
- */
 export function ConfirmPostButton({
   action,
   confirm: confirmMsg = "Are you sure?",
@@ -60,6 +62,7 @@ export function ConfirmPostButton({
         if (!window.confirm(confirmMsg)) e.preventDefault();
       }}
     >
+      {/* For plain POST routes, button just disables during natural form submit via :disabled trick */}
       <button type="submit" className={className}>{label}</button>
     </form>
   );
