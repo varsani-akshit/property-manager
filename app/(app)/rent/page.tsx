@@ -17,8 +17,10 @@ type RentRow = {
   gross_amount: number;
   service_charge_deduction: number;
   net_amount: number;
+  collected_amount: number;
   status: string;
   collected_at: string | null;
+  property_id: string;
   properties: { name: string } | { name: string }[] | null;
   leases: { lessee_name: string; lessee_contact: string | null } | { lessee_name: string; lessee_contact: string | null }[] | null;
 };
@@ -27,25 +29,24 @@ function pickOne<T>(v: T | T[] | null): T | null {
   if (!v) return null;
   return Array.isArray(v) ? v[0] ?? null : v;
 }
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
+function todayISO(): string { return new Date().toISOString().slice(0, 10); }
 function plusDaysISO(d: string, n: number): string {
   const dt = new Date(d + "T00:00:00Z");
   dt.setUTCDate(dt.getUTCDate() + n);
   return dt.toISOString().slice(0, 10);
 }
 
-async function markCollected(formData: FormData) {
+async function markCollectedFull(formData: FormData) {
   "use server";
   await requirePermission("mark_rent");
   const id = String(formData.get("id"));
   const sb = await supabaseServer();
   const { data: { user } } = await sb.auth.getUser();
+  const { data: row } = await sb.from("rent_collections").select("net_amount").eq("id", id).maybeSingle();
+  if (!row) return;
   await sb.from("rent_collections").update({
     status: "collected",
+    collected_amount: Number((row as { net_amount: number }).net_amount),
     collected_at: new Date().toISOString(),
     collected_by: user?.id,
   }).eq("id", id);
@@ -69,24 +70,15 @@ export default async function RentPage({
   const today = todayISO();
   const horizon = plusDaysISO(today, 7);
 
-  // Per-section ranges
   const rangeFor = (p: number): [number, number] => [(p - 1) * PAGE_SIZE, p * PAGE_SIZE - 1];
+  const cols = "id, due_date, gross_amount, service_charge_deduction, net_amount, collected_amount, status, collected_at, property_id, properties(name), leases(lessee_name, lessee_contact)";
 
-  const cols = "id, due_date, gross_amount, service_charge_deduction, net_amount, status, collected_at, property_id, properties(name), leases(lessee_name, lessee_contact)";
-
-  // Pre-resolve lessee filter → list of lease_ids matching the name (case-insensitive).
   let leaseIds: string[] | null = null;
   if (filterLessee) {
-    const { data: matchedLeases } = await sb
-      .from("leases")
-      .select("id")
-      .ilike("lessee_name", `%${filterLessee}%`);
+    const { data: matchedLeases } = await sb.from("leases").select("id").ilike("lessee_name", `%${filterLessee}%`);
     leaseIds = (matchedLeases ?? []).map((l) => (l as { id: string }).id);
-    if (leaseIds.length === 0) leaseIds = ["00000000-0000-0000-0000-000000000000"]; // forces empty result
+    if (!leaseIds.length) leaseIds = ["00000000-0000-0000-0000-000000000000"];
   }
-
-  // Apply property_id + lease_id filters to a builder.
-  type Q = ReturnType<typeof sb.from> extends any ? any : any;
   const withFilters = (q: any): any => {
     let out = q;
     if (filterProperty) out = out.eq("property_id", filterProperty);
@@ -94,40 +86,35 @@ export default async function RentPage({
     return out;
   };
 
+  // Outstanding (overdue) = (due OR partial) AND due_date <= today
+  // Due soon         = (due OR partial) AND due_date > today AND due_date <= horizon
+  // Collected        = status='collected'
+  const dueStatuses = ["due", "partial"];
+
   const [overdueRes, soonRes, collectedRes, overdueSum, soonSum, collectedSum] = await Promise.all([
-    withFilters(sb.from("rent_collections").select(cols, { count: "exact" }).eq("status", "due").lte("due_date", today))
+    withFilters(sb.from("rent_collections").select(cols, { count: "exact" }).in("status", dueStatuses).lte("due_date", today))
       .order("due_date", { ascending: true }).range(...rangeFor(overduePage)),
-    withFilters(sb.from("rent_collections").select(cols, { count: "exact" }).eq("status", "due").gt("due_date", today).lte("due_date", horizon))
+    withFilters(sb.from("rent_collections").select(cols, { count: "exact" }).in("status", dueStatuses).gt("due_date", today).lte("due_date", horizon))
       .order("due_date", { ascending: true }).range(...rangeFor(soonPage)),
     withFilters(sb.from("rent_collections").select(cols, { count: "exact" }).eq("status", "collected"))
       .order("collected_at", { ascending: false }).range(...rangeFor(collectedPage)),
-    withFilters(sb.from("rent_collections").select("net_amount").eq("status", "due").lte("due_date", today)),
-    withFilters(sb.from("rent_collections").select("net_amount").eq("status", "due").gt("due_date", today).lte("due_date", horizon)),
-    withFilters(sb.from("rent_collections").select("net_amount").eq("status", "collected")),
+    withFilters(sb.from("rent_collections").select("net_amount, collected_amount").in("status", dueStatuses).lte("due_date", today)),
+    withFilters(sb.from("rent_collections").select("net_amount, collected_amount").in("status", dueStatuses).gt("due_date", today).lte("due_date", horizon)),
+    withFilters(sb.from("rent_collections").select("collected_amount").eq("status", "collected")),
   ]);
 
-  const sumOf = (rows: { net_amount: number }[] | null | undefined) => (rows ?? []).reduce((s, r) => s + Number(r.net_amount || 0), 0);
+  // Outstanding sums = remainder (net - collected_amount)
+  const sumOutstanding = (rows: any[] | null | undefined) =>
+    (rows ?? []).reduce((s, r) => s + Math.max(0, Number(r.net_amount || 0) - Number(r.collected_amount || 0)), 0);
+  const sumCollected = (rows: any[] | null | undefined) =>
+    (rows ?? []).reduce((s, r) => s + Number(r.collected_amount || 0), 0);
 
   return (
     <div>
       <PageHeader
         title="Rent Collection"
-        subtitle="Due dates follow each lease's start day-of-month. Buckets update automatically every day."
+        subtitle="Due dates follow each lease's start day-of-month. Partial collections supported."
       />
-
-      <form action="" method="get" className="card mb-4 flex flex-col sm:flex-row gap-2">
-        <input
-          type="search"
-          name="lessee"
-          defaultValue={filterLessee ?? ""}
-          placeholder="Search by lessee name…"
-          className="input flex-1"
-        />
-        <button className="btn-primary text-sm">Search</button>
-        {(filterLessee || filterProperty) && (
-          <Link href="/rent" className="btn-secondary text-sm">Clear</Link>
-        )}
-      </form>
 
       {(filterLessee || filterProperty) && (
         <div className="card mb-4 flex items-center justify-between gap-3 bg-accent/5 border-accent/30">
@@ -141,10 +128,16 @@ export default async function RentPage({
         </div>
       )}
 
+      <form action="" method="get" className="card mb-4 flex flex-col sm:flex-row gap-2">
+        <input type="search" name="lessee" defaultValue={filterLessee ?? ""} placeholder="Search by lessee name…" className="input flex-1" />
+        <button className="btn-primary text-sm">Search</button>
+        {(filterLessee || filterProperty) && <Link href="/rent" className="btn-secondary text-sm">Clear</Link>}
+      </form>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <Kpi label="Outstanding (overdue)" value={money(sumOf(overdueSum.data as any))} hint={`${(overdueRes.count ?? 0).toLocaleString()} rows`} />
-        <Kpi label="Due soon (≤7 days)" value={money(sumOf(soonSum.data as any))} hint={`${(soonRes.count ?? 0).toLocaleString()} rows`} />
-        <Kpi label="Collected (total)" value={money(sumOf(collectedSum.data as any))} hint={`${(collectedRes.count ?? 0).toLocaleString()} rows`} />
+        <Kpi label="Outstanding (overdue)" value={money(sumOutstanding(overdueSum.data))} hint={`${(overdueRes.count ?? 0).toLocaleString()} rows`} />
+        <Kpi label="Due soon (≤7 days)" value={money(sumOutstanding(soonSum.data))} hint={`${(soonRes.count ?? 0).toLocaleString()} rows`} />
+        <Kpi label="Collected (total)" value={money(sumCollected(collectedSum.data))} hint={`${(collectedRes.count ?? 0).toLocaleString()} rows`} />
       </div>
 
       <Section
@@ -155,9 +148,9 @@ export default async function RentPage({
         pageParam="overdue_page"
         searchParams={sp}
         emptyText="Nothing overdue. 👌"
-        showMark={has(profile, "mark_rent")}
-        markAction={markCollected}
-        emphasizeStatus="overdue"
+        showActions={has(profile, "mark_rent")}
+        markFullAction={markCollectedFull}
+        kind="overdue"
       />
 
       <Section
@@ -168,9 +161,9 @@ export default async function RentPage({
         pageParam="soon_page"
         searchParams={sp}
         emptyText="Nothing due in the next 7 days."
-        showMark={has(profile, "mark_rent")}
-        markAction={markCollected}
-        emphasizeStatus="due_soon"
+        showActions={has(profile, "mark_rent")}
+        markFullAction={markCollectedFull}
+        kind="due_soon"
       />
 
       <Section
@@ -181,9 +174,9 @@ export default async function RentPage({
         pageParam="collected_page"
         searchParams={sp}
         emptyText="No collections yet."
-        showMark={false}
-        markAction={markCollected}
-        emphasizeStatus="collected"
+        showActions={false}
+        markFullAction={markCollectedFull}
+        kind="collected"
         showCollectedAt
       />
     </div>
@@ -191,7 +184,8 @@ export default async function RentPage({
 }
 
 function Section({
-  title, rows, total, page, pageParam, searchParams, emptyText, showMark, markAction, emphasizeStatus, showCollectedAt,
+  title, rows, total, page, pageParam, searchParams,
+  emptyText, showActions, markFullAction, kind, showCollectedAt,
 }: {
   title: string;
   rows: RentRow[];
@@ -200,15 +194,21 @@ function Section({
   pageParam: string;
   searchParams: Record<string, string | undefined>;
   emptyText: string;
-  showMark: boolean;
-  markAction: (fd: FormData) => Promise<void>;
-  emphasizeStatus: "due_soon" | "overdue" | "collected";
+  showActions: boolean;
+  markFullAction: (fd: FormData) => Promise<void>;
+  kind: "overdue" | "due_soon" | "collected";
   showCollectedAt?: boolean;
 }) {
-  const badge =
-    emphasizeStatus === "overdue" ? "badge-danger" :
-    emphasizeStatus === "due_soon" ? "badge-warning" :
-    "badge-success";
+  const badgeFor = (r: RentRow) => {
+    if (r.status === "collected") return "badge-success";
+    if (r.status === "partial") return "badge-warning";
+    return kind === "overdue" ? "badge-danger" : "badge-warning";
+  };
+  const labelFor = (r: RentRow) => {
+    if (r.status === "collected") return "collected";
+    if (r.status === "partial") return "partial";
+    return kind === "overdue" ? "overdue" : "due soon";
+  };
 
   return (
     <div className="card mb-6 p-0">
@@ -223,40 +223,42 @@ function Section({
               <th>{showCollectedAt ? "Collected on" : "Due date"}</th>
               <th>Property</th>
               <th>Lessee</th>
-              <th>Contact</th>
-              <th className="text-right">Gross</th>
-              <th className="text-right">SC deduction</th>
-              <th className="text-right">Net</th>
-              <th></th>
-              {showMark && <th></th>}
+              <th className="text-right">Net expected</th>
+              <th className="text-right">Paid</th>
+              <th className="text-right">Outstanding</th>
+              <th>Status</th>
+              {showActions && <th></th>}
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => {
               const p = pickOne(r.properties);
               const l = pickOne(r.leases);
+              const outstanding = Math.max(0, Number(r.net_amount) - Number(r.collected_amount));
               return (
                 <tr key={r.id}>
                   <td>{showCollectedAt ? fmtDate(r.collected_at) : fmtDate(r.due_date)}</td>
                   <td>{p?.name}</td>
                   <td>{l?.lessee_name}</td>
-                  <td>{l?.lessee_contact || "—"}</td>
-                  <td className="text-right">{money(r.gross_amount)}</td>
-                  <td className="text-right text-muted-fg">{money(r.service_charge_deduction)}</td>
-                  <td className="text-right font-medium">{money(r.net_amount)}</td>
-                  <td><span className={badge}>{emphasizeStatus.replace("_", " ")}</span></td>
-                  {showMark && (
+                  <td className="text-right">{money(r.net_amount)}</td>
+                  <td className="text-right">{money(r.collected_amount)}</td>
+                  <td className={`text-right font-medium ${outstanding > 0 ? "text-danger" : ""}`}>{money(outstanding)}</td>
+                  <td><span className={badgeFor(r)}>{labelFor(r)}</span></td>
+                  {showActions && (
                     <td className="text-right">
-                      <form action={markAction}>
-                        <input type="hidden" name="id" value={r.id} />
-                        <button className="btn-primary text-xs">Mark collected</button>
-                      </form>
+                      <div className="flex gap-1 justify-end">
+                        <form action={markFullAction}>
+                          <input type="hidden" name="id" value={r.id} />
+                          <button className="btn-primary text-xs">Mark collected</button>
+                        </form>
+                        <Link href={`/rent/${r.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                      </div>
                     </td>
                   )}
                 </tr>
               );
             })}
-            {!rows.length && <tr><td colSpan={showMark ? 9 : 8} className="text-center text-muted-fg py-6">{emptyText}</td></tr>}
+            {!rows.length && <tr><td colSpan={showActions ? 8 : 7} className="text-center text-muted-fg py-6">{emptyText}</td></tr>}
           </tbody>
         </table>
       </div>

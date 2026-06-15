@@ -3,12 +3,14 @@ import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { DateFilter, resolvePeriod, periodDays, type Range } from "@/components/DateFilter";
-import { ConfirmPostButton } from "@/components/ConfirmButton";
+import { ConfirmButton, ConfirmPostButton } from "@/components/ConfirmButton";
 import { money, fmtDate } from "@/lib/format";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { has } from "@/lib/permissions";
+import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
+import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +27,7 @@ export default async function LeaseDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ rent_page?: string; cost_page?: string; range?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ rent_page?: string; cost_page?: string; range?: string; from?: string; to?: string; msg?: string }>;
 }) {
   const { id } = await params;
   const sp = await searchParams;
@@ -39,6 +41,17 @@ export default async function LeaseDetailPage({
     .eq("id", id)
     .maybeSingle();
   if (!lease) notFound();
+
+  async function backfillRents() {
+    "use server";
+    await requirePermission("create_lease");
+    const sb = await supabaseServer();
+    const { data, error } = await sb.rpc("backfill_lease_rents", { p_lease_id: id });
+    if (error) throw new Error(error.message);
+    revalidatePath(`/leases/${id}`);
+    revalidatePath("/rent");
+    redirect(`/leases/${id}?msg=${encodeURIComponent(`Inserted ${data ?? 0} rent rows`)}`);
+  }
 
   const leaseStart = (lease as { start_date: string }).start_date;
   const leaseEffectiveEnd =
@@ -110,6 +123,14 @@ export default async function LeaseDetailPage({
         actions={
           <>
             <Link href={`/properties/${prop?.id}`} className="btn-secondary text-xs">View property</Link>
+            {has(profile, "create_lease") && (
+              <ConfirmButton
+                action={backfillRents}
+                confirm={`Backfill rent rows for every month from the lease start (${fmtDate((lease as any).start_date)}) through this month? Existing rows are kept; only missing months get added as 'due'.`}
+                label="Backfill rents"
+                className="btn-secondary text-xs"
+              />
+            )}
             {has(profile, "create_lease") && (lease as { active: boolean }).active && (
               <Link href={`/leases/${id}/edit`} className="btn-secondary text-xs">Edit lease</Link>
             )}
@@ -124,6 +145,12 @@ export default async function LeaseDetailPage({
           </>
         }
       />
+
+      {sp.msg && (
+        <div className="card mb-4 border-success/30 bg-success/5">
+          <p className="text-sm text-success">{sp.msg}</p>
+        </div>
+      )}
 
       <div className="card mb-4">
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
