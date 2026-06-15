@@ -25,11 +25,14 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
     const { data: { user } } = await sb.auth.getUser();
     const property_id = String(formData.get("property_id"));
     const sc_payment_mode = String(formData.get("sc_payment_mode") || "we_pay");
+    const lessee_doc_url = String(formData.get("lessee_doc_url") || "").trim();
+    if (!lessee_doc_url) throw new Error("Lessee document URL is required");
+
     const payload = {
       property_id,
       lessee_name: String(formData.get("lessee_name") || "").trim(),
       lessee_contact: String(formData.get("lessee_contact") || "").trim() || null,
-      lessee_doc_url: String(formData.get("lessee_doc_url") || "").trim() || null,
+      lessee_doc_url,
       start_date: String(formData.get("start_date")),
       end_date: String(formData.get("end_date")),
       gross_rent_monthly: Number(formData.get("gross_rent_monthly")),

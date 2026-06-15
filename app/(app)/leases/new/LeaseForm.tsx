@@ -93,8 +93,15 @@ export function LeaseForm({
           />
         </div>
         <div>
-          <label className="label">Lessee document (Google Drive URL)</label>
-          <input name="lessee_doc_url" type="url" className="input" />
+          <label className="label">Lessee document (Google Drive URL) <span className="text-danger">*</span></label>
+          <input
+            name="lessee_doc_url"
+            type="url"
+            required
+            className="input"
+            placeholder="https://drive.google.com/..."
+          />
+          <p className="text-xs text-muted-fg mt-1">Required. Upload the signed lease document to Drive and paste the share link.</p>
         </div>
       </div>
 

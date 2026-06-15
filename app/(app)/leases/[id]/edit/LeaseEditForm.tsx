@@ -45,8 +45,16 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
           />
         </div>
         <div>
-          <label className="label">Lessee document URL</label>
-          <input name="lessee_doc_url" type="url" className="input" defaultValue={lease.lessee_doc_url ?? ""} />
+          <label className="label">Lessee document URL <span className="text-danger">*</span></label>
+          <input
+            name="lessee_doc_url"
+            type="url"
+            required
+            className="input"
+            defaultValue={lease.lessee_doc_url ?? ""}
+            placeholder="https://drive.google.com/..."
+          />
+          <p className="text-xs text-muted-fg mt-1">Required — link to the signed lease in Drive.</p>
         </div>
       </div>
 
