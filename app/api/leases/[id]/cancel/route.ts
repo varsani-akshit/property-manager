@@ -6,28 +6,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await requirePermission("cancel_lease");
   const { id } = await params;
   const sb = await supabaseServer();
-
-  // 1) Deactivate the lease (don't delete — preserve history).
-  //    Also bring end_date forward to today so the lease timeline reflects actual tenure.
   const today = new Date().toISOString().slice(0, 10);
+
+  // 0) Read the current lease so we can decide whether to shorten end_date.
+  const { data: existing } = await sb
+    .from("leases")
+    .select("property_id, end_date")
+    .eq("id", id)
+    .maybeSingle();
+  if (!existing) {
+    return NextResponse.json({ error: "Lease not found" }, { status: 404 });
+  }
+
+  // Only shorten the lease — never extend it.
+  const originalEnd = String((existing as { end_date: string }).end_date);
+  const newEnd = originalEnd > today ? today : originalEnd;
+
+  // 1) Deactivate the lease, log cancellation timestamp, set end_date to actual end.
   const { data: lease, error: e1 } = await sb
     .from("leases")
     .update({
       active: false,
       cancelled_at: new Date().toISOString(),
-      end_date: today, // shorten lease to actual end
+      end_date: newEnd,
     })
     .eq("id", id)
     .select("property_id")
     .maybeSingle();
   if (e1) return NextResponse.json({ error: e1.message }, { status: 400 });
 
-  // 2) Clean up future uncollected rent rows for this lease — they're no longer valid.
-  //    Past dues (overdue) and already-collected rows are preserved as history.
+  // 2) Delete only FUTURE unpaid rent rows (due or partial with due_date > today).
+  //    Everything past — collected, overdue (status='due' with due_date <= today),
+  //    or partially collected — stays as history.
   await sb.from("rent_collections")
     .delete()
     .eq("lease_id", id)
-    .eq("status", "due")
+    .in("status", ["due", "partial"])
     .gt("due_date", today);
 
   // 3) Flip future "lessee_direct" SC rows back to "pending" since the property
