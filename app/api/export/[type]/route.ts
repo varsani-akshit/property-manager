@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { guardView } from "@/lib/guard";
-import { resolvePeriod } from "@/components/DateFilter";
+import { resolvePeriod } from "@/lib/period";
 
 function csv(rows: (string | number | null | undefined)[][]): string {
   const escape = (v: string | number | null | undefined) => {

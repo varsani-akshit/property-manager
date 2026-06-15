@@ -1,7 +1,8 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
-import { DateFilter, resolvePeriod, type Range } from "@/components/DateFilter";
+import { DateFilter } from "@/components/DateFilter";
+import { resolvePeriod, type Range } from "@/lib/period";
 import { DonutChart } from "@/components/Charts";
 import { SearchBar } from "@/components/SearchBar";
 import { money, fmtDate } from "@/lib/format";
