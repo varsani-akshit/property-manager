@@ -163,11 +163,13 @@ export function LesseeAccordion({
       else if (bucket === "collected") { g.collected_total += Number(c.collected_amount || 0); g.collected_count += 1; }
     }
 
+    // Natural alphanumeric sort by first property name (e.g. Godown No. 2 before No. 10).
+    const nat = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
     return Array.from(map.values()).sort((a, b) => {
-      // Most urgent first: largest outstanding (rent overdue), then cost due, then upcoming.
-      if (b.outstanding_total !== a.outstanding_total) return b.outstanding_total - a.outstanding_total;
-      if (b.cost_due_total !== a.cost_due_total) return b.cost_due_total - a.cost_due_total;
-      return b.upcoming_total - a.upcoming_total;
+      const ap = a.properties[0] ?? "";
+      const bp = b.properties[0] ?? "";
+      const c = nat.compare(ap, bp);
+      return c !== 0 ? c : nat.compare(a.lessee_name, b.lessee_name);
     });
   }, [rentRows, costRows, today, upcomingHorizon]);
 
