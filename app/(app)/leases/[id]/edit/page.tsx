@@ -41,16 +41,14 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
     }).eq("id", id);
     if (error) throw new Error(error.message);
 
-    // Re-sync future uncollected rent rows with new math.
+    // Re-sync future uncollected rent rows to the new gross rent (no SC netting).
     const today = new Date().toISOString().slice(0, 10);
     const sc = Number((lease as { properties?: { service_charge_monthly?: number } }).properties?.service_charge_monthly ?? 0);
-    const deduction = scMode === "lessee_direct" ? 0 : sc;
-    const netAmount = newGross - deduction;
     await sb.from("rent_collections").update({
       gross_amount: newGross,
-      service_charge_deduction: deduction,
-      net_amount: netAmount,
-    }).eq("lease_id", id).eq("status", "due").gt("due_date", today);
+      service_charge_deduction: 0,
+      net_amount: newGross,
+    }).eq("lease_id", id).in("status", ["due", "partial"]).gte("due_date", today);
 
     // Re-sync future service_charges rows for the lease months.
     if (sc > 0) {

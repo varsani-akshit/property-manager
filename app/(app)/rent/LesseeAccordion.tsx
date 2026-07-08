@@ -9,7 +9,6 @@ export type RawRentRow = {
   id: string;
   due_date: string;
   gross_amount: number;
-  service_charge_deduction: number;
   net_amount: number;
   collected_amount: number;
   status: string;
@@ -375,9 +374,7 @@ function RentTable({
           <tr>
             <th>Due date</th>
             <th>Property</th>
-            <th className="text-right">Gross</th>
-            <th className="text-right">SC ded.</th>
-            <th className="text-right">Net</th>
+            <th className="text-right">Rent</th>
             <th className="text-right">Paid</th>
             <th className="text-right">Outstanding</th>
             <th>Status</th>
@@ -394,8 +391,6 @@ function RentTable({
               <tr key={r.id}>
                 <td>{fmtDate(r.due_date)}</td>
                 <td>{p?.name}</td>
-                <td className="text-right">{money(r.gross_amount)}</td>
-                <td className="text-right text-muted-fg">{money(r.service_charge_deduction)}</td>
                 <td className="text-right">{money(r.net_amount)}</td>
                 <td className="text-right">{money(r.collected_amount)}</td>
                 <td className={cn("text-right tabular-nums", rem > 0 && "text-danger font-medium")}>{money(rem)}</td>
@@ -415,7 +410,7 @@ function RentTable({
             );
           })}
           {!sorted.length && (
-            <tr><td colSpan={canMarkRent ? 9 : 8} className="text-center text-muted-fg py-4">Nothing here.</td></tr>
+            <tr><td colSpan={canMarkRent ? 7 : 6} className="text-center text-muted-fg py-4">Nothing here.</td></tr>
           )}
         </tbody>
       </table>

@@ -76,7 +76,7 @@ export default async function RentPage({
   }
 
   // RENT — three slices then merge.
-  const cols = "id, due_date, gross_amount, service_charge_deduction, net_amount, collected_amount, status, collected_at, lease_id, property_id, properties(name), leases(id, lessee_name, lessee_contact)";
+  const cols = "id, due_date, gross_amount, net_amount, collected_amount, status, collected_at, lease_id, property_id, properties(name), leases(id, lessee_name, lessee_contact)";
 
   const apply = (q: any) => {
     let out = q;

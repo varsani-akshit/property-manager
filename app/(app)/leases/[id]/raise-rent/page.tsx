@@ -35,32 +35,33 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
     const sb = await supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
     const newAmount = Number(formData.get("new_amount"));
-    const effectiveDate = String(formData.get("effective_date"));
+    const effectiveDateRaw = String(formData.get("effective_date"));
     const reason = String(formData.get("reason") || "").trim() || null;
     if (!Number.isFinite(newAmount) || newAmount <= 0) throw new Error("Enter a valid new rent amount");
-    if (!effectiveDate) throw new Error("Pick an effective date");
+    if (!effectiveDateRaw) throw new Error("Pick an effective date");
+
+    // Guard: rent raises never touch historical rows. Effective date is clamped
+    // to today so an accidental past date can't rewrite already-billed months.
+    const todayISO = new Date().toISOString().slice(0, 10);
+    const effectiveDate = effectiveDateRaw < todayISO ? todayISO : effectiveDateRaw;
 
     const { data: leaseRow } = await sb
       .from("leases")
-      .select("*, properties(service_charge_monthly)")
+      .select("gross_rent_monthly")
       .eq("id", id)
       .maybeSingle();
     if (!leaseRow) throw new Error("Lease not found");
 
     const oldAmount = Number((leaseRow as any).gross_rent_monthly);
-    const scMode = (leaseRow as any).sc_payment_mode as string;
-    const sc = Number((leaseRow as any).properties?.service_charge_monthly ?? 0);
-    const deduction = scMode === "lessee_direct" ? 0 : sc;
-    const netAmount = newAmount - deduction;
 
     // 1) Update the lease's current rent
     const { error: e1 } = await sb.from("leases").update({ gross_rent_monthly: newAmount }).eq("id", id);
     if (e1) throw new Error(e1.message);
 
-    // 2) Update all rent_collections at or after the effective date that are NOT yet collected
-    //    (status due/partial). Collected and overdue history is preserved.
+    // 2) Update unpaid rent rows on or after the effective date. Full-gross
+    //    collection: no SC netting, net = gross.
     const { error: e2 } = await sb.from("rent_collections")
-      .update({ gross_amount: newAmount, service_charge_deduction: deduction, net_amount: netAmount })
+      .update({ gross_amount: newAmount, service_charge_deduction: 0, net_amount: newAmount })
       .eq("lease_id", id)
       .in("status", ["due", "partial"])
       .gte("due_date", effectiveDate);
@@ -88,19 +89,13 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
       />
 
       <form action={applyRaise} className="card space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="text-xs text-muted-fg uppercase">Current gross rent</div>
-            <div className="font-medium">{money(currentRent)} / month</div>
-          </div>
-          <div>
-            <div className="text-xs text-muted-fg uppercase">SC mode</div>
-            <div className="font-medium">{(lease as any).sc_payment_mode === "lessee_direct" ? "Lessee pays directly" : "We pay"}</div>
-          </div>
+        <div>
+          <div className="text-xs text-muted-fg uppercase">Current rent</div>
+          <div className="font-medium">{money(currentRent)} / month</div>
         </div>
 
         <div>
-          <label className="label">New gross rent (KES / month)</label>
+          <label className="label">New rent (KES / month)</label>
           <input
             name="new_amount"
             type="number"
@@ -118,6 +113,7 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
             name="effective_date"
             type="date"
             required
+            min={today}
             className="input"
             defaultValue={today}
           />

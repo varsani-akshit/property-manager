@@ -153,12 +153,8 @@ export function LeaseForm({
 
       {selected && sc > 0 && (
         <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+          <div className="flex justify-between"><span>Rent / mo</span><span>{money(gross)}</span></div>
           <div className="flex justify-between"><span>Service charge / mo</span><span>{money(sc)}</span></div>
-          <div className="flex justify-between"><span>Gross rent / mo</span><span>{money(gross)}</span></div>
-          <div className="flex justify-between font-medium border-t border-border pt-1">
-            <span>Net rent we receive</span>
-            <span>{money(net)}</span>
-          </div>
         </div>
       )}
 
