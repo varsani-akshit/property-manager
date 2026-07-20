@@ -28,6 +28,9 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
     const endDate = String(formData.get("end_date"));
     const property_id = (lease as { property_id: string }).property_id;
 
+    const oldStart = String((lease as { start_date: string }).start_date);
+    const oldEnd = String((lease as { end_date: string }).end_date);
+
     const { error } = await sb.from("leases").update({
       lessee_name: String(formData.get("lessee_name") || "").trim(),
       lessee_contact: String(formData.get("lessee_contact") || "").trim() || null,
@@ -73,6 +76,12 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
           .gte("due_month", startMonth)
           .lte("due_month", endMonth);
       }
+    }
+
+    // If the lease window expanded (earlier start OR later end), fill in the
+    // newly-covered months. Idempotent — existing rows are left alone.
+    if (startDate < oldStart || endDate > oldEnd) {
+      await sb.rpc("backfill_lease_rents", { p_lease_id: id });
     }
 
     redirect(`/properties/${property_id}`);

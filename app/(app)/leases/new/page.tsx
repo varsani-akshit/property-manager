@@ -41,8 +41,14 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
       lessee_pays_service_charge: sc_payment_mode !== "lessee_direct",
       created_by: user?.id,
     };
-    const { error } = await sb.from("leases").insert(payload);
+    const { data: inserted, error } = await sb.from("leases").insert(payload).select("id").maybeSingle();
     if (error) throw new Error(error.message);
+
+    // Auto-backfill rent rows for the entire lease lifetime (start → min(end, today+6mo)).
+    // Idempotent — safe even if the daily cron has already touched some months.
+    if (inserted?.id) {
+      await sb.rpc("backfill_lease_rents", { p_lease_id: (inserted as { id: string }).id });
+    }
 
     // Mark SC rows for this lease period as lessee_direct if applicable
     if (sc_payment_mode === "lessee_direct") {
