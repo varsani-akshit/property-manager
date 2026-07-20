@@ -2,11 +2,10 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
-import { money, fmtDate } from "@/lib/format";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
-import { SubmitButton } from "@/components/SubmitButton";
 import { revalidatePath } from "next/cache";
+import { BackfillGrid, type BackfillRow } from "./BackfillGrid";
 
 export const dynamic = "force-dynamic";
 
@@ -153,73 +152,23 @@ export default async function PropertyBackfillPage({
           </p>
         </div>
       ) : (
-        <form action={saveBulk}>
-          <div className="card p-0">
-            <div className="table-wrap">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Month</th>
-                    <th>Due date</th>
-                    <th>Lessee</th>
-                    <th className="text-right">Rent (KES)</th>
-                    <th className="text-right">Collected (KES)</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rents.map((r: any) => {
-                    const lease = Array.isArray(r.leases) ? r.leases[0] : r.leases;
-                    const rent = Number(r.net_amount ?? 0);
-                    const coll = Number(r.collected_amount ?? 0);
-                    const statusBadge =
-                      r.status === "collected" ? "badge-success" :
-                      r.status === "partial" ? "badge-warning" :
-                      "badge-muted";
-                    return (
-                      <tr key={r.id}>
-                        <td className="whitespace-nowrap font-medium">{String(r.due_month).slice(0, 7)}</td>
-                        <td className="text-muted-fg text-xs">{fmtDate(r.due_date)}</td>
-                        <td className="text-xs">{lease?.lessee_name ?? "—"}</td>
-                        <td className="text-right">
-                          <input type="hidden" name="id" value={r.id} />
-                          <input type="hidden" name={`orig_rent_${r.id}`} value={rent} />
-                          <input
-                            name={`rent_${r.id}`}
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            defaultValue={rent}
-                            className="input text-right w-32 py-1 h-8"
-                          />
-                        </td>
-                        <td className="text-right">
-                          <input type="hidden" name={`orig_coll_${r.id}`} value={coll} />
-                          <input
-                            name={`coll_${r.id}`}
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            defaultValue={coll}
-                            className="input text-right w-32 py-1 h-8"
-                          />
-                        </td>
-                        <td><span className={statusBadge}>{r.status}</span></td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-3 sticky bottom-4">
-            <SubmitButton loadingText="Saving…">Save all changes</SubmitButton>
-            <span className="text-xs text-muted-fg">
-              {rents.length} row{rents.length === 1 ? "" : "s"} · only edited rows are written
-            </span>
-          </div>
-        </form>
+        <BackfillGrid
+          rows={rents.map((r: any): BackfillRow => {
+            const lease = Array.isArray(r.leases) ? r.leases[0] : r.leases;
+            return {
+              id: r.id,
+              due_month: String(r.due_month),
+              due_date: r.due_date,
+              net_amount: Number(r.net_amount ?? 0),
+              collected_amount: Number(r.collected_amount ?? 0),
+              status: r.status,
+              lessee_name: lease?.lessee_name ?? "—",
+              property_name: propAny.name,
+            };
+          })}
+          action={saveBulk}
+          propertyLabel={`${compoundName ?? ""} · ${propAny.name}`}
+        />
       )}
     </div>
   );
