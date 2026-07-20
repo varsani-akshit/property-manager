@@ -18,6 +18,8 @@ export function Combobox({
   placeholder = "Select or type…",
   required,
   className,
+  lowercase = false,
+  emptyHint = "No matches yet — type to create one.",
 }: {
   name: string;
   options: string[];
@@ -25,7 +27,11 @@ export function Combobox({
   placeholder?: string;
   required?: boolean;
   className?: string;
+  /** Force values to lowercase (used for e.g. cost categories). Default: preserve case (e.g. lessee names). */
+  lowercase?: boolean;
+  emptyHint?: string;
 }) {
+  const norm = (s: string) => (lowercase ? s.toLowerCase() : s);
   const [value, setValue] = useState(initial);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -51,7 +57,7 @@ export function Combobox({
           type="text"
           required={required}
           value={value}
-          onChange={(e) => { setValue(e.target.value.toLowerCase()); setOpen(true); }}
+          onChange={(e) => { setValue(norm(e.target.value)); setOpen(true); }}
           onFocus={() => setOpen(true)}
           placeholder={placeholder}
           className="input rounded-r-none flex-1"
@@ -72,7 +78,7 @@ export function Combobox({
           {filtered.length === 0 && value.trim() && (
             <button
               type="button"
-              onClick={() => { setValue(value.trim().toLowerCase()); setOpen(false); }}
+              onClick={() => { setValue(norm(value.trim())); setOpen(false); }}
               className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
             >
               Create new: <span className="font-medium">{value.trim()}</span>
@@ -92,12 +98,12 @@ export function Combobox({
             </button>
           ))}
           {!filtered.length && !value.trim() && (
-            <div className="px-3 py-2 text-xs text-muted-fg">No categories yet — type to create one.</div>
+            <div className="px-3 py-2 text-xs text-muted-fg">{emptyHint}</div>
           )}
           {value.trim() && !exactMatch && filtered.length > 0 && (
             <button
               type="button"
-              onClick={() => { setValue(value.trim().toLowerCase()); setOpen(false); }}
+              onClick={() => { setValue(norm(value.trim())); setOpen(false); }}
               className="block w-full text-left px-3 py-2 text-sm border-t border-border hover:bg-muted"
             >
               + Use new: <span className="font-medium">{value.trim()}</span>

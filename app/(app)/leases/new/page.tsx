@@ -10,13 +10,18 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
   const sb = await supabaseServer();
 
   // Available = no active lease and not archived
-  const { data: properties } = await sb
-    .from("properties")
-    .select("id, name, area_sqft, service_charge_monthly, compounds(name), leases(active)")
-    .eq("archived", false)
-    .order("name");
+  const [{ data: properties }, { data: allLessees }] = await Promise.all([
+    sb.from("properties")
+      .select("id, name, area_sqft, service_charge_monthly, compounds(name), leases(active)")
+      .eq("archived", false)
+      .order("name"),
+    sb.from("leases").select("lessee_name"),
+  ]);
 
   const available = (properties ?? []).filter((p: any) => !p.leases?.some((l: any) => l.active));
+  const existingLessees = Array.from(
+    new Set((allLessees ?? []).map((l: any) => (l.lessee_name || "").trim()).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b));
 
   async function create(formData: FormData) {
     "use server";
@@ -69,7 +74,7 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
   return (
     <div className="max-w-2xl">
       <PageHeader title="Put property on rent" />
-      <LeaseForm properties={available} preselect={property} action={create} />
+      <LeaseForm properties={available} preselect={property} existingLessees={existingLessees} action={create} />
     </div>
   );
 }

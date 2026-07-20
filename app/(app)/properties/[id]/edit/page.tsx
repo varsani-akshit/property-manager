@@ -4,6 +4,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { SubmitButton } from "@/components/SubmitButton";
+import { CompoundPicker } from "@/components/CompoundPicker";
 
 export const dynamic = "force-dynamic";
 
@@ -63,9 +64,10 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="label">Compound</label>
-            <select name="compound_id" required className="input" defaultValue={prop.compound_id}>
-              {compounds?.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <CompoundPicker
+              compounds={(compounds ?? []) as { id: string; name: string }[]}
+              initial={prop.compound_id}
+            />
           </div>
           <div>
             <label className="label">Property name</label>

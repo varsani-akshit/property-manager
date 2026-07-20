@@ -1,47 +1,29 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
-import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { SearchBar } from "@/components/SearchBar";
-import { money, fmtDate } from "@/lib/format";
+import { money } from "@/lib/format";
 import { guardView } from "@/lib/guard";
 import { has } from "@/lib/permissions";
 import Link from "next/link";
 import { Plus } from "lucide-react";
+import { LeasesTable, type LeaseRow } from "./LeasesTable";
 
 export const dynamic = "force-dynamic";
-
-type LeaseRow = {
-  id: string;
-  active: boolean;
-  lessee_name: string;
-  lessee_contact: string | null;
-  start_date: string;
-  end_date: string;
-  gross_rent_monthly: number;
-  properties: { id: string; name: string; compounds: { name: string } | { name: string }[] | null } | { id: string; name: string; compounds: { name: string } | { name: string }[] | null }[] | null;
-};
 
 function compoundName(c: { name: string } | { name: string }[] | null): string {
   if (!c) return "";
   return Array.isArray(c) ? c[0]?.name ?? "" : c.name;
 }
-function propertyOf(l: LeaseRow): { id: string; name: string; compounds: { name: string } | { name: string }[] | null } | null {
-  if (!l.properties) return null;
-  return Array.isArray(l.properties) ? l.properties[0] : l.properties;
-}
 
 export default async function LeasesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   const profile = await guardView("view_leases");
   const sp = await searchParams;
   const q = sp.q?.trim() || "";
-  const page = parsePage(sp.page);
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
 
   const sb = await supabaseServer();
 
@@ -62,25 +44,34 @@ export default async function LeasesPage({
     if (!allowedIds.length) allowedIds = ["00000000-0000-0000-0000-000000000000"];
   }
 
-  let pageQ = sb.from("leases")
-    .select("id, active, lessee_name, lessee_contact, start_date, end_date, gross_rent_monthly, properties(id, name, compounds(name))", { count: "exact" });
-  if (allowedIds) pageQ = pageQ.in("id", allowedIds);
-  const pageRes = await pageQ.order("active", { ascending: false }).order("start_date", { ascending: false }).range(from, to);
+  let leasesQ = sb.from("leases")
+    .select("id, active, lessee_name, lessee_contact, start_date, end_date, gross_rent_monthly, properties(id, name, compounds(name))");
+  if (allowedIds) leasesQ = leasesQ.in("id", allowedIds);
+  const leasesRes = await leasesQ;
 
-  let summaryQ = sb.from("leases").select("id, end_date, gross_rent_monthly, active").eq("active", true);
-  if (allowedIds) summaryQ = summaryQ.in("id", allowedIds);
-  const activeSummary = await summaryQ;
+  const rows: LeaseRow[] = ((leasesRes.data ?? []) as any[]).map((l) => {
+    const p = Array.isArray(l.properties) ? l.properties[0] : l.properties;
+    return {
+      id: l.id,
+      active: l.active,
+      lessee_name: l.lessee_name,
+      lessee_contact: l.lessee_contact,
+      start_date: l.start_date,
+      end_date: l.end_date,
+      gross_rent_monthly: Number(l.gross_rent_monthly),
+      property_name: p?.name ?? "—",
+      compound_name: compoundName(p?.compounds ?? null),
+    };
+  });
 
-  const arr = (pageRes.data ?? []) as unknown as LeaseRow[];
-  const total = pageRes.count ?? 0;
-  const active = (activeSummary.data ?? []) as Array<{ end_date: string; gross_rent_monthly: number }>;
-  const monthlyRent = active.reduce((s, l) => s + Number(l.gross_rent_monthly || 0), 0);
+  const active = rows.filter((l) => l.active);
+  const monthlyRent = active.reduce((s, l) => s + l.gross_rent_monthly, 0);
   const now = Date.now();
   const expiring60 = active.filter((l) => {
     const d = (new Date(l.end_date).getTime() - now) / 86400000;
     return d >= 0 && d <= 60;
   }).length;
-  const past = total - active.length;
+  const past = rows.length - active.length;
 
   return (
     <div>
@@ -98,41 +89,7 @@ export default async function LeasesPage({
         <Kpi label="Past leases" value={String(Math.max(0, past))} />
       </div>
 
-      <div className="card p-0">
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Property</th><th>Lessee</th><th>Contact</th>
-                <th>Start</th><th>End</th>
-                <th className="text-right">Gross rent</th><th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {arr.map((l) => {
-                const p = propertyOf(l);
-                const href = `/leases/${l.id}`;
-                return (
-                  <tr key={l.id} className="cursor-pointer">
-                    <td>
-                      <Link href={href} className="block font-medium">{p?.name ?? "—"}</Link>
-                      <Link href={href} className="block text-xs text-muted-fg">{compoundName(p?.compounds ?? null)}</Link>
-                    </td>
-                    <td><Link href={href} className="block font-medium">{l.lessee_name}</Link></td>
-                    <td><Link href={href} className="block">{l.lessee_contact || "—"}</Link></td>
-                    <td><Link href={href} className="block">{fmtDate(l.start_date)}</Link></td>
-                    <td><Link href={href} className="block">{fmtDate(l.end_date)}</Link></td>
-                    <td className="text-right"><Link href={href} className="block">{money(l.gross_rent_monthly)}</Link></td>
-                    <td><Link href={href} className="block">{l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}</Link></td>
-                  </tr>
-                );
-              })}
-              {!arr.length && <tr><td colSpan={7} className="text-center text-muted-fg py-8">{q ? "No leases match." : "No leases yet."}</td></tr>}
-            </tbody>
-          </table>
-        </div>
-        <Pagination page={page} total={total} label="leases" searchParams={sp} />
-      </div>
+      <LeasesTable rows={rows} />
     </div>
   );
 }

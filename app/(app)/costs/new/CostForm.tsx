@@ -49,6 +49,8 @@ function CategoryCell({
         initial={value}
         placeholder="Category"
         required
+        lowercase
+        emptyHint="No categories yet — type to create one."
       />
     </div>
   );

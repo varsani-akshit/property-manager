@@ -1,8 +1,9 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { money } from "@/lib/format";
 import { SubmitButton } from "@/components/SubmitButton";
+import { Combobox } from "@/components/Combobox";
 
 type Property = {
   id: string;
@@ -20,10 +21,12 @@ function compoundName(c: Property["compounds"]): string {
 export function LeaseForm({
   properties,
   preselect,
+  existingLessees,
   action,
 }: {
   properties: Property[];
   preselect?: string;
+  existingLessees: string[];
   action: (fd: FormData) => Promise<void>;
 }) {
   const [propertyId, setPropertyId] = useState(preselect || properties[0]?.id || "");
@@ -48,25 +51,23 @@ export function LeaseForm({
     <form action={action} className="card space-y-4">
       <div>
         <label className="label">Property</label>
-        <select
-          name="property_id"
-          required
-          className="input"
+        <PropertyPicker
+          properties={properties}
           value={propertyId}
-          onChange={(e) => setPropertyId(e.target.value)}
-        >
-          {properties.map((p) => (
-            <option key={p.id} value={p.id}>
-              {compoundName(p.compounds)} — {p.name} ({Number(p.area_sqft).toLocaleString()} sqft)
-            </option>
-          ))}
-        </select>
+          onChange={setPropertyId}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Lessee name</label>
-          <input name="lessee_name" required className="input" />
+          <Combobox
+            name="lessee_name"
+            options={existingLessees}
+            required
+            placeholder="Type a name or pick an existing lessee"
+            emptyHint="No prior lessees — type a new name."
+          />
         </div>
         <div>
           <label className="label">Contact (email or phone)</label>
@@ -175,4 +176,81 @@ export function LeaseForm({
       </div>
     </form>
   );
+}
+
+/**
+ * Compound-grouped property picker — uses our Combobox styling for
+ * consistency instead of the browser-default <select>. Displays the
+ * property label and syncs a hidden input under `property_id` for the
+ * server action.
+ */
+function PropertyPicker({
+  properties,
+  value,
+  onChange,
+}: {
+  properties: Property[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const labelById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of properties) m.set(p.id, `${compoundName(p.compounds)} — ${p.name}`);
+    return m;
+  }, [properties]);
+  const labels = useMemo(() => Array.from(labelById.values()).sort((a, b) => a.localeCompare(b)), [labelById]);
+  const idByLabel = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const [id, label] of labelById) m.set(label, id);
+    return m;
+  }, [labelById]);
+
+  return (
+    <>
+      <input type="hidden" name="property_id" value={value} />
+      <Combobox
+        name="__property_label"
+        options={labels}
+        initial={labelById.get(value) ?? ""}
+        placeholder="Pick a property"
+        required
+        emptyHint="No vacant properties available."
+      />
+      {/* Sync label → id when the underlying combobox changes.
+          The Combobox writes to name="__property_label"; we mirror to property_id via a controlled bridge. */}
+      <SyncPropertyId labelById={idByLabel} onChange={onChange} />
+    </>
+  );
+}
+
+function SyncPropertyId({
+  labelById,
+  onChange,
+}: {
+  labelById: Map<string, string>;
+  onChange: (id: string) => void;
+}) {
+  // Watch the hidden __property_label input; when it changes, resolve to id.
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const form = el.closest("form");
+    if (!form) return;
+    const input = form.querySelector('input[name="__property_label"]') as HTMLInputElement | null;
+    if (!input) return;
+    // MutationObserver on value attribute (hidden inputs use value prop, so observe it via periodic check).
+    let lastLabel = "";
+    const tick = () => {
+      const cur = input.value;
+      if (cur !== lastLabel) {
+        lastLabel = cur;
+        const id = labelById.get(cur);
+        if (id) onChange(id);
+      }
+    };
+    const interval = window.setInterval(tick, 120);
+    return () => window.clearInterval(interval);
+  }, [labelById, onChange]);
+  return <span ref={ref} className="hidden" aria-hidden />;
 }
