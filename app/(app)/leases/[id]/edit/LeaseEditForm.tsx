@@ -46,14 +46,25 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
           />
         </div>
         <div>
-          <label className="label">Deposit collected (KES)</label>
+          <label className="label">Deposit charged (KES)</label>
           <input
-            name="deposit_amount"
+            name="deposit_charged"
             type="number"
             step="0.01"
             min="0"
             className="input"
-            defaultValue={Number(lease.deposit_amount ?? 0)}
+            defaultValue={Number(lease.deposit_charged ?? lease.deposit_amount ?? 0)}
+          />
+        </div>
+        <div>
+          <label className="label">Deposit collected (KES)</label>
+          <input
+            name="deposit_collected"
+            type="number"
+            step="0.01"
+            min="0"
+            className="input"
+            defaultValue={Number(lease.deposit_collected ?? 0)}
           />
         </div>
         <div>

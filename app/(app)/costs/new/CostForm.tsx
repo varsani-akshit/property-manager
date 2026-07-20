@@ -1,5 +1,10 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+const REIMBURSABLE_CATS = new Set(["water", "electricity"]);
+function hasReimbursableLine(lines: { category: string }[]): boolean {
+  return lines.some((l) => REIMBURSABLE_CATS.has((l.category || "").trim().toLowerCase()));
+}
 import Link from "next/link";
 import { money, todayISO } from "@/lib/format";
 import { Plus, X, ChevronDown, ChevronRight } from "lucide-react";
@@ -82,6 +87,20 @@ export function CostForm({
   const [search, setSearch] = useState("");
   const [billToLessee, setBillToLessee] = useState<boolean>(initial?.payable_by_lessee ?? false);
   const [dueDate, setDueDate] = useState<string>(initial?.due_date ?? "");
+  // Track whether user has manually toggled bill-to-lessee. If they did, the
+  // auto-toggle for reimbursable utilities stops overriding their choice.
+  const userToggledRef = useRef<boolean>(Boolean(initial?.payable_by_lessee !== undefined && initial));
+
+  // Auto-flag water/electricity as reimbursable (payable_by_lessee=true) unless
+  // the user has explicitly overridden the toggle.
+  useEffect(() => {
+    if (userToggledRef.current) return;
+    if (hasReimbursableLine(lines) && !billToLessee) {
+      setBillToLessee(true);
+      // Preserve single-select semantic when auto-flipping on.
+      setPicked((cur) => cur.slice(0, 1));
+    }
+  }, [lines, billToLessee]);
 
   const totalAmount = useMemo(
     () => lines.reduce((s, l) => s + (Number(l.amount) || 0), 0),
@@ -201,13 +220,19 @@ export function CostForm({
             value="1"
             checked={billToLessee}
             onChange={(e) => {
+              userToggledRef.current = true;
               const next = e.target.checked;
               setBillToLessee(next);
               if (next) setPicked((cur) => cur.slice(0, 1)); // collapse multi-pick to first
             }}
           />
-          <span className="text-sm font-medium">Bill this cost to a lessee</span>
+          <span className="text-sm font-medium">Bill this cost to a lessee (reimbursement)</span>
         </label>
+        {hasReimbursableLine(lines) && billToLessee && (
+          <p className="text-xs text-muted-fg mt-1 pl-6">
+            Water &amp; electricity are auto-flagged as reimbursable so they&apos;re traceable on the tenant&apos;s ledger.
+          </p>
+        )}
 
         {billToLessee && (
           <div className="mt-3 pl-6">

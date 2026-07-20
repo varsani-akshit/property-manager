@@ -73,6 +73,7 @@ type LesseeGroup = {
   upcoming_count: number;
   cost_due_total: number;
   cost_due_count: number;
+  deposit_shortfall: number;
   collected_total: number;
   collected_count: number;
   rentRows: RawRentRow[];
@@ -104,6 +105,7 @@ function costRemainder(c: RawCostRow): number {
 export function LesseeAccordion({
   rentRows,
   costRows,
+  depositShortfallByLessee,
   today,
   upcomingHorizon,
   canMarkRent,
@@ -112,6 +114,7 @@ export function LesseeAccordion({
 }: {
   rentRows: RawRentRow[];
   costRows: RawCostRow[];
+  depositShortfallByLessee: Record<string, number>;
   today: string;
   upcomingHorizon: string;
   canMarkRent: boolean;
@@ -134,6 +137,7 @@ export function LesseeAccordion({
           upcoming_count: 0,
           cost_due_total: 0,
           cost_due_count: 0,
+          deposit_shortfall: depositShortfallByLessee[name] ?? 0,
           collected_total: 0,
           collected_count: 0,
           rentRows: [],
@@ -174,6 +178,11 @@ export function LesseeAccordion({
       else if (bucket === "collected") { g.collected_total += Number(c.collected_amount || 0); g.collected_count += 1; }
     }
 
+    // Ensure lessees who have ONLY a deposit shortfall (no rent/cost) still appear.
+    for (const [name, shortfall] of Object.entries(depositShortfallByLessee)) {
+      if (shortfall > 0 && !map.has(name)) ensureGroup(name, null);
+    }
+
     // Natural alphanumeric sort by (compound, first property name, lessee).
     const nat = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
     return Array.from(map.values()).sort((a, b) => {
@@ -183,7 +192,7 @@ export function LesseeAccordion({
       if (c2 !== 0) return c2;
       return nat.compare(a.lessee_name, b.lessee_name);
     });
-  }, [rentRows, costRows, today, upcomingHorizon]);
+  }, [rentRows, costRows, depositShortfallByLessee, today, upcomingHorizon]);
 
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [tabs, setTabs] = useState<Record<string, Bucket>>({});
@@ -217,9 +226,11 @@ export function LesseeAccordion({
               <th className="w-8"></th>
               <th>Lessee</th>
               <th>Properties</th>
-              <th className="text-right">Outstanding</th>
+              <th className="text-right">Total Outstanding</th>
+              <th className="text-right">Rent overdue</th>
               <th className="text-right">Upcoming (6 mo)</th>
               <th className="text-right">Cost Due</th>
+              <th className="text-right">Deposit short</th>
               <th className="text-right">Collected (4 mo)</th>
             </tr>
           </thead>
@@ -227,6 +238,7 @@ export function LesseeAccordion({
             {groups.map((g) => {
               const isOpen = open.has(g.lessee_name);
               const activeTab: Bucket = tabs[g.lessee_name] ?? "outstanding";
+              const totalOutstanding = g.outstanding_total + g.cost_due_total + g.deposit_shortfall;
               return (
                 <Fragment key={g.lessee_name}>
                   <tr
@@ -243,7 +255,10 @@ export function LesseeAccordion({
                     <td className="text-xs text-muted-fg max-w-xs truncate" title={g.properties.join(", ")}>
                       {g.properties.join(", ")}
                     </td>
-                    <td className={cn("text-right tabular-nums", g.outstanding_total > 0 && "text-danger font-medium")}>
+                    <td className={cn("text-right tabular-nums font-semibold", totalOutstanding > 0 && "text-danger")}>
+                      {money(totalOutstanding)}
+                    </td>
+                    <td className={cn("text-right tabular-nums", g.outstanding_total > 0 && "text-danger")}>
                       {money(g.outstanding_total)}
                       {g.outstanding_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.outstanding_count})</span>}
                     </td>
@@ -251,9 +266,12 @@ export function LesseeAccordion({
                       {money(g.upcoming_total)}
                       {g.upcoming_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.upcoming_count})</span>}
                     </td>
-                    <td className={cn("text-right tabular-nums", g.cost_due_total > 0 && "text-warning font-medium")}>
+                    <td className={cn("text-right tabular-nums", g.cost_due_total > 0 && "text-warning")}>
                       {money(g.cost_due_total)}
                       {g.cost_due_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.cost_due_count})</span>}
+                    </td>
+                    <td className={cn("text-right tabular-nums", g.deposit_shortfall > 0 && "text-warning")}>
+                      {money(g.deposit_shortfall)}
                     </td>
                     <td className="text-right tabular-nums text-success">
                       {money(g.collected_total)}
@@ -262,7 +280,7 @@ export function LesseeAccordion({
                   </tr>
                   {isOpen && (
                     <tr className="bg-muted/30">
-                      <td colSpan={7} className="p-3">
+                      <td colSpan={9} className="p-3">
                         <Tabs
                           group={g}
                           today={today}
@@ -281,7 +299,7 @@ export function LesseeAccordion({
             })}
             {!groups.length && (
               <tr>
-                <td colSpan={7} className="text-center text-muted-fg py-8">
+                <td colSpan={9} className="text-center text-muted-fg py-8">
                   No rent or cost activity in the current scope.
                 </td>
               </tr>
@@ -355,6 +373,7 @@ function Tabs({
         />
       ) : (
         <CollectedTable
+          canMarkRent={canMarkRent}
           items={[
             ...group.rentRows.filter((r) => r.status === "collected").map((r) => ({ kind: "rent" as const, row: r })),
             ...group.costRows.filter((c) => c.collection_status === "collected").map((c) => ({ kind: "cost" as const, row: c })),
@@ -510,7 +529,7 @@ function CostTable({
   );
 }
 
-function CollectedTable({ items }: { items: CollectedItem[] }) {
+function CollectedTable({ items, canMarkRent }: { items: CollectedItem[]; canMarkRent: boolean }) {
   return (
     <div className="table-wrap rounded border border-border bg-surface">
       <table className="table">
@@ -521,6 +540,7 @@ function CollectedTable({ items }: { items: CollectedItem[] }) {
             <th>Property / Description</th>
             <th>Categories</th>
             <th className="text-right">Amount</th>
+            {canMarkRent && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -535,6 +555,11 @@ function CollectedTable({ items }: { items: CollectedItem[] }) {
                   <td>{p?.name}</td>
                   <td className="text-muted-fg text-xs">—</td>
                   <td className="text-right">{money(r.collected_amount)}</td>
+                  {canMarkRent && (
+                    <td className="text-right">
+                      <Link href={`/rent/${r.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                    </td>
+                  )}
                 </tr>
               );
             }
@@ -560,11 +585,16 @@ function CollectedTable({ items }: { items: CollectedItem[] }) {
                   </div>
                 </td>
                 <td className="text-right">{money(c.collected_amount)}</td>
+                {canMarkRent && (
+                  <td className="text-right">
+                    <Link href={`/costs/${c.id}/collect`} className="btn-secondary text-xs">Edit</Link>
+                  </td>
+                )}
               </tr>
             );
           })}
           {!items.length && (
-            <tr><td colSpan={5} className="text-center text-muted-fg py-4">Nothing collected.</td></tr>
+            <tr><td colSpan={canMarkRent ? 6 : 5} className="text-center text-muted-fg py-4">Nothing collected.</td></tr>
           )}
         </tbody>
       </table>

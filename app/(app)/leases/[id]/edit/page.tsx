@@ -35,7 +35,9 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
       start_date: startDate,
       end_date: endDate,
       gross_rent_monthly: newGross,
-      deposit_amount: Number(formData.get("deposit_amount") || 0),
+      deposit_charged: Number(formData.get("deposit_charged") || 0),
+      deposit_collected: Number(formData.get("deposit_collected") || 0),
+      deposit_amount: Number(formData.get("deposit_charged") || 0), // legacy sync
       sc_payment_mode: scMode,
       lessee_pays_service_charge: scMode !== "lessee_direct",
     }).eq("id", id);

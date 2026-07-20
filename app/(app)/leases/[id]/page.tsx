@@ -242,9 +242,31 @@ export default async function LeaseDetailPage({
           </div>
         </div>
         <div>
-          <div className="text-xs uppercase text-muted-fg">Rent / Deposit</div>
+          <div className="text-xs uppercase text-muted-fg">Rent</div>
           <div className="font-medium">{money((lease as any).gross_rent_monthly)} / mo</div>
-          <div className="text-xs text-muted-fg">Deposit held: {money((lease as any).deposit_amount ?? 0)}</div>
+        </div>
+        <div className="col-span-full grid grid-cols-3 gap-3 pt-3 border-t border-border">
+          <div>
+            <div className="text-xs uppercase text-muted-fg">Deposit charged</div>
+            <div className="font-medium">{money((lease as any).deposit_charged ?? (lease as any).deposit_amount ?? 0)}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase text-muted-fg">Deposit collected</div>
+            <div className="font-medium">{money((lease as any).deposit_collected ?? 0)}</div>
+          </div>
+          <div>
+            <div className="text-xs uppercase text-muted-fg">Deposit shortfall</div>
+            {(() => {
+              const charged = Number((lease as any).deposit_charged ?? (lease as any).deposit_amount ?? 0);
+              const collected = Number((lease as any).deposit_collected ?? 0);
+              const shortfall = Math.max(0, charged - collected);
+              return (
+                <div className={`font-medium ${shortfall > 0 ? "text-danger" : "text-success"}`}>
+                  {money(shortfall)}
+                </div>
+              );
+            })()}
+          </div>
         </div>
         {(lease as any).lessee_doc_url && (
           <div className="col-span-full pt-2 border-t border-border">

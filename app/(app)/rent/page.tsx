@@ -121,6 +121,21 @@ export default async function RentPage({
     });
   }
 
+  // DEPOSITS — active leases only, keyed by lessee_name
+  let depositsQ = sb.from("leases")
+    .select("lessee_name, deposit_charged, deposit_collected, property_id")
+    .eq("active", true);
+  if (leaseIds) depositsQ = depositsQ.in("id", leaseIds);
+  if (filterProperty) depositsQ = depositsQ.eq("property_id", filterProperty);
+  const { data: depositsData } = await depositsQ;
+  const depositShortfallByLessee: Record<string, number> = {};
+  for (const l of depositsData ?? []) {
+    const row = l as { lessee_name: string; deposit_charged: number | null; deposit_collected: number | null };
+    const shortfall = Math.max(0, Number(row.deposit_charged ?? 0) - Number(row.deposit_collected ?? 0));
+    depositShortfallByLessee[row.lessee_name] = (depositShortfallByLessee[row.lessee_name] ?? 0) + shortfall;
+  }
+  const totalDepositShortfall = Object.values(depositShortfallByLessee).reduce((s, v) => s + v, 0);
+
   // KPIs
   const sumOutstandingRemainder = (outstandingRes.data ?? []).reduce(
     (s: number, r: any) => s + Math.max(0, Number(r.net_amount || 0) - Number(r.collected_amount || 0)),
@@ -158,16 +173,18 @@ export default async function RentPage({
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <Kpi label="Outstanding (overdue)" value={money(sumOutstandingRemainder)} hint={`${(outstandingRes.data ?? []).length} rent rows`} />
-        <Kpi label="Upcoming (next 6 months)" value={money(sumUpcoming)} hint={`${(upcomingRes.data ?? []).length} rows · collectible in advance`} />
+        <Kpi label="Upcoming (next 6 months)" value={money(sumUpcoming)} hint={`${(upcomingRes.data ?? []).length} rows`} />
         <Kpi label="Cost Due" value={money(sumCostDue)} hint={`${(costDueRes.data ?? []).length} cost charges`} />
-        <Kpi label="Collected (last 4 months)" value={money(sumCollected)} hint={`${(recentCollectedRes.data ?? []).length} rent rows`} />
+        <Kpi label="Deposit shortfall" value={money(totalDepositShortfall)} hint="Active leases" />
+        <Kpi label="Collected (last 4 mo)" value={money(sumCollected)} hint={`${(recentCollectedRes.data ?? []).length} rent rows`} />
       </div>
 
       <LesseeAccordion
         rentRows={rentRows}
         costRows={costRows}
+        depositShortfallByLessee={depositShortfallByLessee}
         today={today}
         upcomingHorizon={upcomingHorizon}
         canMarkRent={has(profile, "mark_rent")}

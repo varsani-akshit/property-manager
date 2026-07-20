@@ -94,15 +94,26 @@ export function LeaseForm({
           />
         </div>
         <div>
-          <label className="label">Deposit collected (KES)</label>
+          <label className="label">Deposit charged (KES)</label>
           <input
-            name="deposit_amount"
+            name="deposit_charged"
             type="number"
             step="0.01"
             min="0"
             className="input"
             defaultValue={0}
             placeholder="e.g. 2 months rent"
+          />
+        </div>
+        <div>
+          <label className="label">Deposit collected (KES)</label>
+          <input
+            name="deposit_collected"
+            type="number"
+            step="0.01"
+            min="0"
+            className="input"
+            defaultValue={0}
           />
         </div>
         <div>
