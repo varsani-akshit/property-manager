@@ -25,13 +25,25 @@
   .card { @apply rounded border border-border bg-surface p-4; }
   .section { @apply mb-5; }
 
-  /* KPI — minimal, left orange tick instead of shadow */
+  /* PANEL — lighter than a card: transparent bg, no border, useful for grouping
+     related content without adding another box. Used inside a card to create
+     sub-sections with a divider between them. */
+  .panel { @apply p-4; }
+  .panel + .panel { @apply border-t border-border; }
+
+  /* SECTION HEADER — title strip inside a card without adding extra chrome */
+  .section-head { @apply flex items-center justify-between px-4 py-2.5 border-b border-border; }
+  .section-head h2 { @apply font-semibold text-sm; }
+
+  /* KPI — thin subtle count/metric card. Compact by default; larger values
+     via explicit text-lg on the value if needed. */
   .kpi {
-    @apply rounded border border-border bg-surface px-4 py-3.5 flex flex-col gap-1
-           border-l-2 border-l-primary transition-colors hover:border-primary/60;
+    @apply rounded border border-border bg-surface px-3 py-2.5 flex flex-col gap-0.5
+           items-center text-center transition-colors hover:border-primary/40 min-w-0;
   }
-  .kpi-label { @apply text-[11px] uppercase tracking-wide text-muted-fg font-medium; }
-  .kpi-value { @apply text-xl sm:text-2xl font-semibold text-fg tabular-nums leading-tight; }
+  .kpi-label { @apply text-[10px] uppercase tracking-wide text-muted-fg font-medium; }
+  .kpi-value { @apply text-base font-semibold text-fg tabular-nums leading-tight; }
+  .kpi-hint  { @apply text-[11px] text-muted-fg; }
 
   /* BADGES — pill but slimmer */
   .badge { @apply inline-flex items-center rounded-sm px-2 py-0.5 text-[11px] font-medium tabular-nums uppercase tracking-wide; }
@@ -41,11 +53,20 @@
   .badge-muted   { @apply badge bg-muted text-muted-fg; }
   .badge-primary { @apply badge bg-primary-soft text-primary; }
 
-  /* TABLES — flat, no surrounding card chrome */
+  /* TABLES — flat, unified alignment.
+     Default is LEFT for both th and td. Utility classes (text-right /
+     text-center) override via the @layer utilities cascade. */
   .table-wrap { @apply w-full overflow-x-auto; }
   .table { @apply w-full text-sm whitespace-nowrap border-collapse; }
-  .table th { @apply text-left text-[11px] uppercase tracking-wide text-muted-fg font-semibold py-2.5 px-3.5 border-b border-border bg-bg; }
-  .table td { @apply py-3 px-3.5 border-b border-border/60 tabular-nums; }
+  .table th {
+    text-align: left;
+    @apply text-[11px] uppercase tracking-wide text-muted-fg font-semibold
+           py-2.5 px-3.5 border-b border-border bg-bg;
+  }
+  .table td {
+    text-align: left;
+    @apply py-3 px-3.5 border-b border-border/60 tabular-nums;
+  }
   .table tr:last-child td { @apply border-b-0; }
   .table tr:hover td { @apply bg-muted/50; }
 

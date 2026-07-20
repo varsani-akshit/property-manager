@@ -55,14 +55,21 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
     setPage(1);
   }
 
-  function Header({ label, k, align }: { label: string; k: SortKey; align?: "left" | "right" }) {
+  function Header({ label, k, align }: { label: string; k: SortKey; align?: "left" | "right" | "center" }) {
     const active = sortKey === k;
     return (
       <th
         onClick={() => toggle(k)}
-        className={cn("cursor-pointer select-none hover:text-primary", align === "right" && "text-right")}
+        className={cn(
+          "cursor-pointer select-none hover:text-primary",
+          align === "right" && "text-right",
+          align === "center" && "text-center"
+        )}
       >
-        <span className="inline-flex items-center gap-1">
+        <span className={cn(
+          "inline-flex items-center gap-1",
+          align === "right" && "flex-row-reverse"
+        )}>
           {label}
           {active && (sortDir === "asc" ? <ChevronUp size={12}/> : <ChevronDown size={12}/>)}
         </span>
@@ -82,7 +89,7 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
               <Header label="Start" k="start_date" />
               <Header label="End" k="end_date" />
               <Header label="Rent" k="gross_rent_monthly" align="right" />
-              <Header label="Status" k="active" />
+              <Header label="Status" k="active" align="center" />
             </tr>
           </thead>
           <tbody>
@@ -99,7 +106,7 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
                   <td><Link href={href} className="block">{fmtDate(l.start_date)}</Link></td>
                   <td><Link href={href} className="block">{fmtDate(l.end_date)}</Link></td>
                   <td className="text-right"><Link href={href} className="block">{money(l.gross_rent_monthly)}</Link></td>
-                  <td>
+                  <td className="text-center">
                     <Link href={href} className="block">
                       {l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}
                     </Link>

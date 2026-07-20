@@ -8,9 +8,9 @@ import { guardView } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { fmtDate } from "@/lib/format";
-import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { SubmitButton } from "@/components/SubmitButton";
+import { SearchBar } from "@/components/SearchBar";
 
 export const dynamic = "force-dynamic";
 
@@ -114,31 +114,30 @@ function statusOf(s: AuthState | null): { label: string; cls: string } {
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string; page?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; q?: string }>;
 }) {
   await guardView("view_dashboard"); // /users is gated below by manage_users
   await requirePermission("manage_users");
 
   const sp = await searchParams;
   const { error: flashError, ok: flashOk } = sp;
-  const page = parsePage(sp.page);
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
+  const q = sp.q?.trim() || "";
 
   const sb = await supabaseServer();
   const admin = supabaseAdmin();
 
-  const [pageRes, summaryRes, authResult] = await Promise.all([
-    sb.from("user_profiles").select("*", { count: "exact" }).order("created_at").range(from, to),
-    sb.from("user_profiles").select("id, is_admin"),
+  let usersQ = sb.from("user_profiles").select("*");
+  if (q) usersQ = usersQ.or(`email.ilike.%${q}%,full_name.ilike.%${q}%`);
+  const [allRes, authResult] = await Promise.all([
+    usersQ.order("full_name", { ascending: true, nullsFirst: false }).order("email"),
     admin.auth.admin.listUsers({ perPage: 200 }).catch((e: Error) => {
       console.error("listUsers failed:", e.message);
       return { data: { users: [] }, error: e } as any;
     }),
   ]);
-  const users = (pageRes.data ?? []) as unknown as UserProfile[];
-  const total = pageRes.count ?? 0;
-  const allProfiles = (summaryRes.data ?? []) as Array<{ id: string; is_admin: boolean }>;
+  const users = (allRes.data ?? []) as unknown as UserProfile[];
+  const total = users.length;
+  const allProfiles = users.map((u) => ({ id: u.id, is_admin: u.is_admin }));
 
   const authById: Record<string, AuthState> = {};
   for (const u of authResult?.data?.users ?? []) {
@@ -159,7 +158,10 @@ export default async function UsersPage({
 
   return (
     <div>
-      <PageHeader title="Users & permissions" />
+      <PageHeader
+        title="Users & permissions"
+        right={<SearchBar placeholder="Search name or email…" />}
+      />
 
       {flashError && (
         <div className="card mb-4 border-danger/30 bg-danger/5">
@@ -179,8 +181,8 @@ export default async function UsersPage({
         <Kpi label="Admins" value={String(admins)} />
       </div>
 
-      <div className="card mb-6">
-        <h2 className="font-semibold mb-3">Invite a user</h2>
+      <div className="card mb-4">
+        <h2 className="font-semibold mb-3 text-sm">Invite a user</h2>
         <form action={inviteUser} className="flex gap-2">
           <input
             type="email"
@@ -274,9 +276,9 @@ export default async function UsersPage({
         ))}
       </div>
 
-      <div className="mt-4 card p-0">
-        <Pagination page={page} total={total} label="users" searchParams={sp as Record<string, string | undefined>} />
-      </div>
+      {q && !users.length && (
+        <p className="text-sm text-muted-fg text-center py-8">No users match &ldquo;{q}&rdquo;.</p>
+      )}
     </div>
   );
 }

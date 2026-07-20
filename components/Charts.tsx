@@ -109,10 +109,10 @@ export function StackedBarTrend({
           return (
             <g key={d.label}>
               <rect x={cx - barW} y={innerH - hCol} width={barW * 0.9} height={hCol} fill="hsl(22 92% 52%)" rx="3">
-                <title>Collected {formatValue(d.collected)}</title>
+                <title>{`Collected ${formatValue(d.collected)}`}</title>
               </rect>
               <rect x={cx + barW * 0.05} y={innerH - hCost} width={barW * 0.9} height={hCost} fill="hsl(24 15% 35%)" rx="3">
-                <title>Costs {formatValue(d.costs)}</title>
+                <title>{`Costs ${formatValue(d.costs)}`}</title>
               </rect>
               <text x={cx} y={height - 10} textAnchor="middle" fontSize="10" fill="hsl(215 16% 47%)">
                 {d.label}
@@ -167,7 +167,7 @@ export function DonutChart({
       <svg viewBox={`0 0 ${size} ${size}`} className="w-32 h-32 shrink-0">
         {slices.map((s, i) => (
           <path key={i} d={s.path} fill={s.color}>
-            <title>{s.label}: {formatValue(s.value)}</title>
+            <title>{`${s.label}: ${formatValue(s.value)}`}</title>
           </path>
         ))}
       </svg>

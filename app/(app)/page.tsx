@@ -42,79 +42,42 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const sb = await supabaseServer();
 
-  const [
-    collectedRes, dueInPeriodRes, overdueRes, costsRes, propsRes, leasesRes,
-    upcomingDuesRes, costsWithCatRes,
-  ] = await Promise.all([
-    sb.from("rent_collections")
-      .select("net_amount, collected_at, due_date, property_id, lease_id")
-      .eq("status", "collected")
-      .gte("collected_at", `${period.from}T00:00:00Z`)
-      .lte("collected_at", `${period.to}T23:59:59Z`),
-    sb.from("rent_collections")
-      .select("net_amount, due_date, status, property_id, lease_id")
-      .gte("due_date", period.from)
-      .lte("due_date", period.to),
-    sb.from("rent_collections")
-      .select("id, net_amount, due_date, property_id, lease_id, properties(name, compound_id), leases(id, lessee_name)")
-      .in("status", ["due", "partial"])
-      .lte("due_date", today)
-      .order("due_date", { ascending: true }),
-    sb.from("cost_allocations")
-      .select("allocated_amount, property_id, costs!inner(incurred_on, category, payable_by_lessee)")
-      .gte("costs.incurred_on", period.from)
-      .lte("costs.incurred_on", period.to)
-      .eq("costs.payable_by_lessee", false),
-    sb.from("properties").select("id, name, valuation, compound_id, compounds(id, name)").eq("archived", false),
-    sb.from("leases").select("id, lessee_name, property_id, gross_rent_monthly, end_date, active, start_date").eq("active", true),
-    sb.from("rent_collections")
-      .select("net_amount, due_date")
-      .in("status", ["due", "partial"])
-      .gt("due_date", today)
-      .lte("due_date", horizon90.toISOString().slice(0, 10)),
-    sb.from("cost_line_items")
-      .select("category, amount, costs!inner(incurred_on, payable_by_lessee)")
-      .gte("costs.incurred_on", period.from)
-      .lte("costs.incurred_on", period.to)
-      .eq("costs.payable_by_lessee", false),
-  ]);
+  // ONE round-trip instead of eight — see supabase/023_dashboard_rpc.sql
+  const { data: snap } = await sb.rpc("dashboard_snapshot", {
+    p_from: period.from,
+    p_to: period.to,
+  });
+  const s: any = snap ?? {};
 
-  const collected = collectedRes.data ?? [];
-  const dueRows = dueInPeriodRes.data ?? [];
-  const overdue = (overdueRes.data ?? []) as any[];
-  const costs = (costsRes.data ?? []) as any[];
-  const properties = (propsRes.data ?? []) as any[];
-  const activeLeases = (leasesRes.data ?? []) as any[];
-  const upcomingDues = (upcomingDuesRes.data ?? []) as any[];
-  const costsWithCat = (costsWithCatRes.data ?? []) as any[];
+  const collected: any[] = s.collected ?? [];
+  const dueRows: any[] = s.dueInPeriod ?? [];
+  const overdueTotals = s.overdueTotals ?? { amount: 0, row_count: 0, distinct_lessees: 0, oldest_days: 0 };
+  const lesseeWatchListRaw: any[] = s.overdueByLessee ?? [];
+  const costs: any[] = (s.costs ?? []).map((c: any) => ({
+    allocated_amount: c.allocated_amount,
+    property_id: c.property_id,
+    costs: { incurred_on: c.incurred_on, category: c.category },
+  }));
+  const properties: any[] = (s.properties ?? []).map((p: any) => ({
+    ...p,
+    compounds: p.compound_id ? { id: p.compound_id, name: p.compound_name } : null,
+  }));
+  const activeLeases: any[] = s.leases ?? [];
+  const upcomingDues: any[] = s.upcoming ?? [];
+  const costsWithCat: any[] = s.costsByCategory ?? [];
 
   // === HEADLINE TOTALS ===
   const collectedTotal = collected.reduce((s, r) => s + Number(r.net_amount || 0), 0);
   const dueInPeriodTotal = dueRows.reduce((s, r) => s + Number((r as any).net_amount || 0), 0);
-  const outstandingTotal = overdue.reduce((s, r) => s + Number(r.net_amount || 0), 0);
+  const outstandingTotal = Number(overdueTotals.amount || 0);
   const costsTotal = costs.reduce((s, r) => s + Number(r.allocated_amount || 0), 0);
   const net = collectedTotal - costsTotal;
   const collectionRate = dueInPeriodTotal > 0 ? (collectedTotal / dueInPeriodTotal) * 100 : null;
   const totalValuation = properties.reduce((s, p) => s + Number(p.valuation || 0), 0);
   const roiPeriodPct = totalValuation > 0 ? (net / totalValuation) * 100 : 0;
   const roiAnnualizedPct = totalValuation > 0 ? roiPeriodPct * (365 / days) : 0;
-
-  // === OUTSTANDING by lessee (with worst-overdue days) ===
-  type LesseeRow = { name: string; amount: number; count: number; properties: Set<string>; oldest_days: number };
-  const byLessee: Record<string, LesseeRow> = {};
-  for (const r of overdue) {
-    const l = Array.isArray(r.leases) ? r.leases[0] : r.leases;
-    const p = Array.isArray(r.properties) ? r.properties[0] : r.properties;
-    const name = l?.lessee_name ?? "(unknown)";
-    const daysLate = Math.max(0, Math.round((Date.now() - new Date(r.due_date).getTime()) / 86400000));
-    byLessee[name] ??= { name, amount: 0, count: 0, properties: new Set(), oldest_days: 0 };
-    byLessee[name].amount += Number(r.net_amount || 0);
-    byLessee[name].count += 1;
-    if (p?.name) byLessee[name].properties.add(p.name);
-    if (daysLate > byLessee[name].oldest_days) byLessee[name].oldest_days = daysLate;
-  }
-  const distinctOverdueLessees = Object.keys(byLessee).length;
-  const worstDaysLate = Math.max(0, ...Object.values(byLessee).map((l) => l.oldest_days));
+  const distinctOverdueLessees = Number(overdueTotals.distinct_lessees || 0);
+  const worstDaysLate = Number(overdueTotals.oldest_days || 0);
 
   // Punctuality (period) — merged into the outstanding panel as an on-time% indicator
   const leaseToLessee: Record<string, string> = {};
@@ -137,11 +100,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     };
   }
 
-  const lesseeWatchList = Object.values(byLessee).map((l) => ({
-    ...l,
-    on_time_pct: punctByLessee[l.name]?.on_time ?? null,
-    payments: punctByLessee[l.name]?.payments ?? 0,
-  })).sort((a, b) => b.amount - a.amount).slice(0, 10);
+  // Watchlist is now pre-aggregated by SQL (top 10 by amount).
+  const lesseeWatchList = lesseeWatchListRaw.map((l: any) => ({
+    name: l.lessee_name,
+    amount: Number(l.amount),
+    count: Number(l.count),
+    oldest_days: Number(l.oldest_days),
+    properties: new Set<string>(l.properties ?? []),
+    on_time_pct: punctByLessee[l.lessee_name]?.on_time ?? null,
+    payments: punctByLessee[l.lessee_name]?.payments ?? 0,
+  }));
 
   // === MONTHLY TREND ===
   const months = listMonths(period.from, period.to);
@@ -244,14 +212,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="kpi">
           <div className="kpi-label">Net profit</div>
-          <div className={`kpi-value ${net < 0 ? "text-danger" : "text-success"}`}>{money(net)}</div>
+          <div className={`kpi-value sm:text-xl ${net < 0 ? "text-danger" : "text-success"}`}>{money(net)}</div>
           <div className="text-xs text-muted-fg mt-auto">
             {money(collectedTotal)} in − {money(costsTotal)} out
           </div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Collection rate</div>
-          <div className={`kpi-value ${collectionRate !== null && collectionRate < 80 ? "text-warning" : ""}`}>
+          <div className={`kpi-value sm:text-xl ${collectionRate !== null && collectionRate < 80 ? "text-warning" : ""}`}>
             {collectionRate !== null ? `${collectionRate.toFixed(0)}%` : "—"}
           </div>
           <div className="text-xs text-muted-fg mt-auto">
@@ -260,66 +228,63 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
         <Link href="/rent" className="kpi hover:bg-muted/50 transition-colors cursor-pointer">
           <div className="kpi-label">Outstanding</div>
-          <div className="kpi-value text-danger">{money(outstandingTotal)}</div>
+          <div className="kpi-value sm:text-xl text-danger">{money(outstandingTotal)}</div>
           <div className="text-xs text-muted-fg mt-auto">
             {distinctOverdueLessees} tenant{distinctOverdueLessees === 1 ? "" : "s"} · oldest {worstDaysLate}d →
           </div>
         </Link>
         <div className="kpi">
           <div className="kpi-label">ROI annualized</div>
-          <div className={`kpi-value ${roiAnnualizedPct < 0 ? "text-danger" : ""}`}>{roiAnnualizedPct.toFixed(2)}%</div>
+          <div className={`kpi-value sm:text-xl ${roiAnnualizedPct < 0 ? "text-danger" : ""}`}>{roiAnnualizedPct.toFixed(2)}%</div>
           <div className="text-xs text-muted-fg mt-auto">
             On {money(totalValuation)} valuation
           </div>
         </div>
       </div>
 
-      {/* MONTHLY TREND */}
-      <div className="card mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold">Monthly trend — {period.label}</h2>
+      {/* MONTHLY TREND + OPERATIONS — merged into one panel */}
+      <div className="card p-0 mb-6">
+        <div className="section-head">
+          <h2>Monthly trend — {period.label}</h2>
           <span className="text-xs text-muted-fg">{trend.length} month{trend.length === 1 ? "" : "s"}</span>
         </div>
-        <StackedBarTrend
-          data={trend.map((t) => ({ label: t.ym.slice(2), collected: t.collected, costs: t.costs }))}
-          formatValue={(n) => money(n)}
-        />
-      </div>
-
-      {/* OPERATIONS STRIP — single compact card */}
-      <div className="card mb-6 grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-        <div>
-          <div className="text-xs uppercase text-muted-fg">Occupancy</div>
-          <div className="font-semibold text-lg">{occupancyPct.toFixed(0)}%</div>
-          <div className="text-xs text-muted-fg">{activeLeases.length} of {properties.length} units</div>
+        <div className="panel">
+          <StackedBarTrend
+            data={trend.map((t) => ({ label: t.ym.slice(2), collected: t.collected, costs: t.costs }))}
+            formatValue={(n) => money(n)}
+          />
         </div>
-        <div>
-          <div className="text-xs uppercase text-muted-fg">Expected / mo</div>
-          <div className="font-semibold text-lg">{money(expectedMonthly)}</div>
-          <div className="text-xs text-muted-fg">From active leases</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase text-muted-fg">Next 30 days</div>
-          <div className="font-semibold text-lg">{money(next30)}</div>
-          <div className="text-xs text-muted-fg">Due to collect</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase text-muted-fg">Next 60 days</div>
-          <div className="font-semibold text-lg">{money(next60)}</div>
-        </div>
-        <div>
-          <div className="text-xs uppercase text-muted-fg">Next 90 days</div>
-          <div className="font-semibold text-lg">{money(next90)}</div>
+        <div className="panel grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+          <div className="text-center">
+            <div className="text-xs uppercase text-muted-fg">Occupancy</div>
+            <div className="font-semibold text-lg">{occupancyPct.toFixed(0)}%</div>
+            <div className="text-xs text-muted-fg">{activeLeases.length} of {properties.length}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs uppercase text-muted-fg">Expected / mo</div>
+            <div className="font-semibold text-lg">{money(expectedMonthly)}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs uppercase text-muted-fg">Next 30 days</div>
+            <div className="font-semibold text-lg">{money(next30)}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs uppercase text-muted-fg">Next 60 days</div>
+            <div className="font-semibold text-lg">{money(next60)}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xs uppercase text-muted-fg">Next 90 days</div>
+            <div className="font-semibold text-lg">{money(next90)}</div>
+          </div>
         </div>
       </div>
 
-      {/* WATCH PANEL */}
-      <div className="grid lg:grid-cols-2 gap-6 mb-6">
-        {/* Outstanding by lessee with on-time history */}
-        <div className="card p-0">
-          <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-            <h2 className="font-semibold">Outstanding · who to chase</h2>
-            <Link href="/rent" className="text-xs text-accent hover:underline">All rows →</Link>
+      {/* WATCH PANEL — single card, two internal sections */}
+      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+        <div>
+          <div className="section-head">
+            <h2>Outstanding · who to chase</h2>
+            <Link href="/rent" className="text-xs text-primary hover:underline">All rows →</Link>
           </div>
           <div className="table-wrap">
             <table className="table">
@@ -328,7 +293,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   <th>Lessee</th>
                   <th className="text-right">Oldest</th>
                   <th className="text-right">Amount</th>
-                  <th className="text-right">On-time %</th>
+                  <th className="text-right">On-time</th>
                 </tr>
               </thead>
               <tbody>
@@ -361,10 +326,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </div>
         </div>
 
-        {/* Expiring leases */}
-        <div className="card p-0">
-          <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-            <h2 className="font-semibold">Leases ending soon</h2>
+        <div>
+          <div className="section-head">
+            <h2>Leases ending soon</h2>
             <span className="text-xs text-muted-fg">Within 60 days</span>
           </div>
           <div className="table-wrap">
@@ -374,7 +338,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   <th>Lessee</th>
                   <th>Property</th>
                   <th>End date</th>
-                  <th className="text-right">Days left</th>
+                  <th className="text-right">Days</th>
                 </tr>
               </thead>
               <tbody>
@@ -401,11 +365,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </div>
 
-      {/* PERFORMANCE — property leaderboard + cost categories */}
-      <div className="grid lg:grid-cols-2 gap-6 mb-6">
-        <div className="card p-0">
-          <div className="px-3 py-3 border-b border-border">
-            <h2 className="font-semibold">Property performance — {period.label}</h2>
+      {/* PERFORMANCE + COSTS — single card, two internal sections */}
+      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+        <div>
+          <div className="section-head">
+            <h2>Property performance</h2>
+            <span className="text-xs text-muted-fg">{period.label}</span>
           </div>
           <div className="table-wrap">
             <table className="table">
@@ -418,7 +383,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </thead>
               <tbody>
                 {topPerformers.length > 0 && (
-                  <tr><td colSpan={3} className="text-xs uppercase text-muted-fg bg-muted/30 py-1.5 px-3">Top performers</td></tr>
+                  <tr><td colSpan={3} className="text-[10px] uppercase text-muted-fg bg-muted/30 py-1.5 px-3 tracking-wide">Top performers</td></tr>
                 )}
                 {topPerformers.map((p) => (
                   <tr key={`top-${p.id}`}>
@@ -431,7 +396,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   </tr>
                 ))}
                 {bottomPerformers.length > 0 && bottomPerformers.some((b) => !topPerformers.find((t) => t.id === b.id)) && (
-                  <tr><td colSpan={3} className="text-xs uppercase text-muted-fg bg-muted/30 py-1.5 px-3">Needs attention</td></tr>
+                  <tr><td colSpan={3} className="text-[10px] uppercase text-muted-fg bg-muted/30 py-1.5 px-3 tracking-wide">Needs attention</td></tr>
                 )}
                 {bottomPerformers.filter((b) => !topPerformers.find((t) => t.id === b.id)).map((p) => (
                   <tr key={`bot-${p.id}`}>
@@ -443,22 +408,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     <td className={`text-right tabular-nums font-medium ${p.roi < 0 ? "text-danger" : "text-warning"}`}>{p.roi.toFixed(1)}%</td>
                   </tr>
                 ))}
-                {!propPerformance.length && <tr><td colSpan={3} className="text-center text-muted-fg py-6">No activity in this period.</td></tr>}
+                {!propPerformance.length && <tr><td colSpan={3} className="text-center text-muted-fg py-6">No activity.</td></tr>}
               </tbody>
             </table>
           </div>
         </div>
 
-        <div className="card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold">Cost breakdown — {period.label}</h2>
+        <div>
+          <div className="section-head">
+            <h2>Cost breakdown</h2>
             <span className="text-xs text-muted-fg">{money(costsTotal)} total</span>
           </div>
-          {topCategories.length > 0 ? (
-            <DonutChart data={topCategories} formatValue={(n) => money(n)} />
-          ) : (
-            <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
-          )}
+          <div className="panel">
+            {topCategories.length > 0 ? (
+              <DonutChart data={topCategories} formatValue={(n) => money(n)} />
+            ) : (
+              <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>

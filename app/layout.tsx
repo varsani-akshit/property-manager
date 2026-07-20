@@ -4,8 +4,8 @@ import { NavProgress } from "@/components/NavProgress";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Rental Manager",
-  description: "Property and rental management",
+  title: "Variaka",
+  description: "Variaka — property portfolio management",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

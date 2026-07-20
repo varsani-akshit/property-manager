@@ -161,6 +161,8 @@ export default async function RentPage({
         actions={<Link href="/rent/backfill" className="btn-secondary text-xs">Bulk backfill</Link>}
       />
 
+      {(filterLessee || filterProperty) && null}
+
       {(filterLessee || filterProperty) && (
         <div className="card mb-4 flex items-center justify-between gap-3">
           <p className="text-sm">

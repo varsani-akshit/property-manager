@@ -83,9 +83,11 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
   return (
     <div className="max-w-xl">
       <PageHeader
-        title="Raise rent"
-        subtitle={`${(lease as any).lessee_name} · ${prop?.name}`}
-        actions={<Link href={`/leases/${id}`} className="btn-secondary text-xs">Back to lease</Link>}
+        crumbs={[
+          { label: "Leases", href: "/leases" },
+          { label: (lease as any).lessee_name, href: `/leases/${id}` },
+          { label: "Raise rent" },
+        ]}
       />
 
       <form action={applyRaise} className="card space-y-4">

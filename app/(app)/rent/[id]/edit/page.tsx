@@ -68,7 +68,13 @@ export default async function EditRentPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="max-w-lg">
-      <PageHeader title="Update rent row" subtitle={`${lease?.lessee_name ?? "—"} — ${property?.name ?? ""}`} />
+      <PageHeader
+        crumbs={[
+          { label: "Rent Collection", href: "/rent" },
+          { label: lease?.lessee_name ?? "—" },
+          { label: "Update row" },
+        ]}
+      />
 
       <form action={update} className="card space-y-4">
         <div className="grid grid-cols-2 gap-3 text-sm">

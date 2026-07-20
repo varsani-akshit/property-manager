@@ -89,7 +89,13 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="max-w-2xl">
-      <PageHeader title="Edit lease" subtitle={`${(lease as any).properties?.compounds?.name} — ${(lease as any).properties?.name}`} />
+      <PageHeader
+        crumbs={[
+          { label: "Leases", href: "/leases" },
+          { label: (lease as any).lessee_name ?? (lease as any).properties?.name, href: `/leases/${id}` },
+          { label: "Edit" },
+        ]}
+      />
       <LeaseEditForm lease={lease as any} action={update} />
     </div>
   );

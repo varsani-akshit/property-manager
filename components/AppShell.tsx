@@ -5,6 +5,7 @@ import { Menu, X } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { cn } from "@/lib/cn";
 import type { UserProfile } from "@/lib/permissions";
+import { VariakaMark } from "./Logo";
 
 /**
  * Responsive shell:
@@ -59,7 +60,10 @@ export function AppShell({ profile, children }: { profile: UserProfile; children
           >
             <Menu size={20} />
           </button>
-          <span className="font-semibold">Rental Manager</span>
+          <div className="flex items-center gap-2 font-semibold tracking-tight">
+            <VariakaMark size={20} />
+            <span>Variaka</span>
+          </div>
         </header>
 
         <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 bg-muted/30">

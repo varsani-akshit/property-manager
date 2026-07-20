@@ -224,13 +224,9 @@ export function LesseeAccordion({
           <thead>
             <tr>
               <th className="w-8"></th>
-              <th>Lessee</th>
-              <th>Properties</th>
+              <th>Lessee · Property</th>
               <th className="text-right">Total Outstanding</th>
-              <th className="text-right">Rent overdue</th>
               <th className="text-right">Upcoming (6 mo)</th>
-              <th className="text-right">Cost Due</th>
-              <th className="text-right">Deposit short</th>
               <th className="text-right">Collected (4 mo)</th>
             </tr>
           </thead>
@@ -248,30 +244,25 @@ export function LesseeAccordion({
                     <td className="text-muted-fg">
                       {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </td>
-                    <td>
+                    <td className="max-w-md">
                       <div className="font-medium">{g.lessee_name}</div>
-                      {g.contact && <div className="text-xs text-muted-fg">{g.contact}</div>}
-                    </td>
-                    <td className="text-xs text-muted-fg max-w-xs truncate" title={g.properties.join(", ")}>
-                      {g.properties.join(", ")}
+                      <div className="text-xs text-muted-fg truncate" title={g.properties.join(", ")}>
+                        {g.properties.join(", ") || (g.contact ?? "")}
+                      </div>
                     </td>
                     <td className={cn("text-right tabular-nums font-semibold", totalOutstanding > 0 && "text-danger")}>
                       {money(totalOutstanding)}
-                    </td>
-                    <td className={cn("text-right tabular-nums", g.outstanding_total > 0 && "text-danger")}>
-                      {money(g.outstanding_total)}
-                      {g.outstanding_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.outstanding_count})</span>}
+                      {totalOutstanding > 0 && (
+                        <div className="text-[10px] text-muted-fg font-normal">
+                          {g.outstanding_total > 0 && <>rent {money(g.outstanding_total)}</>}
+                          {g.cost_due_total > 0 && <> · cost {money(g.cost_due_total)}</>}
+                          {g.deposit_shortfall > 0 && <> · dep {money(g.deposit_shortfall)}</>}
+                        </div>
+                      )}
                     </td>
                     <td className="text-right tabular-nums">
                       {money(g.upcoming_total)}
                       {g.upcoming_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.upcoming_count})</span>}
-                    </td>
-                    <td className={cn("text-right tabular-nums", g.cost_due_total > 0 && "text-warning")}>
-                      {money(g.cost_due_total)}
-                      {g.cost_due_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.cost_due_count})</span>}
-                    </td>
-                    <td className={cn("text-right tabular-nums", g.deposit_shortfall > 0 && "text-warning")}>
-                      {money(g.deposit_shortfall)}
                     </td>
                     <td className="text-right tabular-nums text-success">
                       {money(g.collected_total)}
@@ -280,7 +271,7 @@ export function LesseeAccordion({
                   </tr>
                   {isOpen && (
                     <tr className="bg-muted/30">
-                      <td colSpan={9} className="p-3">
+                      <td colSpan={5} className="p-3">
                         <Tabs
                           group={g}
                           today={today}
@@ -299,7 +290,7 @@ export function LesseeAccordion({
             })}
             {!groups.length && (
               <tr>
-                <td colSpan={9} className="text-center text-muted-fg py-8">
+                <td colSpan={5} className="text-center text-muted-fg py-8">
                   No rent or cost activity in the current scope.
                 </td>
               </tr>

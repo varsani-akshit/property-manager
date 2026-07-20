@@ -70,7 +70,13 @@ export default async function CollectCostPage({ params }: { params: Promise<{ id
 
   return (
     <div className="max-w-lg">
-      <PageHeader title="Collect cost charge" subtitle={`${lease?.lessee_name ?? "—"} — ${property?.name ?? ""}`} />
+      <PageHeader
+        crumbs={[
+          { label: "Rent Collection", href: "/rent" },
+          { label: lease?.lessee_name ?? "—" },
+          { label: "Collect cost charge" },
+        ]}
+      />
 
       <form action={update} className="card space-y-4">
         <div>

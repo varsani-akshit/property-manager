@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { VariakaMark } from "@/components/Logo";
 
 export function LoginClient() {
   const router = useRouter();
@@ -51,9 +52,12 @@ export function LoginClient() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-muted px-4">
       <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-4">
-        <div>
-          <h1 className="text-xl font-semibold">Rental Manager</h1>
-          <p className="text-sm text-muted-fg">Sign in to continue.</p>
+        <div className="flex items-center gap-2">
+          <VariakaMark size={32} />
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Variaka</h1>
+            <p className="text-xs text-muted-fg">Property portfolio · sign in to continue</p>
+          </div>
         </div>
 
         <div>

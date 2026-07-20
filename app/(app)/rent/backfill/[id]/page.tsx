@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { revalidatePath } from "next/cache";
 import { BackfillGrid, type BackfillRow } from "./BackfillGrid";
 
@@ -117,40 +118,38 @@ export default async function PropertyBackfillPage({
   return (
     <div>
       <PageHeader
-        title={`Backfill: ${propAny.name}`}
-        subtitle={compoundName}
+        crumbs={[
+          { label: "Rent Collection", href: "/rent" },
+          { label: "Backfill", href: "/rent/backfill" },
+          { label: propAny.name },
+        ]}
         actions={
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-1 items-center">
             {prev && (
-              <Link href={`/rent/backfill/${prev.id}`} className="btn-secondary text-xs">← {prev.name}</Link>
+              <Link href={`/rent/backfill/${prev.id}`} className="btn-secondary text-xs" title={prev.name}>
+                <ChevronLeft size={14} />
+              </Link>
             )}
             {next && (
-              <Link href={`/rent/backfill/${next.id}`} className="btn-secondary text-xs">{next.name} →</Link>
+              <Link href={`/rent/backfill/${next.id}`} className="btn-secondary text-xs" title={next.name}>
+                <ChevronRight size={14} />
+              </Link>
             )}
-            <Link href="/rent/backfill" className="btn-secondary text-xs">All properties</Link>
           </div>
         }
       />
 
       {sp.msg && (
-        <div className="card mb-4 border-success/30 bg-success/5">
-          <p className="text-sm text-success">{sp.msg}</p>
-        </div>
+        <div className="mb-4 px-3 py-2 rounded text-sm text-success border border-success/30 bg-success/5">{sp.msg}</div>
       )}
       {sp.err && (
-        <div className="card mb-4 border-danger/30 bg-danger/5">
-          <p className="text-sm text-danger">{sp.err}</p>
-        </div>
+        <div className="mb-4 px-3 py-2 rounded text-sm text-danger border border-danger/30 bg-danger/5">{sp.err}</div>
       )}
 
       {rents.length === 0 ? (
-        <div className="card text-sm">
-          <p>No rent rows exist yet for this property.</p>
-          <p className="text-xs text-muted-fg mt-2">
-            Open the lease and click <em>Backfill rents</em> — that pre-creates one row per month from the lease start.
-            Then come back here to edit amounts.
-          </p>
-        </div>
+        <p className="text-sm text-muted-fg">
+          No rent rows exist yet. Open the lease and click <em>Backfill rents</em>.
+        </p>
       ) : (
         <BackfillGrid
           rows={rents.map((r: any): BackfillRow => {

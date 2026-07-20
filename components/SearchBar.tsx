@@ -2,16 +2,20 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X, Loader2 } from "lucide-react";
+import { cn } from "@/lib/cn";
 
 /**
- * Debounced URL-replace search.
- * No form submit, no full reload — typing updates `?q=…` and triggers a soft
- * server fetch. The previous page stays painted until the new data arrives.
+ * Inline, no-wrapper search that blends with the page background.
+ *
+ * URL-driven — typing updates `?q=…` after a debounce and triggers a soft
+ * server fetch. Designed to sit in the PageHeader's `right` slot.
  */
 export function SearchBar({
   placeholder = "Search…",
+  className,
 }: {
   placeholder?: string;
+  className?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -26,7 +30,6 @@ export function SearchBar({
       const params = new URLSearchParams(sp.toString());
       if (text.trim()) params.set("q", text.trim());
       else params.delete("q");
-      // Reset pagination on a new search
       params.delete("page");
       startTransition(() => {
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -47,17 +50,18 @@ export function SearchBar({
   }
 
   return (
-    <div className="relative mb-4">
-      <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-fg pointer-events-none" />
+    <div className={cn("relative w-full sm:w-72", className)}>
+      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-fg pointer-events-none" />
       <input
         type="search"
         placeholder={placeholder}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        className="input pl-10 pr-10"
+        className="w-full h-9 pl-9 pr-8 rounded bg-transparent border border-border text-sm placeholder:text-muted-fg
+                   focus:outline-none focus:border-primary transition-colors"
       />
       {(text || isPending) && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {isPending && <Loader2 size={14} className="animate-spin text-muted-fg" />}
           {text && !isPending && (
             <button type="button" onClick={clear} className="p-1 rounded hover:bg-muted" aria-label="Clear search">

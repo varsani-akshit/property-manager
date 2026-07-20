@@ -170,8 +170,11 @@ export default async function PropertyDetailPage({
   return (
     <div>
       <PageHeader
-        title={prop.name}
-        subtitle={compound?.name}
+        crumbs={[
+          { label: "Properties", href: "/properties" },
+          ...(compound ? [{ label: compound.name, href: `/compounds/${compound.id}` }] : []),
+          { label: prop.name },
+        ]}
         actions={
           <>
             {has(profile, "edit_property") && (
@@ -276,25 +279,29 @@ export default async function PropertyDetailPage({
         </div>
       </div>
 
-      {/* TREND + COST BREAKDOWN side by side */}
-      <div className="grid lg:grid-cols-2 gap-6 mb-6">
-        <div className="card">
-          <h2 className="font-semibold mb-3">Monthly trend</h2>
-          <StackedBarTrend
-            data={trend.map((t) => ({ label: t.ym.slice(2), collected: t.collected, costs: t.costs }))}
-            formatValue={(n) => money(n)}
-          />
+      {/* TREND + COST BREAKDOWN — merged into one card with vertical divider */}
+      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+        <div>
+          <div className="section-head"><h2>Monthly trend</h2></div>
+          <div className="panel">
+            <StackedBarTrend
+              data={trend.map((t) => ({ label: t.ym.slice(2), collected: t.collected, costs: t.costs }))}
+              formatValue={(n) => money(n)}
+            />
+          </div>
         </div>
-        <div className="card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold">Cost breakdown</h2>
+        <div>
+          <div className="section-head">
+            <h2>Cost breakdown</h2>
             <span className="text-xs text-muted-fg">{money(totalCosts)} total</span>
           </div>
-          {categoryRows.length > 0 ? (
-            <DonutChart data={categoryRows} formatValue={(n) => money(n)} />
-          ) : (
-            <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
-          )}
+          <div className="panel">
+            {categoryRows.length > 0 ? (
+              <DonutChart data={categoryRows} formatValue={(n) => money(n)} />
+            ) : (
+              <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
+            )}
+          </div>
         </div>
       </div>
 

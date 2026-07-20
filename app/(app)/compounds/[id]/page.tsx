@@ -150,8 +150,10 @@ export default async function CompoundDetailPage({
   return (
     <div>
       <PageHeader
-        title={compound.name}
-        subtitle={compound.address || undefined}
+        crumbs={[
+          { label: "Compounds", href: "/compounds" },
+          { label: compound.name },
+        ]}
         actions={
           <>
             {has(profile, "edit_property") && <Link href={`/compounds/${id}/edit`} className="btn-secondary">Edit</Link>}
@@ -173,21 +175,21 @@ export default async function CompoundDetailPage({
 
       {/* FACTS STRIP */}
       <div className="card mb-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-        <div>
+        <div className="text-center">
           <div className="text-xs uppercase text-muted-fg">Properties</div>
           <div className="font-semibold text-lg">{allProps.length}</div>
           <div className="text-xs text-muted-fg">{totalSqft.toLocaleString()} sqft</div>
         </div>
-        <div>
+        <div className="text-center">
           <div className="text-xs uppercase text-muted-fg">Total valuation</div>
           <div className="font-semibold text-lg">{money(totalValuation)}</div>
         </div>
-        <div>
+        <div className="text-center">
           <div className="text-xs uppercase text-muted-fg">Occupancy</div>
           <div className="font-semibold text-lg">{occupancyPct.toFixed(0)}%</div>
           <div className="text-xs text-muted-fg">{activeLeases.length} of {allProps.length} rented</div>
         </div>
-        <div>
+        <div className="text-center">
           <div className="text-xs uppercase text-muted-fg">ROI annualized</div>
           <div className={`font-semibold text-lg ${annualROI !== null && annualROI < 0 ? "text-danger" : ""}`}>
             {annualROI !== null ? `${annualROI.toFixed(2)}%` : "—"}
@@ -219,25 +221,29 @@ export default async function CompoundDetailPage({
         </div>
       </div>
 
-      {/* TREND + COST BREAKDOWN */}
-      <div className="grid lg:grid-cols-2 gap-6 mb-6">
-        <div className="card">
-          <h2 className="font-semibold mb-3">Monthly trend</h2>
-          <StackedBarTrend
-            data={trend.map((t) => ({ label: t.ym.slice(2), collected: t.collected, costs: t.costs }))}
-            formatValue={(n) => money(n)}
-          />
+      {/* TREND + COST BREAKDOWN — merged */}
+      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+        <div>
+          <div className="section-head"><h2>Monthly trend</h2></div>
+          <div className="panel">
+            <StackedBarTrend
+              data={trend.map((t) => ({ label: t.ym.slice(2), collected: t.collected, costs: t.costs }))}
+              formatValue={(n) => money(n)}
+            />
+          </div>
         </div>
-        <div className="card">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold">Cost breakdown</h2>
+        <div>
+          <div className="section-head">
+            <h2>Cost breakdown</h2>
             <span className="text-xs text-muted-fg">{money(costs)} total</span>
           </div>
-          {categoryRows.length > 0 ? (
-            <DonutChart data={categoryRows} formatValue={(n) => money(n)} />
-          ) : (
-            <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
-          )}
+          <div className="panel">
+            {categoryRows.length > 0 ? (
+              <DonutChart data={categoryRows} formatValue={(n) => money(n)} />
+            ) : (
+              <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
+            )}
+          </div>
         </div>
       </div>
 

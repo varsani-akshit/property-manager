@@ -1,17 +1,17 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
-import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { SearchBar } from "@/components/SearchBar";
 import Link from "next/link";
 import { has } from "@/lib/permissions";
 import { guardView } from "@/lib/guard";
 import { money } from "@/lib/format";
 import { Plus } from "lucide-react";
+import { PropertiesTable, type PropertyTableRow } from "./PropertiesTable";
 
 export const dynamic = "force-dynamic";
 
-type PropertyRow = {
+type PropertyDbRow = {
   id: string;
   name: string;
   area_sqft: number;
@@ -22,27 +22,23 @@ type PropertyRow = {
   leases: { id: string; active: boolean; lessee_name: string; gross_rent_monthly: number }[] | null;
 };
 
-function compoundName(c: PropertyRow["compounds"]): string {
+function compoundName(c: PropertyDbRow["compounds"]): string {
   if (!c) return "";
   return Array.isArray(c) ? c[0]?.name ?? "" : c.name;
 }
 
-// Human/natural alphanumeric sort — "Godown No. 2" before "Godown No. 10".
-const natCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
-
 export default async function PropertiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   const profile = await guardView("view_properties");
   const sp = await searchParams;
   const q = sp.q?.trim() || "";
-  const page = parsePage(sp.page);
 
   const sb = await supabaseServer();
 
-  // Resolve search-filter → property IDs (any of: property name / compound / active lessee)
+  // Search filter: property name / compound name / active lessee name
   let allowedPropertyIds: string[] | null = null;
   if (q) {
     const like = `%${q}%`;
@@ -59,22 +55,26 @@ export default async function PropertiesPage({
     if (allowedPropertyIds.length === 0) allowedPropertyIds = ["00000000-0000-0000-0000-000000000000"];
   }
 
-  // Fetch ALL matching rows (small dataset, ~73 total) so we can sort naturally
-  // by (compound, property) in JS and then paginate.
   let baseQ = sb.from("properties")
     .select("id, name, area_sqft, valuation, service_charge_monthly, archived, compounds(name), leases(id, active, lessee_name, gross_rent_monthly)")
     .eq("archived", false);
   if (allowedPropertyIds) baseQ = baseQ.in("id", allowedPropertyIds);
   const allRes = await baseQ;
 
-  const all = (allRes.data ?? []) as unknown as PropertyRow[];
-  all.sort((a, b) => {
-    const c = natCollator.compare(compoundName(a.compounds), compoundName(b.compounds));
-    return c !== 0 ? c : natCollator.compare(a.name, b.name);
+  const rows: PropertyTableRow[] = ((allRes.data ?? []) as unknown as PropertyDbRow[]).map((p) => {
+    const lease = p.leases?.find((l) => l.active) ?? null;
+    return {
+      id: p.id,
+      name: p.name,
+      compound_name: compoundName(p.compounds),
+      active_lessee: lease?.lessee_name ?? null,
+      active_rent: lease ? Number(lease.gross_rent_monthly) : null,
+      area_sqft: Number(p.area_sqft),
+      valuation: Number(p.valuation),
+      service_charge_monthly: Number(p.service_charge_monthly),
+      rented: !!lease,
+    };
   });
-  const total = all.length;
-  const start = (page - 1) * PAGE_SIZE;
-  const arr = all.slice(start, start + PAGE_SIZE);
 
   // Summary always reflects the search filter so KPIs match what's shown.
   let summaryQ = sb.from("v_property_summary")
@@ -92,14 +92,13 @@ export default async function PropertiesPage({
     <div>
       <PageHeader
         title="Properties"
+        right={<SearchBar placeholder="Search property, compound, lessee…" />}
         actions={
           has(profile, "create_property") ? (
             <Link href="/properties/new" className="btn-primary"><Plus size={14} /> New property</Link>
           ) : null
         }
       />
-
-      <SearchBar placeholder="Search by property, compound, or lessee…" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <Kpi label="Properties" value={String(summary.length)} hint={`${occupied} occupied · ${summary.length - occupied} vacant`} />
@@ -108,45 +107,7 @@ export default async function PropertiesPage({
         <Kpi label="Monthly rent (gross)" value={money(monthlyRent)} />
       </div>
 
-      <div className="card p-0">
-        <div className="table-wrap">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Compound</th>
-                <th>Lessee</th>
-                <th className="text-right">Rent / mo</th>
-                <th className="text-right">Sqft</th>
-                <th className="text-right">Valuation</th>
-                <th className="text-right">SC / mo</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {arr.map((p) => {
-                const lease = p.leases?.find((l) => l.active);
-                return (
-                  <tr key={p.id} className="cursor-pointer">
-                    <td>
-                      <Link href={`/properties/${p.id}`} className="block font-medium">{p.name}</Link>
-                    </td>
-                    <td><Link href={`/properties/${p.id}`} className="block">{compoundName(p.compounds)}</Link></td>
-                    <td><Link href={`/properties/${p.id}`} className="block">{lease?.lessee_name || "—"}</Link></td>
-                    <td className="text-right"><Link href={`/properties/${p.id}`} className="block">{lease ? money(lease.gross_rent_monthly) : "—"}</Link></td>
-                    <td className="text-right"><Link href={`/properties/${p.id}`} className="block">{Number(p.area_sqft).toLocaleString()}</Link></td>
-                    <td className="text-right"><Link href={`/properties/${p.id}`} className="block">{money(p.valuation)}</Link></td>
-                    <td className="text-right"><Link href={`/properties/${p.id}`} className="block">{money(p.service_charge_monthly)}</Link></td>
-                    <td><Link href={`/properties/${p.id}`} className="block">{lease ? <span className="badge-success">Rented</span> : <span className="badge-muted">Vacant</span>}</Link></td>
-                  </tr>
-                );
-              })}
-              {!arr.length && <tr><td colSpan={8} className="text-center text-muted-fg py-8">{q ? "No properties match." : "No properties yet."}</td></tr>}
-            </tbody>
-          </table>
-        </div>
-        <Pagination page={page} total={total} label="properties" searchParams={sp} />
-      </div>
+      <PropertiesTable rows={rows} />
     </div>
   );
 }

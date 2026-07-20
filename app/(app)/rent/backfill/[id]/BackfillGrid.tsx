@@ -68,15 +68,18 @@ export function BackfillGrid({
     }
   }
 
-  function Header({ label, k, align }: { label: string; k: SortKey; align?: "left" | "right" }) {
+  function Header({ label, k, align }: { label: string; k: SortKey; align?: "left" | "right" | "center" }) {
     const active = sortKey === k;
     return (
       <th
         onClick={() => toggleSort(k)}
-        className={cn("cursor-pointer select-none hover:text-primary", align === "right" && "text-right")}
-        title="Click to sort"
+        className={cn(
+          "cursor-pointer select-none hover:text-primary",
+          align === "right" && "text-right",
+          align === "center" && "text-center"
+        )}
       >
-        <span className="inline-flex items-center gap-1">
+        <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
           {label}
           {active && (sortDir === "asc" ? <ChevronUp size={12}/> : <ChevronDown size={12}/>)}
         </span>
@@ -86,16 +89,18 @@ export function BackfillGrid({
 
   return (
     <form action={action}>
-      <div className="card mb-3 flex flex-wrap gap-3 items-center">
-        <input
-          type="search"
-          placeholder="Search lessee, property, month, status…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="input flex-1 min-w-[16rem]"
-        />
+      <div className="mb-3 flex flex-wrap gap-3 items-center">
+        <div className="relative w-full sm:w-80">
+          <input
+            type="search"
+            placeholder="Search lessee, month, status…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full h-9 px-3 rounded bg-transparent border border-border text-sm placeholder:text-muted-fg focus:outline-none focus:border-primary transition-colors"
+          />
+        </div>
         <span className="text-xs text-muted-fg">
-          Showing {filtered.length} of {rows.length} rows · click any header to sort
+          {filtered.length} of {rows.length} rows
         </span>
       </div>
 
@@ -110,7 +115,7 @@ export function BackfillGrid({
                 <Header label="Lessee" k="lessee_name" />
                 <Header label="Rent (KES)" k="net_amount" />
                 <Header label="Collected (KES)" k="collected_amount" />
-                <Header label="Status" k="status" />
+                <Header label="Status" k="status" align="center" />
               </tr>
             </thead>
             <tbody>
@@ -148,7 +153,7 @@ export function BackfillGrid({
                         className="input w-32 py-1 h-8 text-left"
                       />
                     </td>
-                    <td><span className={statusBadge}>{r.status}</span></td>
+                    <td className="text-center"><span className={statusBadge}>{r.status}</span></td>
                   </tr>
                 );
               })}
@@ -161,10 +166,8 @@ export function BackfillGrid({
       </div>
 
       <div className="mt-4 flex items-center gap-3 sticky bottom-4">
-        <SubmitButton loadingText="Saving…">Save all changes</SubmitButton>
-        <span className="text-xs text-muted-fg">
-          {propertyLabel} · {rows.length} total row{rows.length === 1 ? "" : "s"} · only edited rows are written (filter/sort is visual only)
-        </span>
+        <SubmitButton loadingText="Saving…">Save changes</SubmitButton>
+        <span className="text-xs text-muted-fg">{propertyLabel}</span>
       </div>
     </form>
   );
