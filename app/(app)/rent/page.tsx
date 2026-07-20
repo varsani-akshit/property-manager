@@ -76,7 +76,7 @@ export default async function RentPage({
   }
 
   // RENT — three slices then merge.
-  const cols = "id, due_date, gross_amount, net_amount, collected_amount, status, collected_at, lease_id, property_id, properties(name), leases(id, lessee_name, lessee_contact)";
+  const cols = "id, due_date, gross_amount, net_amount, collected_amount, status, collected_at, lease_id, property_id, properties(name, compounds(name)), leases(id, lessee_name, lessee_contact)";
 
   const apply = (q: any) => {
     let out = q;
@@ -98,7 +98,7 @@ export default async function RentPage({
   ];
 
   // COSTS billed to a lessee — fetch unpaid (any due_date) + recently collected.
-  const costCols = "id, description, amount, due_date, collected_amount, collection_status, collected_at, lease_id, leases(id, lessee_name, lessee_contact, property_id, properties(name)), cost_line_items(category, amount)";
+  const costCols = "id, description, amount, due_date, collected_amount, collection_status, collected_at, lease_id, leases(id, lessee_name, lessee_contact, property_id, properties(name, compounds(name))), cost_line_items(category, amount)";
   const applyCost = (q: any) => {
     let out = q.eq("payable_by_lessee", true);
     if (leaseIds) out = out.in("lease_id", leaseIds);
@@ -141,7 +141,10 @@ export default async function RentPage({
 
   return (
     <div>
-      <PageHeader title="Rent Collection" />
+      <PageHeader
+        title="Rent Collection"
+        actions={<Link href="/rent/backfill" className="btn-secondary text-xs">Bulk backfill</Link>}
+      />
 
       {(filterLessee || filterProperty) && (
         <div className="card mb-4 flex items-center justify-between gap-3">

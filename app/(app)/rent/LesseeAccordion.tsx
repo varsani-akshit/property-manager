@@ -5,6 +5,11 @@ import { ChevronRight, ChevronDown } from "lucide-react";
 import { money, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 
+type PropRef = {
+  name: string;
+  compounds: { name: string } | { name: string }[] | null;
+};
+
 export type RawRentRow = {
   id: string;
   due_date: string;
@@ -15,8 +20,16 @@ export type RawRentRow = {
   collected_at: string | null;
   lease_id: string;
   property_id: string;
-  properties: { name: string } | { name: string }[] | null;
+  properties: PropRef | PropRef[] | null;
   leases: { id: string; lessee_name: string; lessee_contact: string | null } | { id: string; lessee_name: string; lessee_contact: string | null }[] | null;
+};
+
+type CostLeaseRef = {
+  id: string;
+  lessee_name: string;
+  lessee_contact: string | null;
+  property_id: string;
+  properties: PropRef | PropRef[] | null;
 };
 
 export type RawCostRow = {
@@ -28,24 +41,16 @@ export type RawCostRow = {
   collection_status: string;
   collected_at: string | null;
   lease_id: string | null;
-  leases:
-    | {
-        id: string;
-        lessee_name: string;
-        lessee_contact: string | null;
-        property_id: string;
-        properties: { name: string } | { name: string }[] | null;
-      }
-    | {
-        id: string;
-        lessee_name: string;
-        lessee_contact: string | null;
-        property_id: string;
-        properties: { name: string } | { name: string }[] | null;
-      }[]
-    | null;
+  leases: CostLeaseRef | CostLeaseRef[] | null;
   cost_line_items: { category: string; amount: number }[] | null;
 };
+
+function compoundOf(prop: PropRef | null): string {
+  if (!prop) return "";
+  const c = prop.compounds;
+  if (!c) return "";
+  return Array.isArray(c) ? c[0]?.name ?? "" : c.name;
+}
 
 function pickOne<T>(v: T | T[] | null): T | null {
   return Array.isArray(v) ? v[0] ?? null : v;
@@ -61,6 +66,7 @@ type LesseeGroup = {
   lessee_name: string;
   contact: string | null;
   properties: string[];
+  compound: string; // compound of the first property — used for grouping/sort
   outstanding_total: number;
   outstanding_count: number;
   upcoming_total: number;
@@ -121,6 +127,7 @@ export function LesseeAccordion({
           lessee_name: name,
           contact,
           properties: [],
+          compound: "",
           outstanding_total: 0,
           outstanding_count: 0,
           upcoming_total: 0,
@@ -142,8 +149,10 @@ export function LesseeAccordion({
       const bucket = rentBucketOf(r, today, upcomingHorizon);
       if (!bucket) continue;
       const g = ensureGroup(lease.lessee_name || "(unknown)", lease.lessee_contact ?? null);
-      const prop = pickOne(r.properties)?.name ?? "";
+      const propRef = pickOne(r.properties);
+      const prop = propRef?.name ?? "";
       if (prop && !g.properties.includes(prop)) g.properties.push(prop);
+      if (!g.compound) g.compound = compoundOf(propRef);
       g.rentRows.push(r);
       if (bucket === "outstanding") { g.outstanding_total += rentRemainder(r); g.outstanding_count += 1; }
       else if (bucket === "upcoming") { g.upcoming_total += rentRemainder(r); g.upcoming_count += 1; }
@@ -156,20 +165,23 @@ export function LesseeAccordion({
       const bucket = costBucketOf(c);
       if (!bucket) continue;
       const g = ensureGroup(lease.lessee_name || "(unknown)", lease.lessee_contact ?? null);
-      const prop = pickOne(lease.properties)?.name ?? "";
+      const propRef = pickOne(lease.properties);
+      const prop = propRef?.name ?? "";
       if (prop && !g.properties.includes(prop)) g.properties.push(prop);
+      if (!g.compound) g.compound = compoundOf(propRef);
       g.costRows.push(c);
       if (bucket === "cost_due") { g.cost_due_total += costRemainder(c); g.cost_due_count += 1; }
       else if (bucket === "collected") { g.collected_total += Number(c.collected_amount || 0); g.collected_count += 1; }
     }
 
-    // Natural alphanumeric sort by first property name (e.g. Godown No. 2 before No. 10).
+    // Natural alphanumeric sort by (compound, first property name, lessee).
     const nat = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
     return Array.from(map.values()).sort((a, b) => {
-      const ap = a.properties[0] ?? "";
-      const bp = b.properties[0] ?? "";
-      const c = nat.compare(ap, bp);
-      return c !== 0 ? c : nat.compare(a.lessee_name, b.lessee_name);
+      const c1 = nat.compare(a.compound, b.compound);
+      if (c1 !== 0) return c1;
+      const c2 = nat.compare(a.properties[0] ?? "", b.properties[0] ?? "");
+      if (c2 !== 0) return c2;
+      return nat.compare(a.lessee_name, b.lessee_name);
     });
   }, [rentRows, costRows, today, upcomingHorizon]);
 
