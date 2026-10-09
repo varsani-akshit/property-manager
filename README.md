@@ -257,8 +257,9 @@ Supabase free tier + Vercel free tier is enough for a small team and a few hundr
 ## Security notes
 
 - **Never** put the Supabase `service_role` / `sb_secret_…` key in any `NEXT_PUBLIC_*` env var. It bypasses RLS and gives full DB access. The publishable / `sb_publishable_…` key is the one for the browser.
-- RLS is enabled on every table — unauthenticated users can read nothing.
-- Write permissions are enforced both in the UI (buttons hidden) and on the server (every server action / API route calls `requirePermission()`).
+- RLS is enabled on every table, and `anon` has no grants in `public` — unauthenticated users can read and call nothing. The summary views run as the caller (`security_invoker`).
+- Write permissions are enforced three times: in the UI (buttons hidden), in every server action / API route (`requirePermission()`), and in the database — each table's INSERT/UPDATE/DELETE policy checks `has_perm('<permission>')` against the signed-in user's flags (`supabase/027`). Signed-in users can read all tables; which pages they see is still governed by the `view_*` flags.
+- Money moves only through `record_payment` / `set_collected_total` (security definer, with their own permission check), so permission to record rent doesn't grant permission to edit leases or costs. The same goes for rent generation (`backfill_lease_rents`, `daily_worker`).
 - `user_profiles` can only be updated by admins / user managers (`is_user_manager()`), so nobody can grant themselves permissions through the API.
 - MCP API keys are stored hashed; the endpoint uses the service-role key server-side and checks the key owner's permissions on every tool.
 - Bulk backfill (the one-off migration import) is switched off; set `ENABLE_BULK_BACKFILL=true` to reopen it.
