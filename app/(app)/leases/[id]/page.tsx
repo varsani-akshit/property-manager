@@ -144,9 +144,10 @@ export default async function LeaseDetailPage({
   const monthBuckets = new Map<string, { collected: number; costs: number }>();
   for (const m of months) monthBuckets.set(m, { collected: 0, costs: 0 });
   for (const r of rent) {
-    if (r.status === "collected" && r.collected_at) {
+    // Same rule as the "Collected" figure above: partial payments count, by the amount paid.
+    if ((r.status === "collected" || r.status === "partial") && r.collected_at) {
       const k = ymKey(r.collected_at);
-      if (monthBuckets.has(k)) monthBuckets.get(k)!.collected += Number(r.net_amount || 0);
+      if (monthBuckets.has(k)) monthBuckets.get(k)!.collected += Number(r.collected_amount || (r.status === "collected" ? r.net_amount : 0));
     }
   }
   for (const c of costsPeriod) {
@@ -193,21 +194,21 @@ export default async function LeaseDetailPage({
                 action={backfillRents}
                 confirm={`Backfill rent rows for every month from the lease start (${fmtDate((lease as any).start_date)}) through the next 6 months? Existing rows are kept; only missing months get added as 'due'.`}
                 label="Backfill rents"
-                className="btn-secondary text-xs"
+                className="btn-secondary"
               />
             )}
             {has(profile, "create_lease") && isActive && (
-              <Link href={`/leases/${id}/raise-rent`} className="btn-secondary text-xs">Raise rent</Link>
+              <Link href={`/leases/${id}/raise-rent`} className="btn-secondary">Raise rent</Link>
             )}
             {has(profile, "create_lease") && isActive && (
-              <Link href={`/leases/${id}/edit`} className="btn-secondary text-xs">Edit</Link>
+              <Link href={`/leases/${id}/edit`} className="btn-secondary">Edit</Link>
             )}
             {has(profile, "cancel_lease") && isActive && (
               <ConfirmPostButton
                 action={`/api/leases/${id}/cancel`}
                 confirm={`Cancel the lease for ${(lease as any).lessee_name}? The lease end date will be set to today and future unpaid rent rows will be removed.`}
                 label="Cancel"
-                className="btn-danger text-xs"
+                className="btn-danger"
               />
             )}
           </>
@@ -215,54 +216,52 @@ export default async function LeaseDetailPage({
       />
 
       {sp.msg && (
-        <div className="card mb-4 border-success/30 bg-success/5">
-          <p className="text-sm text-success">{sp.msg}</p>
-        </div>
+        <div className="mb-4 rounded-xl border border-success/25 bg-success-soft px-3.5 py-3 text-[12.5px] text-success">{sp.msg}</div>
       )}
 
       {/* LEASE FACTS */}
-      <div className="card mb-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+      <div className="card mb-2 grid grid-cols-2 gap-x-6 gap-y-4 md:grid-cols-4">
         <div>
-          <div className="text-xs uppercase text-muted-fg">Contact</div>
-          <div className="font-medium">{(lease as any).lessee_contact || "—"}</div>
+          <div className="kpi-label">Contact</div>
+          <div className="mt-1.5 text-[14px] font-medium text-fg">{(lease as any).lessee_contact || "—"}</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-muted-fg">Lease period</div>
-          <div className="font-medium">{fmtDate(leaseStart)} → {fmtDate((lease as any).end_date)}</div>
-          {wasCancelled && <div className="text-xs text-danger">Cancelled {fmtDate((lease as any).cancelled_at)}</div>}
+          <div className="kpi-label">Lease period</div>
+          <div className="mt-1.5 text-[14px] font-medium text-fg">{fmtDate(leaseStart)} → {fmtDate((lease as any).end_date)}</div>
+          {wasCancelled && <div className="mt-0.5 text-[12px] text-danger">Cancelled {fmtDate((lease as any).cancelled_at)}</div>}
         </div>
         <div>
-          <div className="text-xs uppercase text-muted-fg">Status</div>
-          <div>
+          <div className="kpi-label">Status</div>
+          <div className="mt-1.5">
             {isActive ? <span className="badge-success">Active</span>
               : wasCancelled ? <span className="badge-danger">Cancelled</span>
               : <span className="badge-muted">Ended</span>}
           </div>
-          <div className="text-xs text-muted-fg mt-1">
+          <div className="mt-1 text-[12px] text-muted-fg">
             SC: {(lease as any).sc_payment_mode === "lessee_direct" ? "Lessee pays" : "We pay"}
           </div>
         </div>
         <div>
-          <div className="text-xs uppercase text-muted-fg">Rent</div>
-          <div className="font-medium">{money((lease as any).gross_rent_monthly)} / mo</div>
+          <div className="kpi-label">Rent</div>
+          <div className="mt-1.5 text-[14px] font-medium text-fg">{money((lease as any).gross_rent_monthly)} / mo</div>
         </div>
-        <div className="col-span-full grid grid-cols-3 gap-3 pt-3 border-t border-border">
+        <div className="col-span-full grid grid-cols-3 gap-x-6 gap-y-4 border-t border-line-subtle pt-4">
           <div>
-            <div className="text-xs uppercase text-muted-fg">Deposit charged</div>
-            <div className="font-medium">{money((lease as any).deposit_charged ?? (lease as any).deposit_amount ?? 0)}</div>
+            <div className="kpi-label">Deposit charged</div>
+            <div className="mt-1.5 text-[14px] font-medium text-fg">{money((lease as any).deposit_charged ?? (lease as any).deposit_amount ?? 0)}</div>
           </div>
           <div>
-            <div className="text-xs uppercase text-muted-fg">Deposit collected</div>
-            <div className="font-medium">{money((lease as any).deposit_collected ?? 0)}</div>
+            <div className="kpi-label">Deposit collected</div>
+            <div className="mt-1.5 text-[14px] font-medium text-fg">{money((lease as any).deposit_collected ?? 0)}</div>
           </div>
           <div>
-            <div className="text-xs uppercase text-muted-fg">Deposit shortfall</div>
+            <div className="kpi-label">Deposit shortfall</div>
             {(() => {
               const charged = Number((lease as any).deposit_charged ?? (lease as any).deposit_amount ?? 0);
               const collected = Number((lease as any).deposit_collected ?? 0);
               const shortfall = Math.max(0, charged - collected);
               return (
-                <div className={`font-medium ${shortfall > 0 ? "text-danger" : "text-success"}`}>
+                <div className={`mt-1.5 text-[14px] font-medium ${shortfall > 0 ? "text-danger" : "text-success"}`}>
                   {money(shortfall)}
                 </div>
               );
@@ -270,42 +269,45 @@ export default async function LeaseDetailPage({
           </div>
         </div>
         {(lease as any).lessee_doc_url && (
-          <div className="col-span-full pt-2 border-t border-border">
-            <a href={(lease as any).lessee_doc_url} target="_blank" className="text-xs text-accent hover:underline">Lessee documents →</a>
+          <div className="col-span-full border-t border-line-subtle pt-3">
+            <a href={(lease as any).lessee_doc_url} target="_blank" className="text-[12px] font-medium text-primary hover:underline">Lessee documents →</a>
           </div>
         )}
       </div>
 
-      <DateFilter active={filterPeriod.range as Range} />
+      <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[15px] font-medium tracking-[-0.01em] text-fg">Performance</h2>
+        <DateFilter active={filterPeriod.range as Range} />
+      </div>
 
       {/* HERO KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <div className="kpi">
           <div className="kpi-label">Net</div>
           <div className={`kpi-value ${net < 0 ? "text-danger" : "text-success"}`}>{money(net)}</div>
-          <div className="text-xs text-muted-fg mt-auto">{money(collected)} in − {money(totalCosts)} out</div>
+          <div className="kpi-hint">{money(collected)} in − {money(totalCosts)} out</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Collection rate</div>
           <div className="kpi-value">{collectionRate !== null ? `${collectionRate.toFixed(0)}%` : "—"}</div>
-          <div className="text-xs text-muted-fg mt-auto">{money(collected)} of {money(billed)} billed</div>
+          <div className="kpi-hint">{money(collected)} of {money(billed)} billed</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Outstanding</div>
           <div className={`kpi-value ${outstanding > 0 ? "text-danger" : ""}`}>{money(outstanding)}</div>
-          <div className="text-xs text-muted-fg mt-auto">Rent only</div>
+          <div className="kpi-hint">Rent only</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Cost charges</div>
           <div className={`kpi-value ${lesseeOutstanding > 0 ? "text-warning" : ""}`}>{money(lesseeOutstanding)}</div>
-          <div className="text-xs text-muted-fg mt-auto">
+          <div className="kpi-hint">
             {lesseeCosts.length} cost{lesseeCosts.length === 1 ? "" : "s"} billed to lessee
           </div>
         </div>
       </div>
 
       {/* TREND + COST BREAKDOWN — merged */}
-      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+      <div className="card mb-6 grid p-0 lg:grid-cols-2 lg:divide-x lg:divide-line-subtle">
         <div>
           <div className="section-head"><h2>Monthly trend</h2></div>
           <div className="panel">
@@ -324,7 +326,7 @@ export default async function LeaseDetailPage({
             {categoryRows.length > 0 ? (
               <DonutChart data={categoryRows} formatValue={(n) => money(n)} />
             ) : (
-              <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
+              <p className="py-10 text-center text-[13px] text-muted-fg">No costs in this period.</p>
             )}
           </div>
         </div>
@@ -332,8 +334,8 @@ export default async function LeaseDetailPage({
 
       {/* RENT HISTORY */}
       <div className="card mb-6 p-0">
-        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-          <h2 className="font-semibold">Rent history</h2>
+        <div className="section-head">
+          <h2>Rent history</h2>
           <span className="text-xs text-muted-fg">{rentTotal.toLocaleString()} row{rentTotal === 1 ? "" : "s"}</span>
         </div>
         <div className="table-wrap">
@@ -353,7 +355,7 @@ export default async function LeaseDetailPage({
                   <td>{r.collected_at ? fmtDate(r.collected_at) : "—"}</td>
                 </tr>
               ))}
-              {!rentRows.length && <tr><td colSpan={5} className="text-center text-muted-fg py-4">No rent data in this period.</td></tr>}
+              {!rentRows.length && <tr><td colSpan={5} className="!py-10 text-center text-muted-fg">No rent data in this period.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -363,9 +365,9 @@ export default async function LeaseDetailPage({
       {/* COSTS BILLED TO LESSEE */}
       {lesseeCosts.length > 0 && (
         <div className="card mb-6 p-0">
-          <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-            <h2 className="font-semibold">Cost charges billed to lessee</h2>
-            <Link href="/rent" className="text-xs text-accent hover:underline">Collect →</Link>
+          <div className="section-head">
+            <h2>Cost charges billed to lessee</h2>
+            <Link href="/rent" className="text-[12px] font-medium text-primary hover:underline">Collect →</Link>
           </div>
           <div className="table-wrap">
             <table className="table">
@@ -402,8 +404,8 @@ export default async function LeaseDetailPage({
 
       {/* COSTS WE PAY (allocated to this property) */}
       <div className="card p-0">
-        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-          <h2 className="font-semibold">Costs we paid (allocated to property)</h2>
+        <div className="section-head">
+          <h2>Costs we paid (allocated to property)</h2>
           <span className="text-xs text-muted-fg">{costTotal.toLocaleString()} entr{costTotal === 1 ? "y" : "ies"}</span>
         </div>
         <div className="table-wrap">
@@ -439,7 +441,7 @@ export default async function LeaseDetailPage({
                   );
                 });
               })}
-              {!allocs.length && <tr><td colSpan={5} className="text-center text-muted-fg py-4">No costs in this period.</td></tr>}
+              {!allocs.length && <tr><td colSpan={5} className="!py-10 text-center text-muted-fg">No costs in this period.</td></tr>}
             </tbody>
           </table>
         </div>

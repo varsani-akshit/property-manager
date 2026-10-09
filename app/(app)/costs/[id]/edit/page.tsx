@@ -125,8 +125,8 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
   }
 
   return (
-    <div className="max-w-2xl">
-      <PageHeader title="Edit cost" />
+    <div className="[&>*:not(:first-child)]:max-w-2xl">
+      <PageHeader crumbs={[{ label: "Costs", href: "/costs" }, { label: "Edit cost" }]} />
       <CostForm
         properties={properties}
         categories={categories}

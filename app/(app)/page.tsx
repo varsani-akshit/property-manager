@@ -7,6 +7,7 @@ import { money, fmtDate } from "@/lib/format";
 import { guardView } from "@/lib/guard";
 import Link from "next/link";
 import { Download } from "lucide-react";
+import { Kpi } from "@/components/Kpi";
 
 export const dynamic = "force-dynamic";
 
@@ -197,56 +198,51 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     <div>
       <PageHeader
         title="Dashboard"
+        subtitle={`${fmtDate(period.from)} – ${fmtDate(period.to)}`}
+        right={<DateFilter active={period.range as Range} />}
         actions={
           <div className="flex flex-wrap gap-2">
-            <a href={`/api/export/outstanding`} className="btn-secondary text-xs"><Download size={12}/> Outstanding</a>
-            <a href={`/api/export/collected?${exportQuery}`} className="btn-secondary text-xs"><Download size={12}/> Collected</a>
-            <a href={`/api/export/costs?${exportQuery}`} className="btn-secondary text-xs"><Download size={12}/> Costs</a>
+            <a href={`/api/export/outstanding`} className="btn-secondary h-8"><Download size={13}/> Outstanding</a>
+            <a href={`/api/export/collected?${exportQuery}`} className="btn-secondary h-8"><Download size={13}/> Collected</a>
+            <a href={`/api/export/costs?${exportQuery}`} className="btn-secondary h-8"><Download size={13}/> Costs</a>
           </div>
         }
       />
 
-      <DateFilter active={period.range as Range} />
-
       {/* HERO — the bottom-line story */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="kpi">
-          <div className="kpi-label">Net profit</div>
-          <div className={`kpi-value sm:text-xl ${net < 0 ? "text-danger" : "text-success"}`}>{money(net)}</div>
-          <div className="text-xs text-muted-fg mt-auto">
-            {money(collectedTotal)} in − {money(costsTotal)} out
-          </div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Collection rate</div>
-          <div className={`kpi-value sm:text-xl ${collectionRate !== null && collectionRate < 80 ? "text-warning" : ""}`}>
-            {collectionRate !== null ? `${collectionRate.toFixed(0)}%` : "—"}
-          </div>
-          <div className="text-xs text-muted-fg mt-auto">
-            {money(collectedTotal)} of {money(dueInPeriodTotal)} billed
-          </div>
-        </div>
-        <Link href="/rent" className="kpi hover:bg-muted/50 transition-colors cursor-pointer">
-          <div className="kpi-label">Outstanding</div>
-          <div className="kpi-value sm:text-xl text-danger">{money(outstandingTotal)}</div>
-          <div className="text-xs text-muted-fg mt-auto">
-            {distinctOverdueLessees} tenant{distinctOverdueLessees === 1 ? "" : "s"} · oldest {worstDaysLate}d →
-          </div>
-        </Link>
-        <div className="kpi">
-          <div className="kpi-label">ROI annualized</div>
-          <div className={`kpi-value sm:text-xl ${roiAnnualizedPct < 0 ? "text-danger" : ""}`}>{roiAnnualizedPct.toFixed(2)}%</div>
-          <div className="text-xs text-muted-fg mt-auto">
-            On {money(totalValuation)} valuation
-          </div>
-        </div>
+      <div className="stat-row mb-6">
+        <Kpi
+          label="Net profit"
+          value={money(net)}
+          tone={net < 0 ? "danger" : "success"}
+          hint={<>{money(collectedTotal)} in − {money(costsTotal)} out</>}
+        />
+        <Kpi
+          label="Collection rate"
+          value={collectionRate !== null ? `${collectionRate.toFixed(0)}%` : "—"}
+          tone={collectionRate !== null && collectionRate < 80 ? "warning" : undefined}
+          hint={<>{money(collectedTotal)} of {money(dueInPeriodTotal)} billed</>}
+        />
+        <Kpi
+          label="Outstanding"
+          value={money(outstandingTotal)}
+          tone={outstandingTotal > 0 ? "danger" : undefined}
+          href="/rent"
+          hint={<>{distinctOverdueLessees} tenant{distinctOverdueLessees === 1 ? "" : "s"} · oldest {worstDaysLate}d →</>}
+        />
+        <Kpi
+          label="ROI annualized"
+          value={`${roiAnnualizedPct.toFixed(2)}%`}
+          tone={roiAnnualizedPct < 0 ? "danger" : undefined}
+          hint={<>On {money(totalValuation)} valuation</>}
+        />
       </div>
 
       {/* MONTHLY TREND + OPERATIONS — merged into one panel */}
-      <div className="card p-0 mb-6">
+      <div className="card mb-6 overflow-hidden p-0">
         <div className="section-head">
-          <h2>Monthly trend — {period.label}</h2>
-          <span className="text-xs text-muted-fg">{trend.length} month{trend.length === 1 ? "" : "s"}</span>
+          <h2>Monthly trend · {period.label}</h2>
+          <span className="text-[12px] text-muted-fg">{trend.length} month{trend.length === 1 ? "" : "s"}</span>
         </div>
         <div className="panel">
           <StackedBarTrend
@@ -254,37 +250,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             formatValue={(n) => money(n)}
           />
         </div>
-        <div className="panel grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-          <div className="text-center">
-            <div className="text-xs uppercase text-muted-fg">Occupancy</div>
-            <div className="font-semibold text-lg">{occupancyPct.toFixed(0)}%</div>
-            <div className="text-xs text-muted-fg">{activeLeases.length} of {properties.length}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs uppercase text-muted-fg">Expected / mo</div>
-            <div className="font-semibold text-lg">{money(expectedMonthly)}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs uppercase text-muted-fg">Next 30 days</div>
-            <div className="font-semibold text-lg">{money(next30)}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs uppercase text-muted-fg">Next 60 days</div>
-            <div className="font-semibold text-lg">{money(next60)}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-xs uppercase text-muted-fg">Next 90 days</div>
-            <div className="font-semibold text-lg">{money(next90)}</div>
-          </div>
+        <div className="stat-row mx-4 mb-1 border-b-0 border-t-line-subtle sm:grid-cols-none">
+          <Kpi label="Occupancy" value={`${occupancyPct.toFixed(0)}%`} hint={`${activeLeases.length} of ${properties.length} leased`} />
+          <Kpi label="Expected / mo" value={money(expectedMonthly)} hint="Active leases, gross" />
+          <Kpi label="Next 30 days" value={money(next30)} />
+          <Kpi label="Next 60 days" value={money(next60)} />
+          <Kpi label="Next 90 days" value={money(next90)} />
         </div>
       </div>
 
       {/* WATCH PANEL — single card, two internal sections */}
-      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+      <div className="card mb-6 grid overflow-hidden p-0 lg:grid-cols-2 lg:divide-x lg:divide-line-subtle">
         <div>
           <div className="section-head">
             <h2>Outstanding · who to chase</h2>
-            <Link href="/rent" className="text-xs text-primary hover:underline">All rows →</Link>
+            <Link href="/rent" className="text-[12px] font-medium text-primary hover:underline">All rows →</Link>
           </div>
           <div className="table-wrap">
             <table className="table">
@@ -320,7 +300,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     </tr>
                   );
                 })}
-                {!lesseeWatchList.length && <tr><td colSpan={4} className="text-center text-muted-fg py-6">All caught up.</td></tr>}
+                {!lesseeWatchList.length && <tr><td colSpan={4} className="!py-10 text-center text-muted-fg">All caught up.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -329,7 +309,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div>
           <div className="section-head">
             <h2>Leases ending soon</h2>
-            <span className="text-xs text-muted-fg">Within 60 days</span>
+            <span className="text-[12px] text-muted-fg">Within 60 days</span>
           </div>
           <div className="table-wrap">
             <table className="table">
@@ -358,7 +338,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     </td>
                   </tr>
                 ))}
-                {!expiringLeases.length && <tr><td colSpan={4} className="text-center text-muted-fg py-6">No leases ending soon.</td></tr>}
+                {!expiringLeases.length && <tr><td colSpan={4} className="!py-10 text-center text-muted-fg">No leases ending soon.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -366,11 +346,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
 
       {/* PERFORMANCE + COSTS — single card, two internal sections */}
-      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+      <div className="card mb-6 grid overflow-hidden p-0 lg:grid-cols-2 lg:divide-x lg:divide-line-subtle">
         <div>
           <div className="section-head">
             <h2>Property performance</h2>
-            <span className="text-xs text-muted-fg">{period.label}</span>
+            <span className="text-[12px] text-muted-fg">{period.label}</span>
           </div>
           <div className="table-wrap">
             <table className="table">
@@ -383,7 +363,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </thead>
               <tbody>
                 {topPerformers.length > 0 && (
-                  <tr><td colSpan={3} className="text-[10px] uppercase text-muted-fg bg-muted/30 py-1.5 px-3 tracking-wide">Top performers</td></tr>
+                  <tr className="pointer-events-none"><td colSpan={3} className="!bg-sunken/60 !py-1.5 eyebrow !text-[10px]">Top performers</td></tr>
                 )}
                 {topPerformers.map((p) => (
                   <tr key={`top-${p.id}`}>
@@ -396,7 +376,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   </tr>
                 ))}
                 {bottomPerformers.length > 0 && bottomPerformers.some((b) => !topPerformers.find((t) => t.id === b.id)) && (
-                  <tr><td colSpan={3} className="text-[10px] uppercase text-muted-fg bg-muted/30 py-1.5 px-3 tracking-wide">Needs attention</td></tr>
+                  <tr className="pointer-events-none"><td colSpan={3} className="!bg-sunken/60 !py-1.5 eyebrow !text-[10px]">Needs attention</td></tr>
                 )}
                 {bottomPerformers.filter((b) => !topPerformers.find((t) => t.id === b.id)).map((p) => (
                   <tr key={`bot-${p.id}`}>
@@ -408,7 +388,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     <td className={`text-right tabular-nums font-medium ${p.roi < 0 ? "text-danger" : "text-warning"}`}>{p.roi.toFixed(1)}%</td>
                   </tr>
                 ))}
-                {!propPerformance.length && <tr><td colSpan={3} className="text-center text-muted-fg py-6">No activity.</td></tr>}
+                {!propPerformance.length && <tr><td colSpan={3} className="!py-10 text-center text-muted-fg">No activity.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -417,13 +397,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div>
           <div className="section-head">
             <h2>Cost breakdown</h2>
-            <span className="text-xs text-muted-fg">{money(costsTotal)} total</span>
+            <span className="text-[12px] text-muted-fg">{money(costsTotal)} total</span>
           </div>
           <div className="panel">
             {topCategories.length > 0 ? (
               <DonutChart data={topCategories} formatValue={(n) => money(n)} />
             ) : (
-              <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
+              <p className="py-10 text-center text-[13px] text-muted-fg">No costs in this period.</p>
             )}
           </div>
         </div>

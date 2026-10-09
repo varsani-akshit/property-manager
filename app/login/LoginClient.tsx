@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
-import { VariakaMark } from "@/components/Logo";
+import { AuthLayout } from "@/components/brand/AuthLayout";
+import { Loader } from "@/components/Loader";
 
 export function LoginClient() {
   const router = useRouter();
@@ -41,44 +42,35 @@ export function LoginClient() {
 
   if (!hashHandled) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted px-4">
-        <div className="card max-w-sm w-full text-center">
-          <p className="text-sm text-muted-fg">Completing sign-in…</p>
-        </div>
-      </div>
+      <AuthLayout title="Signing you in" subtitle="Completing sign-in…">
+        <div className="flex justify-center py-2"><Loader size="md" /></div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted px-4">
-      <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-4">
-        <div className="flex items-center gap-2">
-          <VariakaMark size={32} />
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Variaka</h1>
-            <p className="text-xs text-muted-fg">Property portfolio · sign in to continue</p>
-          </div>
-        </div>
-
+    <AuthLayout
+      title="Sign in"
+      subtitle="Use your Variaka account."
+      footer={<>No account? Ask an admin to invite you.</>}
+    >
+      <form onSubmit={onSubmit} className="space-y-4">
         <div>
-          <label className="label">Email</label>
-          <input type="email" required className="input" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label className="label" htmlFor="email">Email</label>
+          <input id="email" type="email" required autoComplete="email" className="input h-10" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div>
-          <label className="label">Password</label>
-          <input type="password" required className="input" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <label className="label" htmlFor="password">Password</label>
+          <input id="password" type="password" required autoComplete="current-password" className="input h-10" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
 
-        {error && <p className="text-sm text-danger">{error}</p>}
+        {error && <div className="rounded-md bg-danger-soft px-3 py-2 text-[12px] text-danger">{error}</div>}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full">
-          {loading ? "Please wait…" : "Sign in"}
+        <button type="submit" disabled={loading} className="btn-primary h-10 w-full !text-[13.5px]">
+          {loading && <Loader size="xs" tone="current" />}
+          {loading ? "Signing in…" : "Sign in"}
         </button>
-
-        <p className="text-xs text-muted-fg text-center">
-          Access is invite-only. Ask your admin to invite you from the Users page.
-        </p>
       </form>
-    </div>
+    </AuthLayout>
   );
 }

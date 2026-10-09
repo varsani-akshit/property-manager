@@ -2,8 +2,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money, fmtDate } from "@/lib/format";
-import { ChevronUp, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { SortTh } from "@/components/TableBits";
 
 export type SCTableRow = {
   id: string;
@@ -55,23 +54,8 @@ export function SCTable({
     else { setSortKey(k); setSortDir(k === "amount" || k === "paid_at" ? "desc" : "asc"); }
   }
 
-  function Header({ label, k, align }: { label: string; k: SortKey; align?: "left" | "right" | "center" }) {
-    const active = sortKey === k;
-    return (
-      <th
-        onClick={() => toggle(k)}
-        className={cn(
-          "cursor-pointer select-none hover:text-primary",
-          align === "right" && "text-right",
-          align === "center" && "text-center"
-        )}
-      >
-        <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
-          {label}
-          {active && (sortDir === "asc" ? <ChevronUp size={12}/> : <ChevronDown size={12}/>)}
-        </span>
-      </th>
-    );
+  function header(label: string, k: SortKey, align?: "left" | "right" | "center") {
+    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} />;
   }
 
   return (
@@ -79,12 +63,23 @@ export function SCTable({
       <table className="table">
         <thead>
           <tr>
-            {showCheckbox && <th className="w-8"><input type="checkbox" id="select-all" /></th>}
-            <Header label="Month" k="due_month" />
-            <Header label="Property" k="property_name" />
-            <Header label="Compound" k="compound_name" />
-            <Header label="Amount" k="amount" align="right" />
-            {tab === "paid" && <Header label="Paid on" k="paid_at" />}
+            {showCheckbox && (
+              <th className="w-8">
+                <input
+                  type="checkbox"
+                  aria-label="Select all on this page"
+                  onChange={(e) => {
+                    const on = e.currentTarget.checked;
+                    e.currentTarget.closest("table")?.querySelectorAll<HTMLInputElement>("input.sc-row-check").forEach((c) => { c.checked = on; });
+                  }}
+                />
+              </th>
+            )}
+            {header("Month", "due_month")}
+            {header("Property", "property_name")}
+            {header("Compound", "compound_name")}
+            {header("Amount", "amount", "right")}
+            {tab === "paid" && header("Paid on", "paid_at")}
             <th className="text-center">Status</th>
             {canPay && tab === "pending" && <th></th>}
           </tr>
@@ -97,7 +92,7 @@ export function SCTable({
               )}
               <td>{r.due_month.slice(0, 7)}</td>
               <td><Link href={`/properties/${r.property_id}`} className="font-medium hover:underline">{r.property_name}</Link></td>
-              <td className="text-xs text-muted-fg">{r.compound_name}</td>
+              <td className="text-muted-fg">{r.compound_name}</td>
               <td className="text-right">{money(r.amount)}</td>
               {tab === "paid" && <td>{fmtDate(r.paid_at)}</td>}
               <td className="text-center">
@@ -120,7 +115,7 @@ export function SCTable({
                       const submitter = form.querySelector<HTMLButtonElement>('button[name="action"][value="pay"]');
                       if (submitter) form.requestSubmit(submitter);
                     }}
-                    className="btn-primary text-xs"
+                    className="btn-primary btn-sm"
                   >
                     Pay
                   </button>
@@ -130,21 +125,13 @@ export function SCTable({
           ))}
           {!sorted.length && (
             <tr>
-              <td colSpan={10} className="text-center text-muted-fg py-8">
+              <td colSpan={10} className="!py-10 text-center text-muted-fg">
                 {tab === "pending" ? "Nothing pending." : "Nothing here."}
               </td>
             </tr>
           )}
         </tbody>
       </table>
-      {/* Select-all toggle */}
-      {showCheckbox && (
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){var sa=document.getElementById('select-all');if(!sa)return;sa.addEventListener('change',function(){document.querySelectorAll('.sc-row-check').forEach(function(b){b.checked=sa.checked;});});})();`,
-          }}
-        />
-      )}
     </div>
   );
 }

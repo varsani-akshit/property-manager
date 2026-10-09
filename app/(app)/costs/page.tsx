@@ -64,13 +64,12 @@ export default async function CostsPage({
     <div>
       <PageHeader
         title="Costs"
-       
-        actions={has(profile, "add_cost") ? <Link href="/costs/new" className="btn-primary"><Plus size={14}/> Add cost</Link> : null}
+        subtitle={`Spend by category · ${period.label}`}
+        right={<DateFilter active={period.range as Range} />}
+        actions={has(profile, "add_cost") ? <Link href="/costs/new" className="btn-primary h-8"><Plus size={14}/> Add cost</Link> : null}
       />
 
-      <DateFilter active={period.range as Range} />
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label="Total costs (period)" value={money(grandTotal)} />
         <Kpi label="Categories used" value={String(categories.length)} />
         <Kpi label="Cost entries (period)" value={String(new Set(lis.map((l) => l.cost_id)).size)} />
@@ -80,7 +79,7 @@ export default async function CostsPage({
       {/* Donut + legend */}
       {categories.length > 0 && (
         <div className="card mb-6">
-          <h2 className="font-semibold mb-3">Spend by category — {period.label}</h2>
+          <h2 className="h2 mb-4">Spend by category · {period.label}</h2>
           <DonutChart
             data={categories.map((c) => ({ label: c.name, value: c.total }))}
             formatValue={(n) => money(n)}
@@ -88,8 +87,13 @@ export default async function CostsPage({
         </div>
       )}
 
-      {q && <p className="text-xs text-muted-fg mb-2">Filtered to categories matching &ldquo;{q}&rdquo;.</p>}
-      <SearchBar placeholder="Search categories…" />
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[15px] font-medium tracking-[-0.01em] text-fg">
+          Categories
+          {q && <span className="ml-2 text-[12.5px] font-normal text-muted-fg">matching &ldquo;{q}&rdquo;</span>}
+        </h2>
+        <SearchBar placeholder="Search categories…" />
+      </div>
 
       {/* Category cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
@@ -99,28 +103,28 @@ export default async function CostsPage({
             <Link
               key={c.name}
               href={makeCategoryHref(c.name, period.range, period.from, period.to)}
-              className="card hover:border-accent transition-colors flex flex-col gap-2 group"
+              className="card group flex flex-col gap-2 transition-colors hover:border-line-strong hover:bg-muted/30"
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-xs uppercase tracking-wide text-muted-fg">Category</div>
-                  <div className="font-semibold capitalize truncate">{c.name}</div>
+                  <div className="kpi-label">Category</div>
+                  <div className="mt-1 truncate text-[14px] font-medium capitalize text-fg">{c.name}</div>
                 </div>
-                <ArrowRight size={16} className="text-muted-fg group-hover:text-accent shrink-0 mt-1" />
+                <ArrowRight size={16} className="mt-1 shrink-0 text-disabled transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
               </div>
-              <div className="text-2xl font-semibold">{money(c.total)}</div>
-              <div className="flex items-center justify-between text-xs text-muted-fg">
+              <div className="text-[22px] font-medium tracking-[-0.02em] tabular-nums">{money(c.total)}</div>
+              <div className="flex items-center justify-between text-[12px] text-muted-fg">
                 <span>{c.costCount} cost {c.costCount === 1 ? "entry" : "entries"} · {c.lineCount} line {c.lineCount === 1 ? "item" : "items"}</span>
                 <span className="font-medium">{pct.toFixed(1)}%</span>
               </div>
-              <div className="h-1.5 bg-muted rounded overflow-hidden">
-                <div className="h-full bg-accent" style={{ width: `${pct}%` }} />
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
               </div>
             </Link>
           );
         })}
         {!categories.length && (
-          <div className="card text-sm text-muted-fg sm:col-span-2 lg:col-span-3 text-center">
+          <div className="card py-10 text-center text-[13px] text-muted-fg sm:col-span-2 lg:col-span-3">
             No costs recorded in {period.label}.
           </div>
         )}
@@ -128,9 +132,9 @@ export default async function CostsPage({
 
       {/* Recent entries strip */}
       <div className="card p-0">
-        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-          <h2 className="font-semibold">Latest cost entries</h2>
-          <span className="text-xs text-muted-fg">Showing 6 most recent in {period.label}</span>
+        <div className="section-head">
+          <h2>Latest cost entries</h2>
+          <span className="text-[12px] text-muted-fg">6 most recent · {period.label}</span>
         </div>
         <div className="table-wrap">
           <table className="table">
@@ -163,7 +167,7 @@ export default async function CostsPage({
                 );
               })}
               {!recent?.length && (
-                <tr><td colSpan={4} className="text-center text-muted-fg py-6">Nothing in this period.</td></tr>
+                <tr><td colSpan={4} className="!py-10 text-center text-muted-fg">Nothing in this period.</td></tr>
               )}
             </tbody>
           </table>

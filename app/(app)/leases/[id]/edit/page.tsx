@@ -88,7 +88,7 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="[&>*:not(:first-child)]:max-w-2xl">
       <PageHeader
         crumbs={[
           { label: "Leases", href: "/leases" },

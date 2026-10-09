@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { AuthLayout } from "@/components/brand/AuthLayout";
+import { Loader } from "@/components/Loader";
 
 export default function SetPasswordPage() {
   const router = useRouter();
@@ -36,41 +38,26 @@ export default function SetPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted px-4">
-      <form onSubmit={onSubmit} className="card w-full max-w-sm space-y-4">
+    <AuthLayout
+      title="Set your password"
+      subtitle={<>Welcome{email ? `, ${email}` : ""}. Choose a password to finish setting up your account.</>}
+    >
+      <form onSubmit={onSubmit} className="space-y-4">
         <div>
-          <h1 className="text-xl font-semibold">Set your password</h1>
-          <p className="text-sm text-muted-fg">
-            Welcome{email ? `, ${email}` : ""} — choose a password to finish setting up your account.
-          </p>
+          <label className="label" htmlFor="pw">New password</label>
+          <input id="pw" type="password" required minLength={8} autoComplete="new-password" className="input h-10" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <span className="mt-1 block text-[11.5px] text-muted-fg">At least 8 characters.</span>
         </div>
         <div>
-          <label className="label">New password</label>
-          <input
-            type="password"
-            required
-            minLength={8}
-            className="input"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <label className="label" htmlFor="pw2">Confirm password</label>
+          <input id="pw2" type="password" required minLength={8} autoComplete="new-password" className="input h-10" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
         </div>
-        <div>
-          <label className="label">Confirm password</label>
-          <input
-            type="password"
-            required
-            minLength={8}
-            className="input"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-        </div>
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <button type="submit" disabled={loading} className="btn-primary w-full">
+        {error && <div className="rounded-md bg-danger-soft px-3 py-2 text-[12px] text-danger">{error}</div>}
+        <button type="submit" disabled={loading} className="btn-primary h-10 w-full !text-[13.5px]">
+          {loading && <Loader size="xs" tone="current" />}
           {loading ? "Saving…" : "Set password and continue"}
         </button>
       </form>
-    </div>
+    </AuthLayout>
   );
 }

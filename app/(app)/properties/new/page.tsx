@@ -34,8 +34,8 @@ export default async function NewPropertyPage() {
 
   if (!compounds?.length) {
     return (
-      <div className="max-w-xl">
-        <PageHeader title="New property" />
+      <div className="[&>*:not(:first-child)]:max-w-xl">
+        <PageHeader crumbs={[{ label: "Properties", href: "/properties" }, { label: "New property" }]} />
         <div className="card">
           <p className="text-sm">You need to create a compound first.</p>
           <Link href="/compounds/new" className="btn-primary mt-3 inline-flex">Create compound</Link>
@@ -45,8 +45,8 @@ export default async function NewPropertyPage() {
   }
 
   return (
-    <div className="max-w-2xl">
-      <PageHeader title="New property" />
+    <div className="[&>*:not(:first-child)]:max-w-2xl">
+      <PageHeader crumbs={[{ label: "Properties", href: "/properties" }, { label: "New property" }]} />
       <form action={create} className="card space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>

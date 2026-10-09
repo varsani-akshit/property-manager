@@ -81,7 +81,7 @@ export default async function LeasesPage({
         actions={has(profile, "create_lease") ? <Link href="/leases/new" className="btn-primary"><Plus size={14}/> New lease</Link> : null}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label="Active leases" value={String(active.length)} />
         <Kpi label="Monthly rent (gross)" value={money(monthlyRent)} />
         <Kpi label="Expiring ≤ 60 days" value={String(expiring60)} />

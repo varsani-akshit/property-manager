@@ -67,7 +67,7 @@ export default async function EditRentPage({ params }: { params: Promise<{ id: s
   }
 
   return (
-    <div className="max-w-lg">
+    <div className="[&>*:not(:first-child)]:max-w-lg">
       <PageHeader
         crumbs={[
           { label: "Rent Collection", href: "/rent" },
@@ -101,7 +101,7 @@ export default async function EditRentPage({ params }: { params: Promise<{ id: s
           />
         </div>
 
-        <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+        <div className="space-y-1 rounded-lg border border-line-subtle bg-sunken p-3 text-[12.5px]">
           <div className="flex justify-between"><span>Already paid</span><span>{money(alreadyPaid)}</span></div>
           <div className="flex justify-between font-medium border-t border-border pt-1">
             <span>Currently outstanding</span>

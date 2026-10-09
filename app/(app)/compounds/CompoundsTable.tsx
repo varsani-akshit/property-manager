@@ -2,8 +2,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money } from "@/lib/format";
-import { ChevronUp, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { SortTh, TablePager } from "@/components/TableBits";
 
 export type CompoundRow = {
   id: string;
@@ -45,7 +44,6 @@ export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; p
   }, [rows, sortKey, sortDir]);
 
   const total = sorted.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const start = (page - 1) * pageSize;
   const view = sorted.slice(start, start + pageSize);
 
@@ -55,23 +53,8 @@ export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; p
     setPage(1);
   }
 
-  function Header({ label, k, align }: { label: string; k: SortKey; align?: "left" | "right" | "center" }) {
-    const active = sortKey === k;
-    return (
-      <th
-        onClick={() => toggle(k)}
-        className={cn(
-          "cursor-pointer select-none hover:text-primary",
-          align === "right" && "text-right",
-          align === "center" && "text-center"
-        )}
-      >
-        <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
-          {label}
-          {active && (sortDir === "asc" ? <ChevronUp size={12}/> : <ChevronDown size={12}/>)}
-        </span>
-      </th>
-    );
+  function header(label: string, k: SortKey, align?: "left" | "right" | "center") {
+    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} />;
   }
 
   return (
@@ -80,13 +63,13 @@ export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; p
         <table className="table">
           <thead>
             <tr>
-              <Header label="Name" k="name" />
-              <Header label="Address" k="address" />
-              <Header label="Properties" k="property_count" align="right" />
-              <Header label="Sqft" k="sqft" align="right" />
-              <Header label="Valuation" k="valuation" align="right" />
-              <Header label="Collected (all-time)" k="collected" align="right" />
-              <Header label="Costs (all-time)" k="costs" align="right" />
+              {header("Name", "name")}
+              {header("Address", "address")}
+              {header("Properties", "property_count", "right")}
+              {header("Sqft", "sqft", "right")}
+              {header("Valuation", "valuation", "right")}
+              {header("Collected (all-time)", "collected", "right")}
+              {header("Costs (all-time)", "costs", "right")}
             </tr>
           </thead>
           <tbody>
@@ -101,19 +84,11 @@ export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; p
                 <td className="text-right text-muted-fg">{money(c.costs)}</td>
               </tr>
             ))}
-            {!view.length && <tr><td colSpan={7} className="text-center text-muted-fg py-8">No compounds.</td></tr>}
+            {!view.length && <tr><td colSpan={7} className="!py-10 text-center text-muted-fg">No compounds.</td></tr>}
           </tbody>
         </table>
       </div>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border text-xs text-muted-fg">
-          <span>Showing {start + 1}–{Math.min(start + pageSize, total)} of {total}</span>
-          <div className="flex gap-1">
-            <button className="btn-secondary text-xs disabled:opacity-40" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Prev</button>
-            <button className="btn-secondary text-xs disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next →</button>
-          </div>
-        </div>
-      )}
+      <TablePager page={page} pageSize={pageSize} total={total} onPage={setPage} />
     </div>
   );
 }

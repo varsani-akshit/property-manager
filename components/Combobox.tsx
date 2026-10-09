@@ -67,19 +67,19 @@ export function Combobox({
           type="button"
           tabIndex={-1}
           onClick={() => setOpen((o) => !o)}
-          className="px-2 border border-l-0 border-border rounded-r-md bg-bg hover:bg-muted"
+          className="rounded-r-md border border-l-0 border-border bg-surface px-2 text-muted-fg transition-colors hover:bg-muted hover:text-fg"
           aria-label="Toggle dropdown"
         >
           <ChevronDown size={14} className={cn("transition-transform", open && "rotate-180")} />
         </button>
       </div>
       {open && (
-        <div className="absolute z-20 left-0 right-0 mt-1 bg-bg border border-border rounded-md shadow-lg max-h-60 overflow-auto">
+        <div className="popover absolute left-0 right-0 mt-1 max-h-60 overflow-auto">
           {filtered.length === 0 && value.trim() && (
             <button
               type="button"
               onClick={() => { setValue(norm(value.trim())); setOpen(false); }}
-              className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
+              className="popover-item"
             >
               Create new: <span className="font-medium">{value.trim()}</span>
             </button>
@@ -90,21 +90,21 @@ export function Combobox({
               type="button"
               onClick={() => { setValue(o); setOpen(false); }}
               className={cn(
-                "block w-full text-left px-3 py-2 text-sm hover:bg-muted",
-                value === o && "bg-muted/60 font-medium"
+                "popover-item",
+                value === o && "font-medium text-primary"
               )}
             >
               {o}
             </button>
           ))}
           {!filtered.length && !value.trim() && (
-            <div className="px-3 py-2 text-xs text-muted-fg">{emptyHint}</div>
+            <div className="px-3 py-2 text-[12px] text-muted-fg">{emptyHint}</div>
           )}
           {value.trim() && !exactMatch && filtered.length > 0 && (
             <button
               type="button"
               onClick={() => { setValue(norm(value.trim())); setOpen(false); }}
-              className="block w-full text-left px-3 py-2 text-sm border-t border-border hover:bg-muted"
+              className="popover-item border-t border-line-subtle"
             >
               + Use new: <span className="font-medium">{value.trim()}</span>
             </button>

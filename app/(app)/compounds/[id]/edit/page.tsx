@@ -27,8 +27,8 @@ export default async function EditCompoundPage({ params }: { params: Promise<{ i
   }
 
   return (
-    <div className="max-w-xl">
-      <PageHeader title={`Edit: ${c.name}`} />
+    <div className="[&>*:not(:first-child)]:max-w-xl">
+      <PageHeader crumbs={[{ label: "Compounds", href: "/compounds" }, { label: c.name, href: `/compounds/${c.id}` }, { label: "Edit" }]} />
       <form action={update} className="card space-y-4">
         <div>
           <label className="label">Name</label>

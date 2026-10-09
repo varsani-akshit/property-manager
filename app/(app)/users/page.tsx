@@ -164,17 +164,13 @@ export default async function UsersPage({
       />
 
       {flashError && (
-        <div className="card mb-4 border-danger/30 bg-danger/5">
-          <p className="text-sm text-danger">{flashError}</p>
-        </div>
+        <div className="notice-danger">{flashError}</div>
       )}
       {flashOk && (
-        <div className="card mb-4 border-success/30 bg-success/5">
-          <p className="text-sm text-success">{flashOk}</p>
-        </div>
+        <div className="notice-success">{flashOk}</div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label="Users" value={String(total)} />
         <Kpi label="Active" value={String(active)} hint="Have signed in" />
         <Kpi label="Invited / pending" value={String(invitedPending)} hint="Haven't logged in yet" />
@@ -182,8 +178,9 @@ export default async function UsersPage({
       </div>
 
       <div className="card mb-4">
-        <h2 className="font-semibold mb-3 text-sm">Invite a user</h2>
-        <form action={inviteUser} className="flex gap-2">
+        <h2 className="h2">Invite a user</h2>
+        <p className="mb-3 mt-0.5 text-[12.5px] text-muted-fg">They get an email link to set a password. Grant pages below once they appear.</p>
+        <form action={inviteUser} className="flex flex-col gap-2 sm:flex-row">
           <input
             type="email"
             name="email"
@@ -204,23 +201,23 @@ export default async function UsersPage({
               <div className="flex items-center justify-between mb-3 gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium truncate">{u.full_name || u.email}</span>
+                    <span className="truncate text-[14px] font-medium text-fg">{u.full_name || u.email}</span>
                     {(() => { const s = statusOf(authById[u.id] ?? null); return <span className={s.cls}>{s.label}</span>; })()}
                   </div>
-                  <div className="text-xs text-muted-fg truncate">{u.email}</div>
+                  <div className="mt-0.5 truncate text-[12px] text-muted-fg">{u.email}</div>
                 </div>
-                <label className="flex items-center gap-2 text-sm whitespace-nowrap">
+                <label className="flex items-center gap-2 whitespace-nowrap rounded-md border border-border px-2.5 py-1.5 text-[12.5px]">
                   <input type="checkbox" name="is_admin" defaultChecked={u.is_admin} />
                   <span className="font-medium">Admin</span>
                 </label>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid gap-4 border-t border-line-subtle pt-3 md:grid-cols-2">
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-fg mb-2">Page visibility</div>
-                  <div className="space-y-1 text-sm">
+                  <div className="eyebrow mb-2 !text-[10.5px]">Page visibility</div>
+                  <div className="grid gap-0.5 text-[13px] sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
                     {VIEW_PERMS.map((p) => (
-                      <label key={p} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50">
+                      <label key={p} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-fg-soft transition-colors hover:bg-muted/60 hover:text-fg">
                         <input type="checkbox" name={p} defaultChecked={Boolean(u[FIELD_MAP[p]])} />
                         <span>{PERMISSION_LABELS[p]}</span>
                       </label>
@@ -228,10 +225,10 @@ export default async function UsersPage({
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase tracking-wide text-muted-fg mb-2">Actions</div>
-                  <div className="space-y-1 text-sm">
+                  <div className="eyebrow mb-2 !text-[10.5px]">Actions</div>
+                  <div className="grid gap-0.5 text-[13px] sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
                     {ACTION_PERMS.map((p) => (
-                      <label key={p} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-muted/50">
+                      <label key={p} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-fg-soft transition-colors hover:bg-muted/60 hover:text-fg">
                         <input type="checkbox" name={p} defaultChecked={Boolean(u[FIELD_MAP[p]])} />
                         <span>{PERMISSION_LABELS[p]}</span>
                       </label>
@@ -241,8 +238,8 @@ export default async function UsersPage({
               </div>
 
               <div className="mt-4 flex justify-end items-center gap-3">
-                <span className="text-xs text-muted-fg">Joined {fmtDate(u.created_at)}</span>
-                <SubmitButton className="btn-primary text-sm">Save permissions</SubmitButton>
+                <span className="text-[12px] text-muted-fg">Joined {fmtDate(u.created_at)}</span>
+                <SubmitButton className="btn-primary">Save permissions</SubmitButton>
               </div>
             </form>
 
@@ -252,17 +249,17 @@ export default async function UsersPage({
               const pending = a && a.invited_at && !a.last_sign_in_at;
               if (!pending) return null;
               return (
-                <form action={resendInvite} className="mt-3 pt-3 border-t border-border flex items-center gap-2">
+                <form action={resendInvite} className="mt-3 flex items-center gap-2 border-t border-line-subtle pt-3">
                   <input type="hidden" name="email" value={u.email} />
-                  <p className="text-xs text-muted-fg flex-1">User hasn&apos;t accepted the invite yet.</p>
-                  <button type="submit" className="btn-secondary text-xs">Resend invite</button>
+                  <p className="flex-1 text-[12px] text-muted-fg">User hasn&apos;t accepted the invite yet.</p>
+                  <button type="submit" className="btn-secondary">Resend invite</button>
                 </form>
               );
             })()}
 
             {/* Separate, sibling form for delete — never nested inside the permissions form. */}
-            <details className="mt-3 pt-3 border-t border-border">
-              <summary className="text-xs text-danger cursor-pointer">Delete this user permanently</summary>
+            <details className="mt-3 border-t border-line-subtle pt-3">
+              <summary className="cursor-pointer text-[12px] text-danger">Delete this user permanently</summary>
               <div className="mt-2 flex items-center gap-2 justify-end">
                 <ConfirmButton
                   action={deleteUser}
@@ -277,7 +274,7 @@ export default async function UsersPage({
       </div>
 
       {q && !users.length && (
-        <p className="text-sm text-muted-fg text-center py-8">No users match &ldquo;{q}&rdquo;.</p>
+        <p className="py-10 text-center text-[13px] text-muted-fg">No users match &ldquo;{q}&rdquo;.</p>
       )}
     </div>
   );

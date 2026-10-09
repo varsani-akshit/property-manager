@@ -1,12 +1,11 @@
 import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export const PAGE_SIZE = 25;
 
 /**
- * Server-side pagination control.
- * Renders "Showing X–Y of Z" plus Prev/Next page links.
- *
- * Preserves all other URL params (e.g. multi-table pages can use distinct paramName per table).
+ * Server-side pagination footer: "1–25 of 120 rows · Page 1 of 5 ‹ ›".
+ * Preserves all other URL params (multi-table pages can use a distinct paramName per table).
  */
 export function Pagination({
   page,
@@ -39,24 +38,27 @@ export function Pagination({
     return q ? `?${q}` : "?";
   };
 
+  const btn = "rounded-md border border-border p-1 text-fg-soft transition-colors hover:bg-muted hover:text-fg";
   return (
-    <div className="flex items-center justify-between px-3 py-2 text-xs text-muted-fg border-t border-border">
-      <div>
-        Showing <span className="font-medium text-fg">{from.toLocaleString()}–{to.toLocaleString()}</span> of <span className="font-medium text-fg">{total.toLocaleString()}</span> {label}
-      </div>
-      <div className="flex items-center gap-1">
-        {page > 1 ? (
-          <Link href={makeHref(page - 1)} className="btn-secondary text-xs">‹ Prev</Link>
-        ) : (
-          <span className="btn-secondary text-xs opacity-40 pointer-events-none">‹ Prev</span>
-        )}
-        <span className="px-2">Page {page} / {totalPages}</span>
-        {page < totalPages ? (
-          <Link href={makeHref(page + 1)} className="btn-secondary text-xs">Next ›</Link>
-        ) : (
-          <span className="btn-secondary text-xs opacity-40 pointer-events-none">Next ›</span>
-        )}
-      </div>
+    <div className="flex items-center justify-between gap-3 border-t border-line-subtle px-4 py-2.5 text-[12.5px] text-muted-fg">
+      <span className="tabular-nums">
+        {from.toLocaleString()}–{to.toLocaleString()} of {total.toLocaleString()} {label}
+      </span>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-1">
+          <span className="mr-2 tabular-nums">Page {page} of {totalPages}</span>
+          {page > 1 ? (
+            <Link href={makeHref(page - 1)} scroll={false} className={btn} aria-label="Previous page"><ChevronLeft size={16} /></Link>
+          ) : (
+            <span className={`${btn} pointer-events-none opacity-40`} aria-hidden><ChevronLeft size={16} /></span>
+          )}
+          {page < totalPages ? (
+            <Link href={makeHref(page + 1)} scroll={false} className={btn} aria-label="Next page"><ChevronRight size={16} /></Link>
+          ) : (
+            <span className={`${btn} pointer-events-none opacity-40`} aria-hidden><ChevronRight size={16} /></span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

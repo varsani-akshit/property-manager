@@ -72,8 +72,8 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
   }
 
   return (
-    <div className="max-w-2xl">
-      <PageHeader title="Put property on rent" />
+    <div className="[&>*:not(:first-child)]:max-w-2xl">
+      <PageHeader crumbs={[{ label: "Leases", href: "/leases" }, { label: "Put property on rent" }]} />
       <LeaseForm properties={available} preselect={property} existingLessees={existingLessees} action={create} />
     </div>
   );

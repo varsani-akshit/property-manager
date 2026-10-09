@@ -7,6 +7,8 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { revalidatePath } from "next/cache";
 import { BackfillGrid, type BackfillRow } from "./BackfillGrid";
+import { BULK_BACKFILL_ENABLED } from "@/lib/features";
+import { BackfillLocked } from "@/components/BackfillLocked";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +22,7 @@ export default async function PropertyBackfillPage({
   searchParams: Promise<{ msg?: string; err?: string }>;
 }) {
   await guardView("view_rent");
+  if (!BULK_BACKFILL_ENABLED) return <BackfillLocked />;
   const { id } = await params;
   const sp = await searchParams;
   const sb = await supabaseServer();
@@ -61,6 +64,7 @@ export default async function PropertyBackfillPage({
 
   async function saveBulk(formData: FormData) {
     "use server";
+    if (!BULK_BACKFILL_ENABLED) throw new Error("Bulk backfill is switched off.");
     await requirePermission("mark_rent");
     const sb = await supabaseServer();
     const { data: { user } } = await sb.auth.getUser();
@@ -126,12 +130,12 @@ export default async function PropertyBackfillPage({
         actions={
           <div className="flex gap-1 items-center">
             {prev && (
-              <Link href={`/rent/backfill/${prev.id}`} className="btn-secondary text-xs" title={prev.name}>
+              <Link href={`/rent/backfill/${prev.id}`} className="btn-secondary" title={prev.name}>
                 <ChevronLeft size={14} />
               </Link>
             )}
             {next && (
-              <Link href={`/rent/backfill/${next.id}`} className="btn-secondary text-xs" title={next.name}>
+              <Link href={`/rent/backfill/${next.id}`} className="btn-secondary" title={next.name}>
                 <ChevronRight size={14} />
               </Link>
             )}
@@ -140,10 +144,10 @@ export default async function PropertyBackfillPage({
       />
 
       {sp.msg && (
-        <div className="mb-4 px-3 py-2 rounded text-sm text-success border border-success/30 bg-success/5">{sp.msg}</div>
+        <div className="notice-success">{sp.msg}</div>
       )}
       {sp.err && (
-        <div className="mb-4 px-3 py-2 rounded text-sm text-danger border border-danger/30 bg-danger/5">{sp.err}</div>
+        <div className="notice-danger">{sp.err}</div>
       )}
 
       {rents.length === 0 ? (

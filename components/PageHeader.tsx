@@ -4,50 +4,53 @@ import { ChevronRight } from "lucide-react";
 export type Crumb = { label: string; href?: string };
 
 /**
- * Breadcrumb-style page header.
+ * The page's title strip: full width under a hairline, pinned to the top of the
+ * scrolling panel.
  *
- * Pass `crumbs` to build a path like `Rent / Backfill / Godown No. 03`. The
- * last crumb is the current page (bold, not a link). Any crumb with an `href`
- * is clickable — that's how we replace "Back" buttons.
- *
- * For simple pages, pass a single `title` and it becomes the sole crumb.
+ * Pass `crumbs` to build a path like `Rent / Backfill / Godown No. 03`: the last
+ * crumb is the page title, the ones before it are links shown above it (that's
+ * how we replace "Back" buttons). For simple pages pass a single `title`.
  */
 export function PageHeader({
   title,
   crumbs,
+  subtitle,
   actions,
   right,
 }: {
   title?: string;
   crumbs?: Crumb[];
+  subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   /** Inline right-side element (search box, filter dropdowns). Renders next to actions. */
   right?: React.ReactNode;
 }) {
   const path: Crumb[] = crumbs ?? (title ? [{ label: title }] : []);
+  const current = path[path.length - 1];
+  const trail = path.slice(0, -1);
 
   return (
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-5">
-      <nav className="min-w-0 flex items-center gap-1 text-sm font-medium tracking-tight flex-wrap" aria-label="Breadcrumb">
-        {path.map((c, i) => {
-          const isLast = i === path.length - 1;
-          const cls = isLast
-            ? "text-fg truncate"
-            : "text-muted-fg hover:text-fg transition-colors";
-          return (
-            <span key={i} className="flex items-center gap-1 min-w-0">
-              {c.href && !isLast ? (
-                <Link href={c.href} className={cls}>{c.label}</Link>
-              ) : (
-                <span className={cls}>{c.label}</span>
-              )}
-              {!isLast && <ChevronRight size={12} className="text-muted-fg shrink-0" />}
-            </span>
-          );
-        })}
-      </nav>
+    <div className="z-20 -mx-4 mb-6 md:sticky md:top-0 flex flex-col gap-3 border-b border-border bg-surface/90 px-4 py-4 backdrop-blur-md sm:-mx-5 sm:px-5 md:-mx-8 md:flex-row md:items-center md:justify-between md:px-8 md:py-5">
+      <div className="min-w-0">
+        {trail.length > 0 && (
+          <nav className="mb-1 flex min-w-0 flex-wrap items-center gap-1 text-[12.5px]" aria-label="Breadcrumb">
+            {trail.map((c, i) => (
+              <span key={i} className="flex min-w-0 items-center gap-1">
+                {c.href ? (
+                  <Link href={c.href} className="truncate text-muted-fg transition-colors hover:text-fg">{c.label}</Link>
+                ) : (
+                  <span className="truncate text-muted-fg">{c.label}</span>
+                )}
+                <ChevronRight size={12} className="shrink-0 text-disabled" />
+              </span>
+            ))}
+          </nav>
+        )}
+        {current && <h1 className="page-title truncate">{current.label}</h1>}
+        {subtitle && <p className="page-subtitle">{subtitle}</p>}
+      </div>
       {(right || actions) && (
-        <div className="flex gap-2 flex-wrap items-center shrink-0">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           {right}
           {actions}
         </div>

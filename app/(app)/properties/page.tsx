@@ -100,7 +100,7 @@ export default async function PropertiesPage({
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label="Properties" value={String(summary.length)} hint={`${occupied} occupied · ${summary.length - occupied} vacant`} />
         <Kpi label="Total sqft" value={totalSqft.toLocaleString()} />
         <Kpi label="Total valuation" value={money(totalValuation)} />

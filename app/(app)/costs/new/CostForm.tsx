@@ -207,14 +207,14 @@ export function CostForm({
             </div>
           ))}
         </div>
-        <button type="button" onClick={addLine} className="btn-secondary text-xs mt-2">
+        <button type="button" onClick={addLine} className="btn-secondary mt-2">
           <Plus size={12} /> Add another line
         </button>
         <input type="hidden" name="line_count" value={lines.length} />
       </div>
 
       {/* BILL TO LESSEE TOGGLE */}
-      <div className="border border-border rounded-md p-3 bg-muted/30">
+      <div className="rounded-lg border border-border bg-sunken/60 p-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -351,7 +351,7 @@ function CompoundPicker({
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
-      <div className="border border-border rounded-md max-h-96 overflow-auto divide-y">
+      <div className="max-h-96 divide-y divide-line-subtle overflow-auto rounded-lg border border-border">
         {groups.map(([compoundLabel, props]) => {
           const groupIds = props.map((p) => p.id);
           const inSet = picked.filter((x) => groupIds.includes(x));

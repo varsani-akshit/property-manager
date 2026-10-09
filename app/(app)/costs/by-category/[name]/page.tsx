@@ -88,24 +88,22 @@ export default async function CategoryDetailPage({
   return (
     <div>
       <PageHeader
-        title={category.charAt(0).toUpperCase() + category.slice(1)}
-        actions={<Link href="/costs" className="btn-secondary text-xs">← All categories</Link>}
+        crumbs={[{ label: "Costs", href: "/costs" }, { label: category.charAt(0).toUpperCase() + category.slice(1) }]}
+        subtitle={period.label}
+        right={<DateFilter active={period.range as Range} />}
       />
 
-      <DateFilter active={period.range as Range} />
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label={`Total ${category}`} value={money(totalForCategory)} />
         <Kpi label="Entries" value={String(totalEntries)} hint={`${lines.length} line items`} />
         <Kpi label="Avg per entry" value={money(avgPerEntry)} />
         <Kpi label="Period" value={period.label} />
       </div>
 
-      <SearchBar placeholder="Search by cost description…" />
-
       <div className="card p-0">
-        <div className="px-3 py-3 border-b border-border">
-          <h2 className="font-semibold">All cost entries containing <span className="capitalize">{category}</span></h2>
+        <div className="section-head flex-wrap">
+          <h2>Cost entries containing <span className="capitalize">{category}</span></h2>
+          <SearchBar placeholder="Search by description…" />
         </div>
         <div className="table-wrap">
           <table className="table">
@@ -151,7 +149,7 @@ export default async function CategoryDetailPage({
                     <td className="text-right">
                       <div className="flex gap-2 justify-end">
                         {has(profile, "add_cost") && (
-                          <Link href={`/costs/${c.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                          <Link href={`/costs/${c.id}/edit`} className="btn-secondary btn-sm">Edit</Link>
                         )}
                         {has(profile, "delete_cost") && (
                           <ConfirmButton
@@ -159,6 +157,7 @@ export default async function CategoryDetailPage({
                             hiddenInputs={{ id: c.id }}
                             confirm={`Delete cost "${c.description}"? This removes all its line items and property allocations.`}
                             label="Delete"
+                            className="btn-danger-ghost btn-sm"
                           />
                         )}
                       </div>
@@ -168,7 +167,7 @@ export default async function CategoryDetailPage({
               })}
               {!costs.length && (
                 <tr>
-                  <td colSpan={7} className="text-center text-muted-fg py-8">
+                  <td colSpan={7} className="!py-10 text-center text-muted-fg">
                     {q ? `No matching costs for "${category}".` : `No costs in "${category}" for ${period.label}.`}
                   </td>
                 </tr>

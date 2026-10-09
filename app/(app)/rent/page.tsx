@@ -7,6 +7,7 @@ import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
 import Link from "next/link";
+import { BULK_BACKFILL_ENABLED } from "@/lib/features";
 import { LesseeAccordion, type RawRentRow, type RawCostRow } from "./LesseeAccordion";
 
 export const dynamic = "force-dynamic";
@@ -158,24 +159,23 @@ export default async function RentPage({
     <div>
       <PageHeader
         title="Rent Collection"
-        actions={<Link href="/rent/backfill" className="btn-secondary text-xs">Bulk backfill</Link>}
+        subtitle="Overdue and upcoming rent, lessee-billed costs and deposits, grouped by lessee."
+        actions={BULK_BACKFILL_ENABLED ? <Link href="/rent/backfill" className="btn-secondary">Bulk backfill</Link> : null}
       />
 
-      {(filterLessee || filterProperty) && null}
-
       {(filterLessee || filterProperty) && (
-        <div className="card mb-4 flex items-center justify-between gap-3">
-          <p className="text-sm">
+        <div className="notice-info items-center justify-between">
+          <p>
             Filtered by{" "}
             {filterLessee && <><span className="font-medium">lessee:</span> &ldquo;{filterLessee}&rdquo;</>}
             {filterLessee && filterProperty && <span className="text-muted-fg"> · </span>}
             {filterProperty && <span className="font-medium">property</span>}
           </p>
-          <Link href="/rent" className="btn-secondary text-xs">Clear filter</Link>
+          <Link href="/rent" className="btn-secondary btn-sm">Clear filter</Link>
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label="Outstanding (overdue)" value={money(sumOutstandingRemainder)} hint={`${(outstandingRes.data ?? []).length} rent rows`} />
         <Kpi label="Upcoming (next 6 months)" value={money(sumUpcoming)} hint={`${(upcomingRes.data ?? []).length} rows`} />
         <Kpi label="Cost Due" value={money(sumCostDue)} hint={`${(costDueRes.data ?? []).length} cost charges`} />

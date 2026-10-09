@@ -1,79 +1,212 @@
+/* Type: Geist and Geist Mono (SIL OFL), self-hosted so nothing loads from Google. */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist.woff2") format("woff2");
+  font-weight: 300 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono.woff2") format("woff2");
+  font-weight: 400 500;
+  font-display: swap;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ─── Design tokens ────────────────────────────────────────────────────────
+   Neutral surfaces, one indigo for brand / focus / data marks.
+   Values are RGB channels so Tailwind can apply opacity (see tailwind.config.ts).
+   Light only: one colour mode for the whole app. */
+:root {
+  --c-sunken: 245 245 245;
+  --c-surface: 255 255 255;
+  --c-raised: 255 255 255;
+  --c-hover: 232 234 237;
+  --c-ink: 15 23 42;
+  --c-ink-secondary: 107 114 128;
+  --c-ink-muted: 107 114 128;
+  --c-ink-disabled: 163 168 178;
+  --c-line: 221 226 238;
+  --c-line-subtle: 238 240 244;
+  --c-line-strong: 197 203 218;
+  --c-brand: 91 91 214;
+  --c-brand-hover: 74 74 196;
+  --c-brand-soft: 238 239 255;
+  --c-success: 22 163 74;
+  --c-success-bg: 236 253 245;
+  --c-warning: 217 119 6;
+  --c-warning-bg: 255 251 235;
+  --c-danger: 220 38 38;
+  --c-danger-bg: 254 242 242;
+  --c-info: 37 99 235;
+  --c-info-bg: 239 246 255;
+
+  --overlay: rgba(0, 0, 0, 0.45);
+  --focus-ring: rgba(91, 91, 214, 0.32);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
+
+  /* data marks: indigo first, then slate and lighter/deeper indigos */
+  --chart-1: rgb(var(--c-brand));
+  --chart-2: #a3acbd;
+  --chart-3: #9b9cf0;
+  --chart-4: #64748b;
+  --chart-5: #3a3aa6;
+  --chart-6: #cfd0fa;
+  --chart-7: #334155;
+  --chart-8: #7c86a0;
+  --chart-muted: #c5cbda;
+
+  color-scheme: light;
+}
+
 @layer base {
-  html, body { @apply bg-bg text-fg antialiased; font-feature-settings: "tnum"; }
+  html,
+  body {
+    @apply bg-sunken text-fg antialiased;
+    font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "ss01" on;
+    -moz-osx-font-smoothing: grayscale;
+  }
   * { @apply border-border; }
-  input, select, textarea { font-size: 16px; }
-  ::selection { background: hsl(22 92% 52% / 0.2); }
+  code, pre, kbd, samp { font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+  ::selection { background: rgb(var(--c-brand) / 0.22); }
+  /* iOS zooms into inputs under 16px; keep them at 16px on phones only. */
+  @media (max-width: 640px) {
+    input, select, textarea { font-size: 16px !important; }
+  }
+  * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 6px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; }
+  input[type="checkbox"], input[type="radio"] { accent-color: rgb(var(--c-brand)); width: 15px; height: 15px; cursor: pointer; }
+  input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
 }
 
 @layer components {
-  /* BUTTONS — sharp, minimal */
-  .btn { @apply inline-flex items-center justify-center gap-1.5 rounded px-3.5 py-2 text-sm font-medium transition-colors duration-100 disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap; }
-  .btn-primary { @apply btn bg-primary text-primary-fg hover:bg-primary-hover; }
-  .btn-secondary { @apply btn bg-surface text-fg border border-border hover:border-primary hover:text-primary; }
-  .btn-ghost { @apply btn text-fg-soft hover:bg-muted hover:text-fg; }
-  .btn-danger { @apply btn bg-danger text-white hover:bg-danger/90; }
-
-  /* INPUTS — sharp lines */
-  .input { @apply w-full rounded border border-border bg-surface px-3 py-2 text-sm transition-colors focus:outline-none focus:border-primary; }
-  .label { @apply text-xs font-medium text-fg-soft uppercase tracking-wide block mb-1.5; }
-
-  /* CARDS — flat sections, no shadows, thin borders, blend with bg */
-  .card { @apply rounded border border-border bg-surface p-4; }
-  .section { @apply mb-5; }
-
-  /* PANEL — lighter than a card: transparent bg, no border, useful for grouping
-     related content without adding another box. Used inside a card to create
-     sub-sections with a divider between them. */
-  .panel { @apply p-4; }
-  .panel + .panel { @apply border-t border-border; }
-
-  /* SECTION HEADER — title strip inside a card without adding extra chrome */
-  .section-head { @apply flex items-center justify-between px-4 py-2.5 border-b border-border; }
-  .section-head h2 { @apply font-semibold text-sm; }
-
-  /* KPI — thin subtle count/metric card. Compact by default; larger values
-     via explicit text-lg on the value if needed. */
-  .kpi {
-    @apply rounded border border-border bg-surface px-3 py-2.5 flex flex-col gap-0.5
-           items-center text-center transition-colors hover:border-primary/40 min-w-0;
+  /* BUTTONS — the main action is indigo with white text; everything else is
+     transparent (secondary has a hairline border). 7px corners. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3.5 py-1.5 text-[12.5px] font-medium leading-5
+           whitespace-nowrap transition-colors duration-150 focus:outline-none focus-visible:ring-2
+           focus-visible:ring-[color:var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-40;
   }
-  .kpi-label { @apply text-[10px] uppercase tracking-wide text-muted-fg font-medium; }
-  .kpi-value { @apply text-base font-semibold text-fg tabular-nums leading-tight; }
-  .kpi-hint  { @apply text-[11px] text-muted-fg; }
+  .btn-primary { @apply btn bg-primary text-white hover:bg-primary-hover; }
+  .btn-secondary { @apply btn border border-border bg-transparent text-fg hover:bg-muted; }
+  .btn-ghost { @apply btn bg-transparent px-2.5 text-fg-soft hover:bg-muted hover:text-fg; }
+  .btn-danger { @apply btn bg-danger text-white hover:opacity-90; }
+  .btn-danger-ghost { @apply btn bg-transparent px-2.5 text-danger hover:bg-danger-soft; }
+  .btn-sm { @apply h-7 px-2.5 py-0 text-[12px]; }
 
-  /* BADGES — pill but slimmer */
-  .badge { @apply inline-flex items-center rounded-sm px-2 py-0.5 text-[11px] font-medium tabular-nums uppercase tracking-wide; }
+  /* INPUTS */
+  .input {
+    @apply w-full rounded-md border border-border bg-surface px-3 py-[7px] text-[13px] text-fg outline-none
+           transition-colors placeholder:text-disabled focus:border-primary focus:ring-2
+           focus:ring-[color:var(--focus-ring)] disabled:opacity-60;
+  }
+  select.input { @apply pr-8; }
+  .label { @apply mb-1.5 block text-[12px] font-medium text-fg-soft; }
+
+  /* CARDS — hairline border, 12px corners, no shadow */
+  .card { @apply rounded-xl border border-border bg-surface p-4; }
+  .card.p-0 { @apply overflow-hidden; }
+  .card { scroll-margin-top: 104px; }
+  /* Key/value facts grid inside a card */
+  .facts dt { @apply font-mono text-[10.5px] uppercase tracking-[0.12em] text-muted-fg; }
+  .facts dd { @apply mt-1 text-[13px] text-fg; }
+  .section { @apply mb-5; }
+  .panel { @apply p-4; }
+  .panel + .panel { @apply border-t border-line-subtle; }
+
+  /* Title strip inside a card */
+  .section-head { @apply flex min-h-[44px] items-center justify-between gap-3 border-b border-line-subtle px-4 py-2.5; }
+  .section-head h2 { @apply text-[13px] font-semibold text-fg; }
+
+  /* PAGE TYPE */
+  .page-title { @apply text-[22px] font-medium leading-tight tracking-[-0.02em] text-fg; }
+  .page-subtitle { @apply mt-1 text-[13.5px] text-muted-fg; }
+  .eyebrow { @apply font-mono text-[11px] uppercase tracking-[0.12em] text-muted-fg; }
+  .headline { @apply font-medium tracking-[-0.03em] text-fg; }
+  .headline .pre { @apply block font-normal text-muted-fg; }
+  .h2 { @apply text-[13px] font-semibold text-fg; }
+
+  /* STATS — figures side by side between two hairlines, divided by hairlines.
+     No boxes. `.stat-row` wraps several `.kpi`s. */
+  .stat-row {
+    @apply grid grid-cols-2 gap-y-4 border-y border-line-subtle py-4 md:grid-cols-4 md:gap-x-6 xl:grid-flow-col xl:auto-cols-fr xl:grid-cols-none xl:gap-x-0;
+  }
+  .stat-row > * { @apply xl:border-l xl:border-line-subtle xl:px-5; }
+  .stat-row > *:first-child { @apply xl:border-l-0 xl:pl-0; }
+  .kpi { @apply flex min-w-0 flex-col py-1 pr-3 text-left; }
+  a.kpi { @apply -my-1 rounded-lg py-2 transition-colors hover:bg-muted/60; }
+  .kpi-label { @apply font-mono text-[10.5px] uppercase tracking-[0.12em] text-muted-fg; }
+  .kpi-value { @apply mt-1.5 whitespace-nowrap font-medium leading-tight tracking-[-0.02em] text-fg tabular-nums; font-size: clamp(17px, 1.5vw, 22px); }
+  .kpi-hint { @apply mt-1 text-[11.5px] text-muted-fg; }
+
+  /* BADGES — soft pills */
+  .badge { @apply inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 tabular-nums; }
   .badge-success { @apply badge bg-success-soft text-success; }
   .badge-warning { @apply badge bg-warning-soft text-warning; }
   .badge-danger  { @apply badge bg-danger-soft text-danger; }
-  .badge-muted   { @apply badge bg-muted text-muted-fg; }
+  .badge-muted   { @apply badge bg-muted text-fg-soft; }
   .badge-primary { @apply badge bg-primary-soft text-primary; }
+  .badge-info    { @apply badge bg-info-soft text-info; }
 
-  /* TABLES — flat, unified alignment.
-     Default is LEFT for both th and td. Utility classes (text-right /
-     text-center) override via the @layer utilities cascade. */
+  /* TABLES — one hairline under the header, subtle row lines, no fills.
+     Default alignment is left; text-right / text-center utilities override. */
   .table-wrap { @apply w-full overflow-x-auto; }
-  .table { @apply w-full text-sm whitespace-nowrap border-collapse; }
+  .table { @apply w-full border-collapse whitespace-nowrap text-[12.5px]; }
+  /* :where() keeps the default alignment at zero specificity so text-right / text-center win */
+  :where(.table) :where(th, td) { text-align: left; }
   .table th {
-    text-align: left;
-    @apply text-[11px] uppercase tracking-wide text-muted-fg font-semibold
-           py-2.5 px-3.5 border-b border-border bg-bg;
+    @apply h-9 border-b border-border px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-fg;
   }
+  .table th:first-child, .table td:first-child { @apply pl-4; }
+  .table th:last-child, .table td:last-child { @apply pr-4; }
   .table td {
-    text-align: left;
-    @apply py-3 px-3.5 border-b border-border/60 tabular-nums;
+    @apply border-b border-line-subtle px-3 py-2.5 align-middle text-fg tabular-nums;
   }
-  .table tr:last-child td { @apply border-b-0; }
-  .table tr:hover td { @apply bg-muted/50; }
+  .table tbody tr:last-child td { @apply border-b-0; }
+  .table tbody tr:hover td { @apply bg-muted/50; }
+  .table tfoot td { @apply border-t border-border border-b-0 font-medium; }
+  .th-sort { @apply cursor-pointer select-none transition-colors hover:text-fg; }
 
-  /* SIDEBAR */
-  .nav-link {
-    @apply flex items-center gap-2.5 px-3 py-2 rounded text-sm transition-colors;
-  }
-  .nav-link-inactive { @apply text-fg-soft hover:bg-muted hover:text-fg; }
-  .nav-link-active   { @apply bg-primary text-primary-fg; }
+  /* Popover menu (dropdowns, comboboxes) */
+  .popover { @apply z-50 overflow-hidden rounded-[10px] border border-border bg-raised py-1 shadow-token-lg; }
+  .popover-item { @apply flex w-full items-center gap-1 px-3 py-1.5 text-left text-[13px] text-fg hover:bg-muted; }
+
+  /* Segmented control (tabs / toggles) */
+  .segmented { @apply inline-flex gap-0.5 rounded-md border border-border p-0.5 text-[12px]; }
+  .segmented > * { @apply rounded px-2.5 py-1 text-muted-fg transition-colors hover:text-fg; }
+  .segmented > [aria-current="true"], .segmented > .is-active { @apply bg-muted font-medium text-fg; }
+
+  .link { @apply text-primary hover:underline; }
+
+  /* Inline notices (flash messages after an action) */
+  .notice { @apply mb-4 flex gap-2.5 rounded-xl border px-3.5 py-3 text-[12.5px]; }
+  .notice-success { @apply notice border-success/25 bg-success-soft text-success; }
+  .notice-danger { @apply notice border-danger/25 bg-danger-soft text-danger; }
+  .notice-warning { @apply notice border-warning/25 bg-warning-soft text-warning; }
+  .notice-info { @apply notice border-border bg-sunken text-fg-soft; }
+}
+
+/* Loader (components/Loader.tsx): blocks rising like floors */
+.vk-loader-bar { transform-origin: bottom; animation: vk-rise 0.9s cubic-bezier(0.45, 0, 0.25, 1) infinite; }
+@keyframes vk-rise { 0%, 100% { transform: scaleY(0.35); } 45% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .vk-loader-bar { animation-duration: 2.4s; } }
+
+@layer utilities {
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
 }

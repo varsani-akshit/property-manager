@@ -22,8 +22,8 @@ export default async function NewCompoundPage() {
   }
 
   return (
-    <div className="max-w-xl">
-      <PageHeader title="New compound" />
+    <div className="[&>*:not(:first-child)]:max-w-xl">
+      <PageHeader crumbs={[{ label: "Compounds", href: "/compounds" }, { label: "New compound" }]} />
       <form action={create} className="card space-y-4">
         <div>
           <label className="label">Compound / area name</label>

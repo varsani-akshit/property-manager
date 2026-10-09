@@ -2,8 +2,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { money, fmtDate } from "@/lib/format";
-import { ChevronUp, ChevronDown } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { SortTh, TablePager } from "@/components/TableBits";
 
 export type LeaseRow = {
   id: string;
@@ -45,7 +44,6 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
   }, [rows, sortKey, sortDir]);
 
   const total = sorted.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const start = (page - 1) * pageSize;
   const view = sorted.slice(start, start + pageSize);
 
@@ -55,26 +53,8 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
     setPage(1);
   }
 
-  function Header({ label, k, align }: { label: string; k: SortKey; align?: "left" | "right" | "center" }) {
-    const active = sortKey === k;
-    return (
-      <th
-        onClick={() => toggle(k)}
-        className={cn(
-          "cursor-pointer select-none hover:text-primary",
-          align === "right" && "text-right",
-          align === "center" && "text-center"
-        )}
-      >
-        <span className={cn(
-          "inline-flex items-center gap-1",
-          align === "right" && "flex-row-reverse"
-        )}>
-          {label}
-          {active && (sortDir === "asc" ? <ChevronUp size={12}/> : <ChevronDown size={12}/>)}
-        </span>
-      </th>
-    );
+  function header(label: string, k: SortKey, align?: "left" | "right" | "center") {
+    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} />;
   }
 
   return (
@@ -83,13 +63,13 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
         <table className="table">
           <thead>
             <tr>
-              <Header label="Property" k="property_name" />
-              <Header label="Lessee" k="lessee_name" />
+              {header("Property", "property_name")}
+              {header("Lessee", "lessee_name")}
               <th>Contact</th>
-              <Header label="Start" k="start_date" />
-              <Header label="End" k="end_date" />
-              <Header label="Rent" k="gross_rent_monthly" align="right" />
-              <Header label="Status" k="active" align="center" />
+              {header("Start", "start_date")}
+              {header("End", "end_date")}
+              {header("Rent", "gross_rent_monthly", "right")}
+              {header("Status", "active", "center")}
             </tr>
           </thead>
           <tbody>
@@ -114,31 +94,11 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
                 </tr>
               );
             })}
-            {!view.length && <tr><td colSpan={7} className="text-center text-muted-fg py-8">No leases match.</td></tr>}
+            {!view.length && <tr><td colSpan={7} className="!py-10 text-center text-muted-fg">No leases match.</td></tr>}
           </tbody>
         </table>
       </div>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border text-xs text-muted-fg">
-          <span>Showing {start + 1}–{Math.min(start + pageSize, total)} of {total}</span>
-          <div className="flex gap-1">
-            <button
-              className="btn-secondary text-xs disabled:opacity-40"
-              disabled={page === 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ← Prev
-            </button>
-            <button
-              className="btn-secondary text-xs disabled:opacity-40"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Next →
-            </button>
-          </div>
-        </div>
-      )}
+      <TablePager page={page} pageSize={pageSize} total={total} onPage={setPage} />
     </div>
   );
 }

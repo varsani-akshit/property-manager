@@ -4,6 +4,8 @@ import { SearchBar } from "@/components/SearchBar";
 import { Kpi } from "@/components/Kpi";
 import { guardView } from "@/lib/guard";
 import { BackfillIndexTable, type IndexRow } from "./BackfillIndexTable";
+import { BULK_BACKFILL_ENABLED } from "@/lib/features";
+import { BackfillLocked } from "@/components/BackfillLocked";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,7 @@ export default async function BackfillIndex({
   searchParams: Promise<{ q?: string }>;
 }) {
   await guardView("view_rent");
+  if (!BULK_BACKFILL_ENABLED) return <BackfillLocked />;
   const sp = await searchParams;
   const q = sp.q?.trim().toLowerCase() ?? "";
 
@@ -68,7 +71,7 @@ export default async function BackfillIndex({
         right={<SearchBar placeholder="Search property, compound, lessee…" />}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label="Properties" value={String(totalProperties)} hint={`${rentedProperties} rented`} />
         <Kpi label="With rent rows" value={String(propertiesWithRent)} />
         <Kpi label="Total rent rows" value={allRowCount.toLocaleString()} />

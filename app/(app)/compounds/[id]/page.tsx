@@ -117,9 +117,10 @@ export default async function CompoundDetailPage({
   const monthBuckets = new Map<string, { collected: number; costs: number }>();
   for (const m of months) monthBuckets.set(m, { collected: 0, costs: 0 });
   for (const r of rent) {
-    if (r.status === "collected" && r.collected_at) {
+    // Same rule as the "Collected" figure above: partial payments count, by the amount paid.
+    if ((r.status === "collected" || r.status === "partial") && r.collected_at) {
       const k = ymKey(r.collected_at);
-      if (monthBuckets.has(k)) monthBuckets.get(k)!.collected += Number(r.net_amount || 0);
+      if (monthBuckets.has(k)) monthBuckets.get(k)!.collected += Number(r.collected_amount || (r.status === "collected" ? r.net_amount : 0));
     }
   }
   for (const c of costsInPeriodArr) {
@@ -174,42 +175,45 @@ export default async function CompoundDetailPage({
       />
 
       {/* FACTS STRIP */}
-      <div className="card mb-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-        <div className="text-center">
-          <div className="text-xs uppercase text-muted-fg">Properties</div>
-          <div className="font-semibold text-lg">{allProps.length}</div>
-          <div className="text-xs text-muted-fg">{totalSqft.toLocaleString()} sqft</div>
+      <div className="stat-row mb-2">
+        <div className="kpi">
+          <div className="kpi-label">Properties</div>
+          <div className="kpi-value">{allProps.length}</div>
+          <div className="kpi-hint">{totalSqft.toLocaleString()} sqft</div>
         </div>
-        <div className="text-center">
-          <div className="text-xs uppercase text-muted-fg">Total valuation</div>
-          <div className="font-semibold text-lg">{money(totalValuation)}</div>
+        <div className="kpi">
+          <div className="kpi-label">Total valuation</div>
+          <div className="kpi-value">{money(totalValuation)}</div>
         </div>
-        <div className="text-center">
-          <div className="text-xs uppercase text-muted-fg">Occupancy</div>
-          <div className="font-semibold text-lg">{occupancyPct.toFixed(0)}%</div>
-          <div className="text-xs text-muted-fg">{activeLeases.length} of {allProps.length} rented</div>
+        <div className="kpi">
+          <div className="kpi-label">Occupancy</div>
+          <div className="kpi-value">{occupancyPct.toFixed(0)}%</div>
+          <div className="kpi-hint">{activeLeases.length} of {allProps.length} rented</div>
         </div>
-        <div className="text-center">
-          <div className="text-xs uppercase text-muted-fg">ROI annualized</div>
-          <div className={`font-semibold text-lg ${annualROI !== null && annualROI < 0 ? "text-danger" : ""}`}>
+        <div className="kpi">
+          <div className="kpi-label">ROI annualized</div>
+          <div className={`kpi-value ${annualROI !== null && annualROI < 0 ? "text-danger" : ""}`}>
             {annualROI !== null ? `${annualROI.toFixed(2)}%` : "—"}
           </div>
         </div>
       </div>
 
-      <DateFilter active={period.range as Range} />
+      <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[15px] font-medium tracking-[-0.01em] text-fg">Performance</h2>
+        <DateFilter active={period.range as Range} />
+      </div>
 
       {/* HERO KPIs (period) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <div className="kpi">
           <div className="kpi-label">Net</div>
           <div className={`kpi-value ${net < 0 ? "text-danger" : "text-success"}`}>{money(net)}</div>
-          <div className="text-xs text-muted-fg mt-auto">{money(collected)} in − {money(costs)} out</div>
+          <div className="kpi-hint">{money(collected)} in − {money(costs)} out</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Collection rate</div>
           <div className="kpi-value">{collectionRate !== null ? `${collectionRate.toFixed(0)}%` : "—"}</div>
-          <div className="text-xs text-muted-fg mt-auto">{money(collected)} of {money(billed)} billed</div>
+          <div className="kpi-hint">{money(collected)} of {money(billed)} billed</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Outstanding</div>
@@ -222,7 +226,7 @@ export default async function CompoundDetailPage({
       </div>
 
       {/* TREND + COST BREAKDOWN — merged */}
-      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+      <div className="card mb-6 grid p-0 lg:grid-cols-2 lg:divide-x lg:divide-line-subtle">
         <div>
           <div className="section-head"><h2>Monthly trend</h2></div>
           <div className="panel">
@@ -241,7 +245,7 @@ export default async function CompoundDetailPage({
             {categoryRows.length > 0 ? (
               <DonutChart data={categoryRows} formatValue={(n) => money(n)} />
             ) : (
-              <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
+              <p className="py-10 text-center text-[13px] text-muted-fg">No costs in this period.</p>
             )}
           </div>
         </div>
@@ -249,8 +253,8 @@ export default async function CompoundDetailPage({
 
       {/* PROPERTY TABLE */}
       <div className="card p-0">
-        <div className="px-3 py-3 border-b border-border">
-          <h2 className="font-semibold">Properties</h2>
+        <div className="section-head">
+          <h2>Properties</h2>
         </div>
         <div className="table-wrap">
           <table className="table">
@@ -275,7 +279,7 @@ export default async function CompoundDetailPage({
                   <td>{Number((p as any).active_lease_count) > 0 ? <span className="badge-success">Rented</span> : <span className="badge-muted">Vacant</span>}</td>
                 </tr>
               ))}
-              {!arr.length && <tr><td colSpan={6} className="text-center text-muted-fg py-8">No properties in this compound yet.</td></tr>}
+              {!arr.length && <tr><td colSpan={6} className="!py-10 text-center text-muted-fg">No properties in this compound yet.</td></tr>}
             </tbody>
           </table>
         </div>

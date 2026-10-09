@@ -1,37 +1,69 @@
 import type { Config } from "tailwindcss";
 
+// Every colour is a CSS variable (light + dark sets in app/globals.css), exposed
+// as RGB channels so Tailwind's opacity modifiers (`bg-muted/50`) keep working.
+const rgb = (v: string) => `rgb(var(--${v}) / <alpha-value>)`;
+
 export default {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        bg: "hsl(30 25% 97%)",             // warm cream page background
-        surface: "hsl(0 0% 100%)",          // white for tables/inputs
-        fg: "hsl(24 15% 18%)",
-        "fg-soft": "hsl(24 10% 35%)",
-        muted: "hsl(28 25% 94%)",
-        "muted-fg": "hsl(24 10% 50%)",
-        border: "hsl(28 20% 87%)",
-        primary: "hsl(22 92% 52%)",
-        "primary-hover": "hsl(22 92% 46%)",
-        "primary-soft": "hsl(22 92% 95%)",
-        "primary-fg": "hsl(0 0% 100%)",
-        accent: "hsl(22 92% 52%)",
-        success: "hsl(142 65% 38%)",
-        "success-soft": "hsl(142 50% 93%)",
-        warning: "hsl(38 92% 48%)",
-        "warning-soft": "hsl(38 92% 93%)",
-        danger: "hsl(0 72% 48%)",
-        "danger-soft": "hsl(0 70% 95%)",
+        bg: rgb("c-sunken"),            // page ground / sidebar rail
+        surface: rgb("c-surface"),      // main panel, tables, inputs
+        raised: rgb("c-raised"),        // popovers, dialogs, cards
+        sunken: rgb("c-sunken"),
+        fg: rgb("c-ink"),
+        "fg-soft": rgb("c-ink-secondary"),
+        muted: rgb("c-hover"),
+        "muted-fg": rgb("c-ink-muted"),
+        disabled: rgb("c-ink-disabled"),
+        border: rgb("c-line"),
+        "line-subtle": rgb("c-line-subtle"),
+        "line-strong": rgb("c-line-strong"),
+        primary: rgb("c-brand"),
+        "primary-hover": rgb("c-brand-hover"),
+        "primary-soft": rgb("c-brand-soft"),
+        "primary-fg": "#ffffff",
+        accent: rgb("c-brand"),
+        success: rgb("c-success"),
+        "success-soft": rgb("c-success-bg"),
+        warning: rgb("c-warning"),
+        "warning-soft": rgb("c-warning-bg"),
+        danger: rgb("c-danger"),
+        "danger-soft": rgb("c-danger-bg"),
+        info: rgb("c-info"),
+        "info-soft": rgb("c-info-bg"),
       },
       fontFamily: {
-        sans: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "Inter", "Roboto", "sans-serif"],
+        sans: ["Geist", "ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        mono: ["Geist Mono", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+      },
+      fontWeight: {
+        book: "450",
       },
       borderRadius: {
-        DEFAULT: "0.25rem",
-        sm: "0.125rem",
-        md: "0.25rem",
-        lg: "0.375rem",
+        sm: "5px",
+        DEFAULT: "7px",
+        md: "7px",
+        lg: "10px",
+        xl: "12px",
+        "2xl": "16px",
+        "3xl": "20px",
+      },
+      boxShadow: {
+        "token-sm": "var(--shadow-sm)",
+        "token-md": "var(--shadow-md)",
+        "token-lg": "var(--shadow-lg)",
+      },
+      keyframes: {
+        "fade-in": {
+          from: { opacity: "0", transform: "translateY(6px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 0.35s ease-out both",
       },
     },
   },

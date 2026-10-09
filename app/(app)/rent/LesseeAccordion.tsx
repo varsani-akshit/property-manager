@@ -1,9 +1,15 @@
 "use client";
-import { useMemo, useState, Fragment } from "react";
+import { useEffect, useMemo, useState, Fragment } from "react";
 import Link from "next/link";
-import { ChevronRight, ChevronDown } from "lucide-react";
+import { ChevronRight, Search, X } from "lucide-react";
 import { money, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { SortTh, TablePager } from "@/components/TableBits";
+import { SubmitButton } from "@/components/SubmitButton";
+
+type GroupSort = "default" | "lessee" | "outstanding" | "upcoming" | "collected";
+const PAGE_SIZE = 25;
+const nat = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 type PropRef = {
   name: string;
@@ -217,43 +223,108 @@ export function LesseeAccordion({
     });
   }
 
+  // Search, sort and paging over the lessee groups (client-side; the server already scoped the rows).
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<{ key: GroupSort; dir: "asc" | "desc" }>({ key: "default", dir: "asc" });
+  const [page, setPage] = useState(1);
+
+  const outstandingOf = (g: LesseeGroup) => g.outstanding_total + g.cost_due_total + g.deposit_shortfall;
+
+  const view = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = q
+      ? groups.filter((g) =>
+          g.lessee_name.toLowerCase().includes(q) ||
+          g.compound.toLowerCase().includes(q) ||
+          g.properties.some((p) => p.toLowerCase().includes(q)) ||
+          (g.contact ?? "").toLowerCase().includes(q))
+      : groups;
+    if (sort.key === "default") return list;
+    const arr = [...list];
+    arr.sort((a, b) => {
+      const cmp =
+        sort.key === "lessee" ? nat.compare(a.lessee_name, b.lessee_name)
+        : sort.key === "outstanding" ? outstandingOf(a) - outstandingOf(b)
+        : sort.key === "upcoming" ? a.upcoming_total - b.upcoming_total
+        : a.collected_total - b.collected_total;
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [groups, query, sort]);
+
+  useEffect(() => setPage(1), [query, sort]);
+  const pageRows = view.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function sortBy(key: GroupSort) {
+    setSort((cur) =>
+      cur.key !== key ? { key, dir: key === "lessee" ? "asc" : "desc" }
+      : cur.dir === (key === "lessee" ? "asc" : "desc") ? { key, dir: key === "lessee" ? "desc" : "asc" }
+      : { key: "default", dir: "asc" } // third click: back to compound / property order
+    );
+  }
+
   return (
     <div className="card p-0">
+      <div className="section-head flex-wrap">
+        <h2>
+          Lessees
+          <span className="ml-2 text-[12px] font-normal text-muted-fg">
+            {view.length === groups.length ? groups.length : `${view.length} of ${groups.length}`}
+          </span>
+        </h2>
+        <div className="relative w-full sm:w-64">
+          <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-fg" />
+          <input
+            className="input h-8 !pl-8 !pr-8"
+            placeholder="Search lessee, property, compound…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button type="button" onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-fg hover:bg-muted" aria-label="Clear search">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      </div>
       <div className="table-wrap">
         <table className="table">
           <thead>
             <tr>
               <th className="w-8"></th>
-              <th>Lessee · Property</th>
-              <th className="text-right">Total Outstanding</th>
-              <th className="text-right">Upcoming (6 mo)</th>
-              <th className="text-right">Collected (4 mo)</th>
+              <SortTh label="Lessee · Property" active={sort.key === "lessee"} dir={sort.dir} onClick={() => sortBy("lessee")} />
+              <SortTh label="Total outstanding" align="right" active={sort.key === "outstanding"} dir={sort.dir} onClick={() => sortBy("outstanding")} />
+              <SortTh label="Upcoming (6 mo)" align="right" active={sort.key === "upcoming"} dir={sort.dir} onClick={() => sortBy("upcoming")} />
+              <SortTh label="Collected (4 mo)" align="right" active={sort.key === "collected"} dir={sort.dir} onClick={() => sortBy("collected")} />
             </tr>
           </thead>
           <tbody>
-            {groups.map((g) => {
+            {pageRows.map((g) => {
               const isOpen = open.has(g.lessee_name);
               const activeTab: Bucket = tabs[g.lessee_name] ?? "outstanding";
-              const totalOutstanding = g.outstanding_total + g.cost_due_total + g.deposit_shortfall;
+              const totalOutstanding = outstandingOf(g);
               return (
                 <Fragment key={g.lessee_name}>
                   <tr
                     onClick={() => toggle(g.lessee_name)}
-                    className="cursor-pointer hover:bg-muted/50"
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(g.lessee_name); } }}
+                    tabIndex={0}
+                    aria-expanded={isOpen}
+                    className={cn("cursor-pointer", isOpen && "[&>td]:bg-muted/40")}
                   >
                     <td className="text-muted-fg">
-                      {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      <ChevronRight size={14} className={cn("transition-transform duration-150", isOpen && "rotate-90 text-fg")} />
                     </td>
                     <td className="max-w-md">
                       <div className="font-medium">{g.lessee_name}</div>
-                      <div className="text-xs text-muted-fg truncate" title={g.properties.join(", ")}>
+                      <div className="mt-0.5 truncate text-[12px] text-muted-fg" title={g.properties.join(", ")}>
                         {g.properties.join(", ") || (g.contact ?? "")}
                       </div>
                     </td>
-                    <td className={cn("text-right tabular-nums font-semibold", totalOutstanding > 0 && "text-danger")}>
+                    <td className={cn("text-right font-medium tabular-nums", totalOutstanding > 0 && "text-danger")}>
                       {money(totalOutstanding)}
                       {totalOutstanding > 0 && (
-                        <div className="text-[10px] text-muted-fg font-normal">
+                        <div className="mt-0.5 text-[11px] font-normal text-muted-fg">
                           {g.outstanding_total > 0 && <>rent {money(g.outstanding_total)}</>}
                           {g.cost_due_total > 0 && <> · cost {money(g.cost_due_total)}</>}
                           {g.deposit_shortfall > 0 && <> · dep {money(g.deposit_shortfall)}</>}
@@ -262,16 +333,16 @@ export function LesseeAccordion({
                     </td>
                     <td className="text-right tabular-nums">
                       {money(g.upcoming_total)}
-                      {g.upcoming_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.upcoming_count})</span>}
+                      {g.upcoming_count > 0 && <span className="ml-1 text-[11.5px] text-muted-fg">({g.upcoming_count})</span>}
                     </td>
                     <td className="text-right tabular-nums text-success">
                       {money(g.collected_total)}
-                      {g.collected_count > 0 && <span className="text-xs text-muted-fg ml-1">({g.collected_count})</span>}
+                      {g.collected_count > 0 && <span className="ml-1 text-[11.5px] text-muted-fg">({g.collected_count})</span>}
                     </td>
                   </tr>
                   {isOpen && (
-                    <tr className="bg-muted/30">
-                      <td colSpan={5} className="p-3">
+                    <tr className="[&>td]:!bg-sunken/60">
+                      <td colSpan={5} className="!px-4 !py-3">
                         <Tabs
                           group={g}
                           today={today}
@@ -288,16 +359,17 @@ export function LesseeAccordion({
                 </Fragment>
               );
             })}
-            {!groups.length && (
+            {!pageRows.length && (
               <tr>
-                <td colSpan={5} className="text-center text-muted-fg py-8">
-                  No rent or cost activity in the current scope.
+                <td colSpan={5} className="!py-10 text-center text-muted-fg">
+                  {query ? `No lessees match "${query}".` : "No rent or cost activity in the current scope."}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <TablePager page={page} pageSize={PAGE_SIZE} total={view.length} onPage={setPage} label="lessees" />
     </div>
   );
 }
@@ -330,20 +402,21 @@ function Tabs({
 
   return (
     <div>
-      <div className="flex gap-1 mb-3 flex-wrap">
+      <div className="mb-3 flex flex-wrap items-center gap-1" role="tablist">
         {labels.map((t) => (
           <button
             key={t.key}
             type="button"
+            role="tab"
+            aria-selected={active === t.key}
             onClick={() => setActive(t.key)}
             className={cn(
-              "px-3 py-1 text-xs rounded border transition-colors",
-              active === t.key
-                ? "bg-primary text-primary-fg border-primary"
-                : "border-border bg-surface text-fg-soft hover:border-primary hover:text-primary"
+              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] transition-colors",
+              active === t.key ? "bg-surface font-medium text-fg shadow-token-sm ring-1 ring-border" : "text-muted-fg hover:text-fg"
             )}
           >
-            {t.label} <span className="opacity-70">({t.count})</span>
+            {t.label}
+            <span className="text-[11px] tabular-nums text-muted-fg">{t.count}</span>
           </button>
         ))}
       </div>
@@ -392,7 +465,7 @@ function RentTable({
 }) {
   const sorted = [...rows].sort((a, b) => a.due_date.localeCompare(b.due_date));
   return (
-    <div className="table-wrap rounded border border-border bg-surface">
+    <div className="table-wrap rounded-lg border border-border bg-surface">
       <table className="table">
         <thead>
           <tr>
@@ -424,9 +497,9 @@ function RentTable({
                     <div className="flex gap-1 justify-end">
                       <form action={markFullAction}>
                         <input type="hidden" name="id" value={r.id} />
-                        <button className="btn-primary text-xs">Mark collected</button>
+                        <SubmitButton className="btn-primary btn-sm" loadingText="Saving…">Mark collected</SubmitButton>
                       </form>
-                      <Link href={`/rent/${r.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                      <Link href={`/rent/${r.id}/edit`} className="btn-secondary btn-sm">Edit</Link>
                     </div>
                   </td>
                 )}
@@ -434,7 +507,7 @@ function RentTable({
             );
           })}
           {!sorted.length && (
-            <tr><td colSpan={canMarkRent ? 7 : 6} className="text-center text-muted-fg py-4">Nothing here.</td></tr>
+            <tr><td colSpan={canMarkRent ? 7 : 6} className="!py-10 text-center text-muted-fg">Nothing here.</td></tr>
           )}
         </tbody>
       </table>
@@ -455,7 +528,7 @@ function CostTable({
 }) {
   const sorted = [...rows].sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
   return (
-    <div className="table-wrap rounded border border-border bg-surface">
+    <div className="table-wrap rounded-lg border border-border bg-surface">
       <table className="table">
         <thead>
           <tr>
@@ -486,7 +559,7 @@ function CostTable({
                 <td>
                   <div className="flex flex-wrap gap-1">
                     {lineItems.map((li, i) => (
-                      <span key={i} className="badge-muted text-xs" title={`${money(li.amount)}`}>
+                      <span key={i} className="badge-muted" title={`${money(li.amount)}`}>
                         {li.category} · {money(li.amount)}
                       </span>
                     ))}
@@ -502,9 +575,9 @@ function CostTable({
                     <div className="flex gap-1 justify-end">
                       <form action={markCostFullAction}>
                         <input type="hidden" name="id" value={c.id} />
-                        <button className="btn-primary text-xs">Mark collected</button>
+                        <SubmitButton className="btn-primary btn-sm" loadingText="Saving…">Mark collected</SubmitButton>
                       </form>
-                      <Link href={`/costs/${c.id}/collect`} className="btn-secondary text-xs">Edit</Link>
+                      <Link href={`/costs/${c.id}/collect`} className="btn-secondary btn-sm">Edit</Link>
                     </div>
                   </td>
                 )}
@@ -512,7 +585,7 @@ function CostTable({
             );
           })}
           {!sorted.length && (
-            <tr><td colSpan={canMarkRent ? 9 : 8} className="text-center text-muted-fg py-4">No cost charges.</td></tr>
+            <tr><td colSpan={canMarkRent ? 9 : 8} className="!py-10 text-center text-muted-fg">No cost charges.</td></tr>
           )}
         </tbody>
       </table>
@@ -522,7 +595,7 @@ function CostTable({
 
 function CollectedTable({ items, canMarkRent }: { items: CollectedItem[]; canMarkRent: boolean }) {
   return (
-    <div className="table-wrap rounded border border-border bg-surface">
+    <div className="table-wrap rounded-lg border border-border bg-surface">
       <table className="table">
         <thead>
           <tr>
@@ -544,11 +617,11 @@ function CollectedTable({ items, canMarkRent }: { items: CollectedItem[]; canMar
                   <td>{fmtDate(r.collected_at)}</td>
                   <td><span className="badge-success">Rent</span></td>
                   <td>{p?.name}</td>
-                  <td className="text-muted-fg text-xs">—</td>
+                  <td className="text-muted-fg">—</td>
                   <td className="text-right">{money(r.collected_amount)}</td>
                   {canMarkRent && (
                     <td className="text-right">
-                      <Link href={`/rent/${r.id}/edit`} className="btn-secondary text-xs">Edit</Link>
+                      <Link href={`/rent/${r.id}/edit`} className="btn-secondary btn-sm">Edit</Link>
                     </td>
                   )}
                 </tr>
@@ -564,12 +637,12 @@ function CollectedTable({ items, canMarkRent }: { items: CollectedItem[]; canMar
                 <td><span className="badge-warning">Cost</span></td>
                 <td>
                   <div className="font-medium">{c.description}</div>
-                  <div className="text-xs text-muted-fg">{p?.name}</div>
+                  <div className="mt-0.5 text-[12px] text-muted-fg">{p?.name}</div>
                 </td>
                 <td>
                   <div className="flex flex-wrap gap-1">
                     {lineItems.map((li, i) => (
-                      <span key={i} className="badge-muted text-xs">
+                      <span key={i} className="badge-muted">
                         {li.category} · {money(li.amount)}
                       </span>
                     ))}
@@ -578,14 +651,14 @@ function CollectedTable({ items, canMarkRent }: { items: CollectedItem[]; canMar
                 <td className="text-right">{money(c.collected_amount)}</td>
                 {canMarkRent && (
                   <td className="text-right">
-                    <Link href={`/costs/${c.id}/collect`} className="btn-secondary text-xs">Edit</Link>
+                    <Link href={`/costs/${c.id}/collect`} className="btn-secondary btn-sm">Edit</Link>
                   </td>
                 )}
               </tr>
             );
           })}
           {!items.length && (
-            <tr><td colSpan={canMarkRent ? 6 : 5} className="text-center text-muted-fg py-4">Nothing collected.</td></tr>
+            <tr><td colSpan={canMarkRent ? 6 : 5} className="!py-10 text-center text-muted-fg">Nothing collected.</td></tr>
           )}
         </tbody>
       </table>

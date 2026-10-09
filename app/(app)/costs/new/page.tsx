@@ -106,8 +106,8 @@ export default async function NewCostPage() {
   }
 
   return (
-    <div className="max-w-2xl">
-      <PageHeader title="Add cost" />
+    <div className="[&>*:not(:first-child)]:max-w-2xl">
+      <PageHeader crumbs={[{ label: "Costs", href: "/costs" }, { label: "Add cost" }]} />
       <CostForm properties={properties} categories={categories} action={create} />
     </div>
   );

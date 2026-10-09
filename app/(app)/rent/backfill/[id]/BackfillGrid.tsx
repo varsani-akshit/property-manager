@@ -158,7 +158,7 @@ export function BackfillGrid({
                 );
               })}
               {!filtered.length && (
-                <tr><td colSpan={7} className="text-center text-muted-fg py-6">No rows match this search.</td></tr>
+                <tr><td colSpan={7} className="!py-10 text-center text-muted-fg">No rows match this search.</td></tr>
               )}
             </tbody>
           </table>

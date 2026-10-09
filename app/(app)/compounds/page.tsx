@@ -73,7 +73,7 @@ export default async function CompoundsPage({
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label="Compounds" value={String(rows.length)} />
         <Kpi label="Properties" value={String(totalProps)} />
         <Kpi label="Portfolio sqft" value={totalSqft.toLocaleString()} />

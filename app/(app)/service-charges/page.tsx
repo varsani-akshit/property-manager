@@ -1,5 +1,6 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
+import { Pagination } from "@/components/Pagination";
 import { Kpi } from "@/components/Kpi";
 import { SearchBar } from "@/components/SearchBar";
 import { money } from "@/lib/format";
@@ -180,21 +181,25 @@ export default async function ServiceChargesPage({
         right={<SearchBar placeholder="Search property or compound…" />}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <Kpi label="Pending" value={money(statusKpi("pending").amount_sum)} hint={`${statusKpi("pending").row_count} rows`} />
         <Kpi label="Paid (total)" value={money(statusKpi("paid").amount_sum)} hint={`${statusKpi("paid").row_count} rows`} />
         <Kpi label="Skipped" value={money(statusKpi("skipped").amount_sum)} hint={`${statusKpi("skipped").row_count} rows`} />
         <Kpi label="Lessee direct" value={money(statusKpi("lessee_direct").amount_sum)} hint={`${statusKpi("lessee_direct").row_count} rows`} />
       </div>
 
-      <div className="flex flex-wrap gap-1 mb-4">
+      <div className="mb-3 flex flex-wrap items-center gap-1" role="tablist">
         {tabs.map((t) => (
           <Link
             key={t.key}
             href={`?tab=${t.key}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-            className={`px-3 py-1.5 rounded text-sm border ${tab === t.key ? "bg-primary text-primary-fg border-primary" : "border-border hover:border-primary hover:text-primary"}`}
+            role="tab"
+            aria-selected={tab === t.key}
+            scroll={false}
+            className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[13px] transition-colors ${tab === t.key ? "bg-muted font-medium text-fg" : "text-muted-fg hover:text-fg"}`}
           >
             {t.label}
+            <span className="text-[11.5px] tabular-nums text-muted-fg">{statusKpi(t.key).row_count.toLocaleString()}</span>
           </Link>
         ))}
       </div>
@@ -202,42 +207,26 @@ export default async function ServiceChargesPage({
       <form action={bulkAction}>
         <div className="card p-0">
           {canPay && (tab === "pending" || tab === "skipped") && (
-            <div className="px-3 py-2 border-b border-border flex flex-wrap items-center gap-2 justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-2 border-b border-line-subtle px-4 py-2.5">
               {tab === "pending" && (
                 <>
-                  <button name="action" value="pay" className="btn-primary text-xs">Mark selected as Paid</button>
-                  <button name="action" value="skip" className="btn-secondary text-xs">Skip selected</button>
+                  <button name="action" value="pay" className="btn-primary">Mark selected as Paid</button>
+                  <button name="action" value="skip" className="btn-secondary">Skip selected</button>
                 </>
               )}
               {tab === "skipped" && (
-                <button name="action" value="unskip" className="btn-secondary text-xs">Re-open selected (back to Pending)</button>
+                <button name="action" value="unskip" className="btn-secondary">Re-open selected (back to Pending)</button>
               )}
             </div>
           )}
           <SCTable rows={rows} tab={tab} canPay={canPay} />
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-3 py-2 border-t border-border text-xs text-muted-fg">
-              <span>Showing {from + 1}–{Math.min(from + SC_PAGE_SIZE, totalRows)} of {totalRows}</span>
-              <div className="flex gap-1">
-                {page > 1 && (
-                  <Link
-                    href={`?tab=${tab}${q ? `&q=${encodeURIComponent(q)}` : ""}&page=${page - 1}`}
-                    className="btn-secondary text-xs"
-                  >
-                    ← Prev
-                  </Link>
-                )}
-                {page < totalPages && (
-                  <Link
-                    href={`?tab=${tab}${q ? `&q=${encodeURIComponent(q)}` : ""}&page=${page + 1}`}
-                    className="btn-secondary text-xs"
-                  >
-                    Next →
-                  </Link>
-                )}
-              </div>
-            </div>
-          )}
+          <Pagination
+            page={page}
+            total={totalRows}
+            pageSize={SC_PAGE_SIZE}
+            searchParams={{ tab, ...(q ? { q } : {}) }}
+            label="rows"
+          />
         </div>
       </form>
     </div>

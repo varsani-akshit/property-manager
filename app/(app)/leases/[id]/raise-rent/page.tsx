@@ -81,7 +81,7 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="max-w-xl">
+    <div className="[&>*:not(:first-child)]:max-w-xl">
       <PageHeader
         crumbs={[
           { label: "Leases", href: "/leases" },
@@ -138,8 +138,8 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
 
       {(history ?? []).length > 0 && (
         <div className="card p-0 mt-6">
-          <div className="px-3 py-3 border-b border-border">
-            <h2 className="font-semibold">Rent change history</h2>
+          <div className="section-head">
+            <h2>Rent change history</h2>
           </div>
           <div className="table-wrap">
             <table className="table">

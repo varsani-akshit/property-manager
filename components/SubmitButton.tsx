@@ -1,6 +1,6 @@
 "use client";
 import { useFormStatus } from "react-dom";
-import { Loader2 } from "lucide-react";
+import { Loader } from "./Loader";
 
 /**
  * Submit button that disables itself + shows a spinner while the surrounding
@@ -24,7 +24,7 @@ export function SubmitButton({
   const { pending } = useFormStatus();
   return (
     <button type="submit" disabled={pending} className={className} aria-busy={pending}>
-      {pending && <Loader2 size={14} className="animate-spin" />}
+      {pending && <Loader size="xs" tone="current" />}
       {pending ? (loadingText ?? "Saving…") : children}
     </button>
   );

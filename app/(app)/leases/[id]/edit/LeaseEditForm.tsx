@@ -93,7 +93,7 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
             ].map((opt) => (
               <label
                 key={opt.v}
-                className={`block rounded-md border p-3 cursor-pointer text-sm ${scMode === opt.v ? "border-accent bg-accent/5" : "border-border hover:bg-muted/50"}`}
+                className={`block cursor-pointer rounded-lg border p-3 text-[13px] transition-colors ${scMode === opt.v ? "border-primary bg-primary-soft ring-1 ring-primary/30" : "border-border hover:bg-muted/50"}`}
               >
                 <div className="flex items-start gap-2">
                   <input
@@ -115,7 +115,7 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
       </div>
 
       {sc > 0 && (
-        <div className="rounded-md bg-muted p-3 text-sm space-y-1">
+        <div className="space-y-1 rounded-lg border border-line-subtle bg-sunken p-3 text-[12.5px]">
           <div className="flex justify-between"><span>Rent / mo</span><span>{money(gross)}</span></div>
           <div className="flex justify-between"><span>Service charge / mo</span><span>{money(sc)}</span></div>
         </div>

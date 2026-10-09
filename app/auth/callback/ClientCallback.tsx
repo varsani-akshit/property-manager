@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/client";
+import { AuthLayout } from "@/components/brand/AuthLayout";
+import { Loader } from "@/components/Loader";
 
 export function ClientCallback() {
   const router = useRouter();
@@ -49,18 +51,18 @@ export function ClientCallback() {
   }, [router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <div className="card max-w-sm w-full text-center space-y-2">
-        <h1 className="font-semibold">Completing sign-in…</h1>
-        {error ? (
-          <>
-            <p className="text-sm text-danger">{error}</p>
-            <a href="/login" className="btn-secondary text-sm inline-flex">Back to sign in</a>
-          </>
-        ) : (
-          <p className="text-sm text-muted-fg">Hold on — setting up your session.</p>
-        )}
-      </div>
-    </div>
+    <AuthLayout
+      title={error ? "Couldn't sign you in" : "Signing you in"}
+      subtitle={error ? undefined : "Hold on — setting up your session."}
+    >
+      {error ? (
+        <div className="space-y-4">
+          <div className="rounded-md bg-danger-soft px-3 py-2 text-[12px] text-danger">{error}</div>
+          <a href="/login" className="btn-secondary h-10 w-full">Back to sign in</a>
+        </div>
+      ) : (
+        <div className="flex justify-center py-2"><Loader size="md" /></div>
+      )}
+    </AuthLayout>
   );
 }

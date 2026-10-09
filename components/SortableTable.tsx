@@ -1,7 +1,7 @@
 "use client";
-import { useMemo, useState, ReactNode } from "react";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState, ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { SortTh, TablePager } from "./TableBits";
 
 /**
  * Unified sortable table primitive.
@@ -85,6 +85,9 @@ export function SortableTable<Row>({
     return sort.dir === "desc" ? arr.reverse() : arr;
   }, [rows, sort, columns]);
 
+  // Back to page 1 when the rows change (search, filters).
+  useEffect(() => setPage(1), [rows]);
+
   const total = sorted.length;
   const totalPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   const start = pageSize ? (page - 1) * pageSize : 0;
@@ -105,30 +108,21 @@ export function SortableTable<Row>({
         <table className="table">
           <thead>
             <tr>
-              {columns.map((c) => {
-                const active = sort?.key === c.key;
-                const sortable = c.sortable !== false;
-                return (
-                  <th
+              {columns.map((c) =>
+                c.sortable === false ? (
+                  <th key={c.key} className={cn(alignClass(c.align), c.width, c.headerClass)}>{c.label}</th>
+                ) : (
+                  <SortTh
                     key={c.key}
-                    className={cn(
-                      alignClass(c.align),
-                      c.width,
-                      c.headerClass,
-                      sortable && "cursor-pointer select-none hover:text-primary"
-                    )}
-                    onClick={sortable ? () => toggle(c.key) : undefined}
-                  >
-                    <span className={cn(
-                      "inline-flex items-center gap-1",
-                      c.align === "right" && "flex-row-reverse"
-                    )}>
-                      {c.label}
-                      {sortable && active && (sort!.dir === "asc" ? <ChevronUp size={12}/> : <ChevronDown size={12}/>)}
-                    </span>
-                  </th>
-                );
-              })}
+                    label={c.label}
+                    active={sort?.key === c.key}
+                    dir={sort?.key === c.key ? sort.dir : "asc"}
+                    onClick={() => toggle(c.key)}
+                    align={c.align}
+                    className={cn(c.width, c.headerClass)}
+                  />
+                )
+              )}
             </tr>
           </thead>
           <tbody>
@@ -137,6 +131,8 @@ export function SortableTable<Row>({
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={onRowClick ? "cursor-pointer" : undefined}
+                tabIndex={onRowClick ? 0 : undefined}
+                onKeyDown={onRowClick ? (e) => { if (e.key === "Enter") onRowClick(row); } : undefined}
               >
                 {columns.map((c) => (
                   <td key={c.key} className={cn(alignClass(c.align), c.cellClass)}>
@@ -147,7 +143,7 @@ export function SortableTable<Row>({
             ))}
             {!view.length && (
               <tr>
-                <td colSpan={columns.length} className="text-center text-muted-fg py-8">
+                <td colSpan={columns.length} className="!py-10 text-center text-muted-fg">
                   {emptyMessage}
                 </td>
               </tr>
@@ -155,14 +151,8 @@ export function SortableTable<Row>({
           </tbody>
         </table>
       </div>
-      {pageSize && totalPages > 1 && (
-        <div className="flex items-center justify-between px-3 py-2 border-t border-border text-xs text-muted-fg">
-          <span>Showing {start + 1}–{Math.min(start + pageSize, total)} of {total}</span>
-          <div className="flex gap-1">
-            <button className="btn-secondary text-xs disabled:opacity-40" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Prev</button>
-            <button className="btn-secondary text-xs disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next →</button>
-          </div>
-        </div>
+      {pageSize && total > pageSize && (
+        <TablePager page={page} pageSize={pageSize} total={total} onPage={setPage} />
       )}
     </div>
   );

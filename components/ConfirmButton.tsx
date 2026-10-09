@@ -1,14 +1,15 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFormStatus } from "react-dom";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { Loader } from "./Loader";
 
 function InnerSubmit({ label, className }: { label: string; className: string }) {
   const { pending } = useFormStatus();
   return (
     <button type="submit" disabled={pending} className={className} aria-busy={pending}>
-      {pending && <Loader2 size={14} className="animate-spin" />}
+      {pending && <Loader size="xs" tone="current" />}
       {pending ? "Working…" : label}
     </button>
   );
@@ -33,32 +34,32 @@ function ConfirmDialog({
   confirmLabel: string;
 }) {
   const confirmRef = useRef<HTMLButtonElement>(null);
-  // Autofocus the primary button when opened.
-  if (typeof window !== "undefined" && open) {
-    setTimeout(() => confirmRef.current?.focus(), 0);
-  }
+  useEffect(() => {
+    if (!open) return;
+    confirmRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onCancel();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open, onCancel]);
   if (!open || typeof document === "undefined") return null;
   return createPortal(
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40"
-      onClick={onCancel}
-      onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="bg-bg border border-border rounded-lg shadow-lg max-w-md w-full p-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start gap-3 mb-4">
-          <div className="shrink-0 mt-0.5 text-warning">
-            <AlertTriangle size={20} />
-          </div>
-          <p className="text-sm whitespace-pre-line">{message}</p>
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <button
+        type="button"
+        aria-label="Cancel"
+        className="absolute inset-0 cursor-default"
+        style={{ background: "var(--overlay)" }}
+        onClick={onCancel}
+      />
+      <div className="relative w-full max-w-md animate-fade-in rounded-lg border border-border bg-raised shadow-token-lg">
+        <div className="flex items-center gap-2 border-b border-line-subtle px-4 py-3">
+          <AlertTriangle size={15} className="shrink-0 text-warning" />
+          <h2 className="text-[15px] font-semibold text-fg">Please confirm</h2>
         </div>
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="btn-secondary text-sm">Cancel</button>
-          <button ref={confirmRef} type="button" onClick={onConfirm} className="btn-danger text-sm">
+        <p className="whitespace-pre-line px-4 py-4 text-[13px] leading-relaxed text-fg-soft">{message}</p>
+        <div className="flex justify-end gap-2 border-t border-line-subtle px-4 py-3">
+          <button type="button" onClick={onCancel} className="btn-secondary">Cancel</button>
+          <button ref={confirmRef} type="button" onClick={onConfirm} className="btn-danger">
             {confirmLabel}
           </button>
         </div>
@@ -73,7 +74,7 @@ export function ConfirmButton({
   hiddenInputs = {},
   confirm: confirmMsg = "Are you sure?",
   label,
-  className = "btn-danger text-xs",
+  className = "btn-danger-ghost",
   formClassName,
   confirmLabel,
 }: {
@@ -134,7 +135,7 @@ export function ConfirmPostButton({
   action,
   confirm: confirmMsg = "Are you sure?",
   label,
-  className = "btn-danger text-xs",
+  className = "btn-danger-ghost",
   confirmLabel,
 }: {
   action: string;

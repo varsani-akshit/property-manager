@@ -124,9 +124,10 @@ export default async function PropertyDetailPage({
   const monthBuckets = new Map<string, { collected: number; costs: number }>();
   for (const m of months) monthBuckets.set(m, { collected: 0, costs: 0 });
   for (const r of periodRent) {
-    if (r.status === "collected" && r.collected_at) {
+    // Same rule as the "Collected" figure above: partial payments count, by the amount paid.
+    if ((r.status === "collected" || r.status === "partial") && r.collected_at) {
       const k = ymKey(r.collected_at);
-      if (monthBuckets.has(k)) monthBuckets.get(k)!.collected += Number(r.net_amount || 0);
+      if (monthBuckets.has(k)) monthBuckets.get(k)!.collected += Number(r.collected_amount || (r.status === "collected" ? r.net_amount : 0));
     }
   }
   for (const c of costsInPeriod) {
@@ -196,91 +197,94 @@ export default async function PropertyDetailPage({
       />
 
       {/* PROPERTY + LEASE FACTS */}
-      <div className="card mb-4 grid sm:grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+      <div className="card mb-2 grid gap-x-6 gap-y-4 sm:grid-cols-2 md:grid-cols-4">
         <div>
-          <div className="text-xs uppercase text-muted-fg">Area · Valuation</div>
-          <div className="font-medium">{Number(prop.area_sqft).toLocaleString()} sqft</div>
-          <div className="text-xs text-muted-fg">{money(prop.valuation)}</div>
+          <div className="kpi-label">Area · Valuation</div>
+          <div className="mt-1.5 text-[14px] font-medium text-fg">{Number(prop.area_sqft).toLocaleString()} sqft</div>
+          <div className="mt-0.5 text-[12px] text-muted-fg">{money(prop.valuation)}</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-muted-fg">Service charge</div>
-          <div className="font-medium">{money(prop.service_charge_monthly)} / mo</div>
-          <div className="text-xs text-muted-fg">{prop.service_charge_start_date ? `Since ${fmtDate(prop.service_charge_start_date)}` : "—"}</div>
+          <div className="kpi-label">Service charge</div>
+          <div className="mt-1.5 text-[14px] font-medium text-fg">{money(prop.service_charge_monthly)} / mo</div>
+          <div className="mt-0.5 text-[12px] text-muted-fg">{prop.service_charge_start_date ? `Since ${fmtDate(prop.service_charge_start_date)}` : "—"}</div>
         </div>
         <div>
-          <div className="text-xs uppercase text-muted-fg">Status</div>
+          <div className="kpi-label">Status</div>
           {activeLease ? (
             <>
-              <div className="font-medium">{(activeLease as any).lessee_name}</div>
-              <div className="text-xs text-muted-fg">
+              <div className="mt-1.5 text-[14px] font-medium text-fg">{(activeLease as any).lessee_name}</div>
+              <div className="mt-0.5 text-[12px] text-muted-fg">
                 <Link href={`/leases/${(activeLease as any).id}`} className="hover:underline">View lease →</Link>
               </div>
             </>
           ) : (
             <>
-              <div className="font-medium text-muted-fg">Vacant</div>
+              <div className="mt-1.5 text-[14px] font-medium text-muted-fg">Vacant</div>
               {has(profile, "create_lease") && (
-                <Link href={`/leases/new?property=${prop.id}`} className="text-xs text-accent hover:underline">Put on rent →</Link>
+                <Link href={`/leases/new?property=${prop.id}`} className="text-[12px] font-medium text-primary hover:underline">Put on rent →</Link>
               )}
             </>
           )}
         </div>
         <div>
-          <div className="text-xs uppercase text-muted-fg">Current rent</div>
+          <div className="kpi-label">Current rent</div>
           {activeLease ? (
             <>
-              <div className="font-medium">{money((activeLease as any).gross_rent_monthly)} / mo</div>
-              <div className="text-xs text-muted-fg">
+              <div className="mt-1.5 text-[14px] font-medium text-fg">{money((activeLease as any).gross_rent_monthly)} / mo</div>
+              <div className="mt-0.5 text-[12px] text-muted-fg">
                 {(activeLease as any).sc_payment_mode === "lessee_direct" ? "Lessee pays SC" : "We pay SC"} · ends {fmtDate((activeLease as any).end_date)}
               </div>
             </>
           ) : (
-            <div className="text-muted-fg">—</div>
+            <div className="mt-1.5 text-muted-fg">—</div>
           )}
         </div>
         {prop.deed_url && (
-          <div className="sm:col-span-2 md:col-span-4 pt-3 border-t border-border">
-            <a href={prop.deed_url} target="_blank" className="text-xs text-accent hover:underline">Property deed →</a>
+          <div className="border-t border-line-subtle pt-3 sm:col-span-2 md:col-span-4">
+            <a href={prop.deed_url} target="_blank" className="text-[12px] font-medium text-primary hover:underline">Property deed →</a>
             {(activeLease as any)?.lessee_doc_url && (
               <>
                 <span className="text-muted-fg mx-2">·</span>
-                <a href={(activeLease as any).lessee_doc_url} target="_blank" className="text-xs text-accent hover:underline">Lessee documents →</a>
+                <a href={(activeLease as any).lessee_doc_url} target="_blank" className="text-[12px] font-medium text-primary hover:underline">Lessee documents →</a>
               </>
             )}
           </div>
         )}
       </div>
 
-      <DateFilter active={period.range as Range} />
+      <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[15px] font-medium tracking-[-0.01em] text-fg">Performance</h2>
+        <DateFilter active={period.range as Range} />
+      </div>
 
       {/* HERO KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="stat-row mb-6">
         <div className="kpi">
           <div className="kpi-label">Net</div>
           <div className={`kpi-value ${net < 0 ? "text-danger" : "text-success"}`}>{money(net)}</div>
-          <div className="text-xs text-muted-fg mt-auto">{money(collected)} in − {money(totalCosts)} out</div>
+          <div className="kpi-hint">{money(collected)} in − {money(totalCosts)} out</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Collection rate</div>
           <div className="kpi-value">{collectionRate !== null ? `${collectionRate.toFixed(0)}%` : "—"}</div>
-          <div className="text-xs text-muted-fg mt-auto">{money(collected)} of {money(billed)} billed</div>
+          <div className="kpi-hint">{money(collected)} of {money(billed)} billed</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">Outstanding</div>
           <div className={`kpi-value ${outstanding > 0 ? "text-danger" : ""}`}>{money(outstanding)}</div>
-          <div className="text-xs text-muted-fg mt-auto">In selected period</div>
+          <div className="kpi-hint">In selected period</div>
         </div>
         <div className="kpi">
           <div className="kpi-label">ROI annualized</div>
           <div className={`kpi-value ${annualROI !== null && annualROI < 0 ? "text-danger" : ""}`}>
             {annualROI !== null ? `${annualROI.toFixed(2)}%` : "—"}
           </div>
-          <div className="text-xs text-muted-fg mt-auto">On {money(prop.valuation)}</div>
+          <div className="kpi-hint">On {money(prop.valuation)}</div>
         </div>
       </div>
 
       {/* TREND + COST BREAKDOWN — merged into one card with vertical divider */}
-      <div className="card p-0 mb-6 grid lg:grid-cols-2 lg:divide-x divide-border">
+      <div className="card mb-6 grid p-0 lg:grid-cols-2 lg:divide-x lg:divide-line-subtle">
         <div>
           <div className="section-head"><h2>Monthly trend</h2></div>
           <div className="panel">
@@ -299,7 +303,7 @@ export default async function PropertyDetailPage({
             {categoryRows.length > 0 ? (
               <DonutChart data={categoryRows} formatValue={(n) => money(n)} />
             ) : (
-              <p className="text-sm text-muted-fg py-6 text-center">No costs in this period.</p>
+              <p className="py-10 text-center text-[13px] text-muted-fg">No costs in this period.</p>
             )}
           </div>
         </div>
@@ -307,8 +311,8 @@ export default async function PropertyDetailPage({
 
       {/* RENT HISTORY */}
       <div className="card mb-6 p-0">
-        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-          <h2 className="font-semibold">Rent history</h2>
+        <div className="section-head">
+          <h2>Rent history</h2>
           <span className="text-xs text-muted-fg">{rentTotal.toLocaleString()} row{rentTotal === 1 ? "" : "s"}</span>
         </div>
         <div className="table-wrap">
@@ -328,7 +332,7 @@ export default async function PropertyDetailPage({
                   <td>{r.collected_at ? fmtDate(r.collected_at) : "—"}</td>
                 </tr>
               ))}
-              {!rentRows.length && <tr><td colSpan={5} className="text-muted-fg text-center py-4">No rent in this period.</td></tr>}
+              {!rentRows.length && <tr><td colSpan={5} className="!py-10 text-center text-muted-fg">No rent in this period.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -337,8 +341,8 @@ export default async function PropertyDetailPage({
 
       {/* COST HISTORY with line items expanded */}
       <div className="card mb-6 p-0">
-        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-          <h2 className="font-semibold">Cost history (line items)</h2>
+        <div className="section-head">
+          <h2>Cost history (line items)</h2>
           <span className="text-xs text-muted-fg">{costTotal.toLocaleString()} cost{costTotal === 1 ? "" : "s"}</span>
         </div>
         <div className="table-wrap">
@@ -374,7 +378,7 @@ export default async function PropertyDetailPage({
                   );
                 });
               })}
-              {!allocsRows.length && <tr><td colSpan={5} className="text-muted-fg text-center py-4">No costs in this period.</td></tr>}
+              {!allocsRows.length && <tr><td colSpan={5} className="!py-10 text-center text-muted-fg">No costs in this period.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -383,8 +387,8 @@ export default async function PropertyDetailPage({
 
       {/* LEASE HISTORY */}
       <div className="card p-0">
-        <div className="flex items-center justify-between px-3 py-3 border-b border-border">
-          <h2 className="font-semibold">Lease history</h2>
+        <div className="section-head">
+          <h2>Lease history</h2>
           <span className="text-xs text-muted-fg">{leaseTotal.toLocaleString()} lease{leaseTotal === 1 ? "" : "s"}</span>
         </div>
         <div className="table-wrap">
@@ -402,10 +406,10 @@ export default async function PropertyDetailPage({
                       : <span className="badge-muted">Ended</span>}
                   </td>
                   <td className="text-right">{money(l.gross_rent_monthly)}</td>
-                  <td className="text-right"><Link href={`/leases/${l.id}`} className="btn-secondary text-xs">View</Link></td>
+                  <td className="text-right"><Link href={`/leases/${l.id}`} className="btn-secondary">View</Link></td>
                 </tr>
               ))}
-              {!leases.length && <tr><td colSpan={6} className="text-muted-fg text-center py-4">No leases yet.</td></tr>}
+              {!leases.length && <tr><td colSpan={6} className="!py-10 text-center text-muted-fg">No leases yet.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -418,7 +422,7 @@ export default async function PropertyDetailPage({
             action={`/api/leases/${(activeLease as any).id}/cancel`}
             confirm={`Cancel the active lease for ${(activeLease as any).lessee_name}? Future unpaid rent rows will be removed.`}
             label="Cancel active rental"
-            className="btn-danger text-xs"
+            className="btn-danger"
           />
         </div>
       )}
