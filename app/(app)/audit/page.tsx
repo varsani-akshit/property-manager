@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { rowLink } from "@/lib/row-link";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
@@ -29,6 +30,9 @@ const LINK: Record<string, (id: string) => string> = {
   properties: (id) => `/properties/${id}`,
   compounds: (id) => `/compounds/${id}`,
   rent_collections: (id) => `/rent/${id}/edit`,
+  costs: (id) => `/costs/${id}/edit`,
+  user_profiles: () => `/users`,
+  api_keys: () => `/admin/api-keys`,
 };
 // Fields not worth showing in a diff
 const HIDE = new Set(["id", "created_by", "updated_at", "legacy", "lessee_pays_service_charge", "deposit_amount", "service_charge_deduction"]);
@@ -102,7 +106,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                 const keys = Object.keys(changes).filter((k) => !HIDE.has(k));
                 const link = LINK[r.entity]?.(r.entity_id);
                 return (
-                  <tr key={r.id} className="align-top">
+                  <tr key={r.id} className="align-top" {...rowLink(link && r.action !== "deleted" ? link : undefined)}>
                     <td className="whitespace-nowrap">{new Date(r.at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}<div className="max-w-[8rem] truncate text-[11px] text-muted-fg md:hidden">{r.actor_email ?? "System"}</div></td>
                     <td className="hidden md:table-cell">{r.actor_email ?? <span className="text-muted-fg">System</span>}</td>
                     <td className="hidden sm:table-cell">
@@ -112,7 +116,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                       <div className="text-[11px] text-muted-fg">{ENTITIES[r.entity] ?? r.entity}<span className="sm:hidden"> · {r.action}</span></div>
                       {link && r.action !== "deleted" ? <Link href={link} className="font-medium hover:underline">{r.label ?? r.entity_id}</Link> : <span className="font-medium">{r.label ?? r.entity_id}</span>}
                     </td>
-                    <td className="whitespace-normal">
+                    <td className="whitespace-normal" data-row-ignore>
                       <details>
                         <summary className="cursor-pointer text-[12px] text-fg-soft">
                           {isDiff ? keys.slice(0, 3).join(", ") + (keys.length > 3 ? ` +${keys.length - 3}` : "") : `${keys.length} field${keys.length === 1 ? "" : "s"}`}

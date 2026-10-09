@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase/server";
+import { rowLink } from "@/lib/row-link";
 import { PageHeader } from "@/components/PageHeader";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { DateFilter } from "@/components/DateFilter";
@@ -8,6 +9,7 @@ import { getAnalyticsFacts, pruneFacts } from "@/lib/analytics/server";
 import { ConfirmButton, ConfirmPostButton } from "@/components/ConfirmButton";
 import { money, fmtDate } from "@/lib/format";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
@@ -31,6 +33,8 @@ export default async function PropertyDetailPage({
   const leasePage = parsePage(sp.lease_page);
 
   const profile = await guardView("view_properties");
+  const canEditCost = has(profile, "add_cost");
+  const canLease = has(profile, "view_leases");
   const sb = await supabaseServer();
 
   const { data: prop } = await sb
@@ -199,7 +203,7 @@ export default async function PropertyDetailPage({
             <thead><tr><th>Due date</th><th>Status</th><th className="text-right hidden sm:table-cell">Net</th><th className="text-right">Paid</th><th className="hidden md:table-cell">Collected on</th></tr></thead>
             <tbody>
               {rentRows.map((r: any) => (
-                <tr key={r.id}>
+                <tr key={r.id} {...rowLink(canLease && r.lease_id ? `/leases/${r.lease_id}` : undefined)}>
                   <td>{fmtDate(r.due_date)}</td>
                   <td>
                     {r.status === "collected" ? <span className="badge-success">Collected</span>
@@ -235,7 +239,7 @@ export default async function PropertyDetailPage({
                 const totalLines = Number(cost?.amount ?? lineItems.reduce((s: number, l: any) => s + Number(l.amount || 0), 0));
                 if (!lineItems.length) {
                   return [(
-                    <tr key={`${i}-only`}>
+                    <tr key={`${i}-only`} {...rowLink(canEditCost && cost?.id ? `/costs/${cost.id}/edit` : undefined)}>
                       <td>{fmtDate(cost?.incurred_on)}</td>
                       <td className="font-medium">{cost?.description}</td>
                       <td className="text-muted-fg hidden md:table-cell">—</td>
@@ -247,7 +251,7 @@ export default async function PropertyDetailPage({
                 return lineItems.map((li: any, j: number) => {
                   const share = totalLines > 0 ? (Number(li.amount) / totalLines) * allocated : 0;
                   return (
-                    <tr key={`${i}-${j}`} className={j > 0 ? "text-muted-fg" : ""}>
+                    <tr key={`${i}-${j}`} className={j > 0 ? "text-muted-fg" : ""} {...rowLink(canEditCost && cost?.id ? `/costs/${cost.id}/edit` : undefined)}>
                       <td>{j === 0 ? fmtDate(cost?.incurred_on) : ""}</td>
                       <td>{j === 0 ? <span className="font-medium">{cost?.description}</span> : <span className="pl-3">↳</span>}</td>
                       <td className="hidden md:table-cell"><span className="badge-muted">{li.category}</span></td>
@@ -275,7 +279,7 @@ export default async function PropertyDetailPage({
             <thead><tr><th>Lessee</th><th className="hidden md:table-cell">Start</th><th className="hidden sm:table-cell">End</th><th>Status</th><th className="text-right hidden sm:table-cell">Rent</th><th></th></tr></thead>
             <tbody>
               {leases.map((l: any) => (
-                <tr key={l.id}>
+                <tr key={l.id} {...rowLink(canLease ? `/leases/${l.id}` : undefined)}>
                   <td className="font-medium">{l.lessee_name}</td>
                   <td className="hidden md:table-cell">{fmtDate(l.start_date)}</td>
                   <td className="hidden sm:table-cell">{fmtDate(l.end_date)}</td>
@@ -285,7 +289,7 @@ export default async function PropertyDetailPage({
                       : <span className="badge-muted">Ended</span>}
                   </td>
                   <td className="text-right hidden sm:table-cell">{money(l.gross_rent_monthly)}</td>
-                  <td className="text-right"><Link href={`/leases/${l.id}`} className="btn-secondary btn-sm">View</Link></td>
+                  <td className="text-right text-muted-fg">{canLease && <ChevronRight size={14} className="ml-auto" aria-hidden />}</td>
                 </tr>
               ))}
               {!leases.length && <tr><td colSpan={6} className="!py-10 text-center text-muted-fg">No leases yet.</td></tr>}

@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase/server";
+import { rowLink } from "@/lib/row-link";
 import { PageHeader } from "@/components/PageHeader";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { DateFilter } from "@/components/DateFilter";
@@ -225,7 +226,7 @@ export default async function LeaseDetailPage({
             <thead><tr><th>Due date</th><th>Status</th><th className="text-right hidden sm:table-cell">Net</th><th className="text-right">Paid</th><th className="hidden md:table-cell">Collected on</th></tr></thead>
             <tbody>
               {rentRows.map((r: any) => (
-                <tr key={r.id}>
+                <tr key={r.id} {...rowLink(has(profile, "mark_rent") ? `/rent/${r.id}/edit` : undefined)}>
                   <td>{fmtDate(r.due_date)}</td>
                   <td>
                     {r.status === "collected" ? <span className="badge-success">Collected</span>
@@ -258,7 +259,7 @@ export default async function LeaseDetailPage({
                 {lesseeCosts.map((c) => {
                   const lineItems = (c.cost_line_items ?? []) as { category: string; amount: number }[];
                   return (
-                    <tr key={c.id}>
+                    <tr key={c.id} {...rowLink(has(profile, "mark_rent") ? `/costs/${c.id}/collect` : undefined)}>
                       <td className="hidden sm:table-cell">{fmtDate(c.due_date)}</td>
                       <td className="font-medium">{c.description}</td>
                       <td className="hidden lg:table-cell">
@@ -301,7 +302,7 @@ export default async function LeaseDetailPage({
                 const sumLines = Number(cost?.amount ?? lineItems.reduce((s: number, l: any) => s + Number(l.amount || 0), 0));
                 if (!lineItems.length) {
                   return [(
-                    <tr key={`${i}-only`}>
+                    <tr key={`${i}-only`} {...rowLink(has(profile, "add_cost") && cost?.id ? `/costs/${cost.id}/edit` : undefined)}>
                       <td>{fmtDate(cost?.incurred_on)}</td>
                       <td className="font-medium">{cost?.description}</td>
                       <td className="text-muted-fg hidden md:table-cell">—</td>
@@ -313,7 +314,7 @@ export default async function LeaseDetailPage({
                 return lineItems.map((li: any, j: number) => {
                   const share = sumLines > 0 ? (Number(li.amount) / sumLines) * allocated : 0;
                   return (
-                    <tr key={`${i}-${j}`} className={j > 0 ? "text-muted-fg" : ""}>
+                    <tr key={`${i}-${j}`} className={j > 0 ? "text-muted-fg" : ""} {...rowLink(has(profile, "add_cost") && cost?.id ? `/costs/${cost.id}/edit` : undefined)}>
                       <td>{j === 0 ? fmtDate(cost?.incurred_on) : ""}</td>
                       <td>{j === 0 ? <span className="font-medium">{cost?.description}</span> : <span className="pl-3">↳</span>}</td>
                       <td className="hidden md:table-cell"><span className="badge-muted">{li.category}</span></td>

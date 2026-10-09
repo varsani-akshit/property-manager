@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { rowLink } from "@/lib/row-link";
 import Link from "next/link";
 import { money, fmtDate } from "@/lib/format";
 import { SortTh, TablePager } from "@/components/TableBits";
@@ -77,20 +78,18 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
             {view.map((l) => {
               const href = `/leases/${l.id}`;
               return (
-                <tr key={l.id} className="cursor-pointer">
+                <tr key={l.id} {...rowLink(href)}>
                   <td>
                     <Link href={href} className="block font-medium">{l.property_name}</Link>
-                    <Link href={href} className="block text-xs text-muted-fg">{l.compound_name}<span className="sm:hidden"> · until {fmtDate(l.end_date)}{l.active ? "" : " (ended)"}</span></Link>
+                    <span className="block text-xs text-muted-fg">{l.compound_name}<span className="sm:hidden"> · until {fmtDate(l.end_date)}{l.active ? "" : " (ended)"}</span></span>
                   </td>
-                  <td><Link href={href} className="block font-medium">{l.lessee_name}</Link></td>
-                  <td className="hidden md:table-cell"><Link href={href} className="block">{l.lessee_contact || "—"}</Link></td>
-                  <td className="hidden sm:table-cell"><Link href={href} className="block">{fmtDate(l.start_date)}</Link></td>
-                  <td className="hidden sm:table-cell"><Link href={href} className="block">{fmtDate(l.end_date)}</Link></td>
-                  <td className="text-right"><Link href={href} className="block">{money(l.gross_rent_monthly)}</Link></td>
+                  <td className="font-medium">{l.lessee_name}</td>
+                  <td className="hidden md:table-cell">{l.lessee_contact || "—"}</td>
+                  <td className="hidden sm:table-cell">{fmtDate(l.start_date)}</td>
+                  <td className="hidden sm:table-cell">{fmtDate(l.end_date)}</td>
+                  <td className="text-right">{money(l.gross_rent_monthly)}</td>
                   <td className="text-center hidden sm:table-cell">
-                    <Link href={href} className="block">
-                      {l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}
-                    </Link>
+                    {l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}
                   </td>
                 </tr>
               );

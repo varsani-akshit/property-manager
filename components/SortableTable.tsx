@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState, ReactNode } from "react";
+import { rowLink } from "@/lib/row-link";
 import { cn } from "@/lib/cn";
 import { SortTh, TablePager } from "./TableBits";
 
@@ -64,6 +65,7 @@ export function SortableTable<Row>({
   rowKey,
   initialSort,
   onRowClick,
+  rowHref,
   emptyMessage = "No rows to show.",
   pageSize,
 }: {
@@ -72,6 +74,8 @@ export function SortableTable<Row>({
   rowKey: (row: Row) => string;
   initialSort?: SortState;
   onRowClick?: (row: Row) => void;
+  /** Page the row opens (whole row clickable, new tab with Cmd/Ctrl/middle-click). */
+  rowHref?: (row: Row) => string | undefined;
   emptyMessage?: string;
   pageSize?: number;
 }) {
@@ -135,6 +139,7 @@ export function SortableTable<Row>({
                 className={onRowClick ? "cursor-pointer" : undefined}
                 tabIndex={onRowClick ? 0 : undefined}
                 onKeyDown={onRowClick ? (e) => { if (e.key === "Enter") onRowClick(row); } : undefined}
+                {...rowLink(rowHref?.(row))}
               >
                 {columns.map((c) => (
                   <td key={c.key} className={cn(alignClass(c.align), c.cellClass, c.hideOnMobile && "hidden sm:table-cell")}>

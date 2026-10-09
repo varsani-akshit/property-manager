@@ -1,7 +1,9 @@
 import "server-only";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { has, type Permission, type UserProfile } from "@/lib/permissions";
+import { def, ISO, one, r2 } from "./shared";
+import { DATA_TOOLS, paymentRow, peopleNames } from "./data-tools";
+import { has } from "@/lib/permissions";
 import { resolvePeriod } from "@/lib/period";
 import { outstandingByLessee } from "@/lib/outstanding";
 import { buildStatement } from "@/lib/statement";
@@ -21,22 +23,7 @@ import {
  * permission the key's owner must hold. Amounts are Kenyan shillings (KES).
  */
 
-export type ToolCtx = { profile: UserProfile; sb: SupabaseClient };
-type Def<S extends z.ZodObject> = {
-  name: string;
-  title: string;
-  summary: string;       // one line, shown in the app
-  description: string;   // what the model reads
-  perm: Permission;
-  writes?: boolean;
-  input: S;
-  run: (args: z.infer<S>, ctx: ToolCtx) => Promise<unknown>;
-};
-const def = <S extends z.ZodObject>(d: Def<S>) => d;
-
-const ISO = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
-const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null);
-const r2 = (n: number) => Math.round(n * 100) / 100;
+export type { ToolCtx } from "./shared";
 const today = () => new Date().toISOString().slice(0, 10);
 /** A YYYY-MM-DD range; missing ends default to "last 3 months up to today". */
 const period = (from?: string, to?: string) => {
@@ -249,34 +236,38 @@ export const TOOLS = [
     name: "list_payments",
     title: "Payments received",
     summary: "The payment log: who paid what, when, how, with references.",
-    description: "Payments received in a period (default last 3 months), newest first, with lessee, property, what it paid for, method (M-Pesa, bank, cheque, cash), reference and amount, plus totals by method and by type.",
+    description: "Payments received in a period (default last 3 months), newest first: id, date, lessee and lease id, property, what it paid for (rent month / charge / deposit, with the rent row or charge id), method (M-Pesa, bank, cheque, cash; adjustment = correction; opening = balance from before the log), reference, notes, who recorded it and amount — plus totals by method and type for the whole filtered set. Paged: use offset = next_offset for more.",
     perm: "view_rent",
     input: z.object({
       from: ISO.optional(), to: ISO.optional(),
       lessee: z.string().optional(),
       method: z.enum(["mpesa", "bank", "cheque", "cash", "other", "adjustment", "opening"]).optional(),
-      limit: z.number().int().min(1).max(500).default(100),
+      kind: z.enum(["rent", "cost", "deposit"]).optional(),
+      limit: z.number().int().min(1).max(1000).default(200),
+      offset: z.number().int().min(0).default(0),
     }),
-    run: async ({ from, to, lessee, method, limit }, { sb }) => {
+    run: async ({ from, to, lessee, method, kind, limit, offset }, { sb }) => {
       const p = period(from, to);
       const leaseIds = lessee ? (await findLeaseIds(sb, lessee)).map((l) => l.id) : null;
       if (leaseIds && !leaseIds.length) return { error: `No lessee matches "${lessee}".` };
-      const rows = await fetchAll<any>((f, t) => {
-        let q = sb.from("payments").select("paid_on, kind, amount, method, reference, notes, leases(lessee_name), properties(name), rent_collections(due_month), costs(description)").gte("paid_on", p.from).lte("paid_on", p.to);
-        if (method) q = q.eq("method", method);
-        if (leaseIds) q = q.in("lease_id", leaseIds);
-        return q.order("paid_on", { ascending: false }).range(f, t);
-      });
+      const [rows, who] = await Promise.all([
+        fetchAll<any>((f, t) => {
+          let q = sb.from("payments").select("id, paid_on, kind, amount, method, reference, notes, recorded_by, lease_id, property_id, rent_collection_id, cost_id, leases(lessee_name), properties(name), rent_collections(due_month), costs(description)").gte("paid_on", p.from).lte("paid_on", p.to);
+          if (method) q = q.eq("method", method);
+          if (kind) q = q.eq("kind", kind);
+          if (leaseIds) q = q.in("lease_id", leaseIds);
+          return q.order("paid_on", { ascending: false }).order("created_at", { ascending: false }).range(f, t);
+        }),
+        peopleNames(sb),
+      ]);
       const by = (k: (r: any) => string) => Object.fromEntries([...rows.reduce((m, r) => m.set(k(r), (m.get(k(r)) ?? 0) + Number(r.amount)), new Map<string, number>())].map(([a, b]) => [a, r2(b)]));
+      const pageRows = rows.slice(offset, offset + limit).map((r) => paymentRow(r, who));
       return {
         period: { from: p.from, to: p.to }, currency: "KES",
-        total: r2(rows.reduce((a, r) => a + Number(r.amount), 0)), count: rows.length,
+        sum: r2(rows.reduce((a, r) => a + Number(r.amount), 0)),
         by_method: by((r) => methodLabel(r.method)), by_type: by((r) => r.kind),
-        payments: rows.slice(0, limit).map((r) => ({
-          paid_on: r.paid_on, lessee: one<any>(r.leases)?.lessee_name, property: one<any>(r.properties)?.name,
-          for: r.kind === "rent" ? `rent ${String(one<any>(r.rent_collections)?.due_month ?? "").slice(0, 7)}` : r.kind === "cost" ? one<any>(r.costs)?.description : "deposit",
-          method: methodLabel(r.method), reference: r.reference, amount: Number(r.amount),
-        })),
+        total: rows.length, returned: pageRows.length, offset, next_offset: offset + pageRows.length < rows.length ? offset + pageRows.length : null,
+        rows: pageRows,
       };
     },
   }),
@@ -581,6 +572,8 @@ export const TOOLS = [
       return error ? { error: error.message } : { logged: true, lessee: exact.lessee_name };
     },
   }),
+
+  ...DATA_TOOLS,
 ];
 
 /** Name, one-line summary and whether it writes — for the API keys page. */

@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { rowLink } from "@/lib/row-link";
 import Link from "next/link";
 import { money } from "@/lib/format";
 import { SortTh, TablePager } from "@/components/TableBits";
@@ -75,8 +76,8 @@ export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; p
           </thead>
           <tbody>
             {view.map((c) => (
-              <tr key={c.id}>
-                <td><Link href={`/compounds/${c.id}`} className="font-medium hover:underline">{c.name}</Link></td>
+              <tr key={c.id} {...rowLink(`/compounds/${c.id}`)}>
+                <td><Link href={`/compounds/${c.id}`} className="font-medium">{c.name}</Link></td>
                 <td className="text-xs text-muted-fg hidden sm:table-cell">{c.address || "—"}</td>
                 <td className="text-right">{c.property_count}</td>
                 <td className="text-right hidden sm:table-cell">{c.sqft.toLocaleString()}</td>
@@ -85,7 +86,7 @@ export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; p
                 <td className="text-right text-muted-fg hidden sm:table-cell">{money(c.costs)}</td>
               </tr>
             ))}
-            {!view.length && <tr><td colSpan={7} className="!py-10 text-center text-muted-fg">No compounds.</td></tr>}
+            {!view.length && <tr><td colSpan={7} className="!py-10 text-center text-muted-fg">No compounds match.</td></tr>}
           </tbody>
         </table>
       </div>

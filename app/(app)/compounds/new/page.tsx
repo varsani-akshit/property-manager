@@ -28,12 +28,12 @@ export default async function NewCompoundPage() {
       <PageHeader crumbs={[{ label: "Compounds", href: "/compounds" }, { label: "New compound" }]} />
       <form action={create} className="card space-y-4">
         <div>
-          <label className="label">Compound / area name</label>
-          <input name="name" required className="input" placeholder="e.g. Sunrise Apartments, Westlands" />
+          <label className="label" htmlFor="f-name">Compound / area name</label>
+          <input id="f-name" name="name" required className="input" placeholder="e.g. Sunrise Apartments, Westlands" />
         </div>
         <div>
-          <label className="label">Address (optional)</label>
-          <input name="address" className="input" />
+          <label className="label" htmlFor="f-address">Address (optional)</label>
+          <input id="f-address" name="address" className="input" />
         </div>
         <SubmitButton loadingText="Creating…">Create compound</SubmitButton>
       </form>

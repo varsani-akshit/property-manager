@@ -105,8 +105,8 @@ export default async function CollectCostPage({ params, searchParams }: { params
         </div>
 
         <div>
-          <label className="label">Total collected so far (KES)</label>
-          <input
+          <label className="label" htmlFor="f-collected_amount">Total collected so far (KES)</label>
+          <input id="f-collected_amount"
             name="collected_amount"
             type="number"
             step="0.01"

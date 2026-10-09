@@ -150,8 +150,8 @@ export function CostForm({
     <form action={action} className="card space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2">
-          <label className="label">Description</label>
-          <input
+          <label className="label" htmlFor="f-description">Description</label>
+          <input id="f-description"
             name="description"
             required
             className="input"
@@ -160,12 +160,12 @@ export function CostForm({
           />
         </div>
         <div>
-          <label className="label">Date</label>
-          <input name="incurred_on" type="date" required className="input" defaultValue={initial?.incurred_on ?? todayISO()} />
+          <label className="label" htmlFor="f-incurred_on">Date</label>
+          <input id="f-incurred_on" name="incurred_on" type="date" required className="input" defaultValue={initial?.incurred_on ?? todayISO()} />
         </div>
         <div>
-          <label className="label">Notes</label>
-          <input name="notes" className="input" defaultValue={initial?.notes ?? ""} placeholder="Optional" />
+          <label className="label" htmlFor="f-notes">Notes</label>
+          <input id="f-notes" name="notes" className="input" defaultValue={initial?.notes ?? ""} placeholder="Optional" />
         </div>
       </div>
 
@@ -238,8 +238,8 @@ export function CostForm({
 
         {billToLessee && (
           <div className="mt-3 pl-6">
-            <label className="label">Due date</label>
-            <input
+            <label className="label" htmlFor="f-due_date">Due date</label>
+            <input id="f-due_date"
               name="due_date"
               type="date"
               required={billToLessee}
@@ -366,8 +366,8 @@ function CompoundPicker({
                 <button
                   type="button"
                   onClick={() => setCollapsed((c) => ({ ...c, [compoundLabel]: !c[compoundLabel] }))}
-                  className="p-0.5 rounded hover:bg-muted shrink-0"
-                  aria-label={isCollapsed ? "Expand" : "Collapse"}
+                  className="-m-1 shrink-0 rounded p-1.5 hover:bg-muted"
+                  aria-label={isCollapsed ? `Show ${compoundLabel}` : `Hide ${compoundLabel}`}
                 >
                   {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                 </button>
@@ -378,7 +378,7 @@ function CompoundPicker({
                     onChange={(v) => setGroupSelection(compoundLabel, props, v)}
                   />
                 )}
-                <div className="flex-1 min-w-0 text-sm">
+                <div className="flex-1 min-w-0 cursor-pointer select-none text-sm" onClick={() => setCollapsed((c) => ({ ...c, [compoundLabel]: !c[compoundLabel] }))}>
                   <span className="font-semibold">{compoundLabel}</span>
                   <span className="text-muted-fg"> · {props.length} {props.length === 1 ? "property" : "properties"} · {groupSqft.toLocaleString()} sqft</span>
                 </div>
@@ -446,6 +446,7 @@ function CompoundCheckbox({
       type="checkbox"
       checked={checked}
       onChange={(e) => onChange(e.target.checked)}
+      aria-label="Select all in this compound"
       className="shrink-0"
     />
   );

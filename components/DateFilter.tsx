@@ -108,8 +108,9 @@ export function DateFilter({ active }: { active: Range }) {
             </div>
             <div className="grid grid-cols-2 gap-3 px-4 py-4">
               <div>
-                <label className="label">From</label>
+                <label className="label" htmlFor="df-from">From</label>
                 <input
+                  id="df-from"
                   type="date"
                   required
                   className="input"
@@ -118,8 +119,9 @@ export function DateFilter({ active }: { active: Range }) {
                 />
               </div>
               <div>
-                <label className="label">To</label>
+                <label className="label" htmlFor="df-to">To</label>
                 <input
+                  id="df-to"
                   type="date"
                   required
                   className="input"

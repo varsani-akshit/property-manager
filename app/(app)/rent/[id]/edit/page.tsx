@@ -90,8 +90,8 @@ export default async function EditRentPage({ params, searchParams }: { params: P
         </div>
 
         <div>
-          <label className="label">Rent amount (KES)</label>
-          <input
+          <label className="label" htmlFor="f-rent_amount">Rent amount (KES)</label>
+          <input id="f-rent_amount"
             name="rent_amount"
             type="number"
             step="0.01"
@@ -111,8 +111,8 @@ export default async function EditRentPage({ params, searchParams }: { params: P
         </div>
 
         <div>
-          <label className="label">Total collected so far (KES)</label>
-          <input
+          <label className="label" htmlFor="f-collected_amount">Total collected so far (KES)</label>
+          <input id="f-collected_amount"
             name="collected_amount"
             type="number"
             step="0.01"

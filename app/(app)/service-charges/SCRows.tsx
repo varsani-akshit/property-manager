@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { rowLink } from "@/lib/row-link";
 import Link from "next/link";
 import { money, fmtDate } from "@/lib/format";
 import { SortTh } from "@/components/TableBits";
@@ -87,9 +88,9 @@ export function SCTable({
         </thead>
         <tbody>
           {sorted.map((r) => (
-            <tr key={r.id}>
+            <tr key={r.id} {...rowLink(`/properties/${r.property_id}`)}>
               {showCheckbox && (
-                <td><input type="checkbox" name="ids" value={r.id} className="sc-row-check" /></td>
+                <td data-row-ignore><input type="checkbox" name="ids" value={r.id} className="sc-row-check" aria-label={`Select ${r.property_name} ${r.due_month.slice(0, 7)}`} /></td>
               )}
               <td className="whitespace-nowrap">{r.due_month.slice(0, 7)}</td>
               <td className="[overflow-wrap:anywhere]"><Link href={`/properties/${r.property_id}`} className="font-medium hover:underline">{r.property_name}</Link></td>
@@ -103,7 +104,7 @@ export function SCTable({
                 {r.status === "lessee_direct" && <span className="badge-muted">lessee direct</span>}
               </td>
               {canPay && tab === "pending" && (
-                <td className="text-right">
+                <td className="text-right" data-row-ignore>
                   <button
                     type="button"
                     onClick={(e) => {

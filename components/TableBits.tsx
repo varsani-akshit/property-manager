@@ -27,7 +27,6 @@ export function SortTh({
   const Icon = !active ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
   return (
     <th
-      onClick={onClick}
       aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
       className={cn(
         "th-sort group",
@@ -37,14 +36,21 @@ export function SortTh({
         className
       )}
     >
-      <span className={cn("inline-flex items-center gap-1", align === "right" && "flex-row-reverse")}>
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "flex h-9 w-full items-center gap-1 rounded uppercase tracking-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40",
+          align === "right" && "flex-row-reverse", align === "center" && "justify-center"
+        )}
+      >
         {label}
         <Icon
           size={11}
           strokeWidth={2}
-          className={cn("shrink-0 transition-opacity", active ? "text-primary" : "opacity-0 group-hover:opacity-60")}
+          className={cn("shrink-0 transition-opacity", active ? "text-primary" : "opacity-0 group-hover:opacity-60 group-focus-within:opacity-60")}
         />
-      </span>
+      </button>
     </th>
   );
 }
@@ -104,7 +110,7 @@ function PageButton({ disabled, onClick, label, children }: { disabled: boolean;
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="rounded-md border border-border p-1 text-fg-soft transition-colors hover:bg-muted hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent"
+      className="rounded-md border border-border p-2 text-fg-soft transition-colors hover:bg-muted hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent sm:p-1"
     >
       {children}
     </button>

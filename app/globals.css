@@ -190,6 +190,11 @@
   .table-tight .table th:first-child, .table-tight .table td:first-child { @apply pl-2 sm:pl-4; }
   .table-tight .table th:last-child, .table-tight .table td:last-child { @apply pr-2 sm:pr-4; }
   .table tbody tr:hover td { @apply bg-muted/50; }
+  /* Rows that open a page (see components/RowLinks.tsx) */
+  [data-href] { @apply cursor-pointer; }
+  [data-href]:focus-visible { @apply outline-none; }
+  .table tbody tr[data-href]:focus-visible td { @apply bg-primary-soft/60; }
+  .table tbody tr[data-href]:active td { @apply bg-muted; }
   .table tfoot td { @apply border-t border-border border-b-0 font-medium; }
   .th-sort { @apply cursor-pointer select-none transition-colors hover:text-fg; }
 
@@ -199,7 +204,7 @@
 
   /* Segmented control (tabs / toggles) */
   .segmented { @apply inline-flex gap-0.5 rounded-md border border-border p-0.5 text-[12px]; }
-  .segmented > * { @apply rounded px-2.5 py-1 text-muted-fg transition-colors hover:text-fg; }
+  .segmented > * { @apply rounded px-2.5 py-1.5 text-muted-fg transition-colors hover:text-fg sm:py-1; }
   .segmented > [aria-current="true"], .segmented > .is-active { @apply bg-muted font-medium text-fg; }
 
   .link { @apply text-primary hover:underline; }

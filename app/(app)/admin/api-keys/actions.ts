@@ -25,3 +25,11 @@ export async function revokeApiKey(formData: FormData) {
   await sb.from("api_keys").update({ revoked_at: new Date().toISOString() }).eq("id", String(formData.get("id")));
   revalidateApp("/admin/api-keys");
 }
+
+/** Remove a revoked key from the list for good (active keys must be revoked first). */
+export async function deleteApiKey(formData: FormData) {
+  await requirePermission("manage_users");
+  const sb = await supabaseServer();
+  await sb.from("api_keys").delete().eq("id", String(formData.get("id"))).not("revoked_at", "is", null);
+  revalidateApp("/admin/api-keys");
+}

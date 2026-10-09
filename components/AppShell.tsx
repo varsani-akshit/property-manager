@@ -5,6 +5,7 @@ import { Menu } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import type { UserProfile } from "@/lib/permissions";
 import { Wordmark } from "./Logo";
+import { RowLinks } from "./RowLinks";
 
 /**
  * Signed-in layout: the sidebar rail on the sunken ground, and the page on a
@@ -27,6 +28,7 @@ export function AppShell({ profile, children }: { profile: UserProfile; children
 
   return (
     <div className="flex h-dvh overflow-hidden bg-sunken">
+      <RowLinks />
       <aside className="hidden h-full w-[216px] shrink-0 lg:block">
         <Sidebar profile={profile} />
       </aside>

@@ -17,24 +17,24 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
     <form action={action} className="card space-y-4">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <label className="label">Lessee name</label>
-          <input name="lessee_name" required className="input" defaultValue={lease.lessee_name} />
+          <label className="label" htmlFor="f-lessee_name">Lessee name</label>
+          <input id="f-lessee_name" name="lessee_name" required className="input" defaultValue={lease.lessee_name} />
         </div>
         <div>
-          <label className="label">Contact</label>
-          <input name="lessee_contact" className="input" defaultValue={lease.lessee_contact ?? ""} placeholder="Optional" />
+          <label className="label" htmlFor="f-lessee_contact">Contact</label>
+          <input id="f-lessee_contact" name="lessee_contact" className="input" defaultValue={lease.lessee_contact ?? ""} placeholder="Optional" />
         </div>
         <div>
-          <label className="label">Start date</label>
-          <input name="start_date" type="date" required className="input" defaultValue={lease.start_date} />
+          <label className="label" htmlFor="f-start_date">Start date</label>
+          <input id="f-start_date" name="start_date" type="date" required className="input" defaultValue={lease.start_date} />
         </div>
         <div>
-          <label className="label">End date</label>
-          <input name="end_date" type="date" required className="input" defaultValue={lease.end_date} />
+          <label className="label" htmlFor="f-end_date">End date</label>
+          <input id="f-end_date" name="end_date" type="date" required className="input" defaultValue={lease.end_date} />
         </div>
         <div>
-          <label className="label">Gross rent / month (KES)</label>
-          <input
+          <label className="label" htmlFor="f-gross_rent_monthly">Gross rent / month (KES)</label>
+          <input id="f-gross_rent_monthly"
             name="gross_rent_monthly"
             type="number"
             step="0.01"
@@ -46,8 +46,8 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
           />
         </div>
         <div>
-          <label className="label">Deposit charged (KES)</label>
-          <input
+          <label className="label" htmlFor="f-deposit_charged">Deposit charged (KES)</label>
+          <input id="f-deposit_charged"
             name="deposit_charged"
             type="number"
             step="0.01"
@@ -57,8 +57,8 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
           />
         </div>
         <div>
-          <label className="label">Deposit collected (KES)</label>
-          <input
+          <label className="label" htmlFor="f-deposit_collected">Deposit collected (KES)</label>
+          <input id="f-deposit_collected"
             name="deposit_collected"
             type="number"
             step="0.01"
@@ -68,8 +68,8 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
           />
         </div>
         <div>
-          <label className="label">Lessee document URL</label>
-          <input
+          <label className="label" htmlFor="f-lessee_doc_url">Lessee document URL</label>
+          <input id="f-lessee_doc_url"
             name="lessee_doc_url"
             type="url"
             className="input"

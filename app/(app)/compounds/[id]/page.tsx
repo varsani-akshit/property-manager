@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase/server";
+import { rowLink } from "@/lib/row-link";
 import { PageHeader } from "@/components/PageHeader";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
@@ -113,8 +114,8 @@ export default async function CompoundDetailPage({
             </thead>
             <tbody>
               {arr.map((p) => (
-                <tr key={(p as any).id}>
-                  <td><Link href={`/properties/${(p as any).id}`} className="font-medium hover:underline">{(p as any).name}</Link></td>
+                <tr key={(p as any).id} {...rowLink(has(profile, "view_properties") ? `/properties/${(p as any).id}` : undefined)}>
+                  <td><Link href={`/properties/${(p as any).id}`} className="font-medium">{(p as any).name}</Link></td>
                   <td className="text-right hidden md:table-cell">{Number((p as any).area_sqft).toLocaleString()}</td>
                   <td className="text-right hidden sm:table-cell">{money((p as any).valuation)}</td>
                   <td className="text-right hidden lg:table-cell">{money((p as any).total_rent_collected)}</td>

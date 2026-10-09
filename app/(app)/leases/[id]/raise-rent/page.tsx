@@ -100,8 +100,8 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
         </div>
 
         <div>
-          <label className="label">New rent (KES / month)</label>
-          <input
+          <label className="label" htmlFor="f-new_amount">New rent (KES / month)</label>
+          <input id="f-new_amount"
             name="new_amount"
             type="number"
             step="0.01"
@@ -113,8 +113,8 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
         </div>
 
         <div>
-          <label className="label">Effective from</label>
-          <input
+          <label className="label" htmlFor="f-effective_date">Effective from</label>
+          <input id="f-effective_date"
             name="effective_date"
             type="date"
             required
@@ -125,8 +125,8 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
         </div>
 
         <div>
-          <label className="label">Reason (optional)</label>
-          <input
+          <label className="label" htmlFor="f-reason">Reason (optional)</label>
+          <input id="f-reason"
             name="reason"
             className="input"
             placeholder="e.g. annual escalation, renegotiation, etc."

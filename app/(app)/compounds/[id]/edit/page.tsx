@@ -33,12 +33,12 @@ export default async function EditCompoundPage({ params }: { params: Promise<{ i
       <PageHeader crumbs={[{ label: "Compounds", href: "/compounds" }, { label: c.name, href: `/compounds/${c.id}` }, { label: "Edit" }]} />
       <form action={update} className="card space-y-4">
         <div>
-          <label className="label">Name</label>
-          <input name="name" required className="input" defaultValue={c.name} />
+          <label className="label" htmlFor="f-name">Name</label>
+          <input id="f-name" name="name" required className="input" defaultValue={c.name} />
         </div>
         <div>
-          <label className="label">Address</label>
-          <input name="address" className="input" defaultValue={c.address ?? ""} />
+          <label className="label" htmlFor="f-address">Address</label>
+          <input id="f-address" name="address" className="input" defaultValue={c.address ?? ""} />
         </div>
         <div className="flex gap-2">
           <SubmitButton>Save changes</SubmitButton>

@@ -7,9 +7,11 @@ import { TOOLS } from "./tools";
 
 const INSTRUCTIONS = `Variaka is a property-management system for a Kenyan commercial portfolio (godowns, offices, showrooms) grouped into compounds.
 Money is in Kenyan shillings (KES). Rent is billed monthly per lease; lessees can also be billed charges (water, electricity…). Deposits are held separately.
-Start with portfolio_summary or outstanding for overview questions; use search to find ids; lessee_statement for a tenant's ledger.
-Before calling a tool that writes (record_payment, collect_in_full, log_reminder), show the user exactly what will be recorded and get a clear yes.
-Get the ids for payments from unpaid_items. Never invent ids or amounts.`;
+These tools give you the data; the analysis is yours. Call describe_data once to learn what each record and field means.
+The list_* tools return raw records (compounds, properties, leases, rent rows, payments, costs and charges, service charges, reminders, rent changes) with filters and paging — keep calling with offset = next_offset until it is null when you need everything. Prefer server-side filters over fetching everything.
+Ready-made aggregates (portfolio_summary, analyze, outstanding, lessee_statement, cash_flow_forecast, rent_roll, costs_breakdown) are shortcuts; check them against the raw records when precision matters.
+Use search or the list tools to find ids. Never invent ids or amounts.
+Before calling a tool that writes (record_payment, collect_in_full, log_reminder), show the user exactly what will be recorded and get a clear yes. Payment ids come from unpaid_items or list_rent_rows.`;
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -32,7 +34,7 @@ export async function handleMcp(req: Request, pathKey?: string) {
   const handler = createMcpHandler(
     (server) => {
       for (const t of TOOLS) {
-        if (!has(profile, t.perm)) continue;
+        if (t.perm && !has(profile, t.perm)) continue;
         server.registerTool(
           t.name,
           {

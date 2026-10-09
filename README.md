@@ -183,7 +183,11 @@ Until then, use the **Generate this month** button on `/rent`.
 
 ## Querying with Claude (or any LLM with MCP)
 
-The app serves its own MCP server at `/api/mcp` (Streamable HTTP, `mcp-handler`). Tools live in `lib/mcp/tools.ts` — portfolio summary, who owes what, unpaid items, lessee statements, payments, cash-flow forecast, expiring leases, rent roll, search, property / lease details, costs, service charges, the audit trail, and three writes (record a payment, collect several items in full, log a reminder).
+The app serves its own MCP server at `/api/mcp` (Streamable HTTP, `mcp-handler`). The tools give the client the data; the client does the analysis.
+
+- **Raw records** (`lib/mcp/data-tools.ts`): `describe_data` (what every record and field means), `list_compounds`, `get_compound`, `list_properties`, `list_leases`, `list_rent_rows`, `list_payments`, `list_costs`, `list_service_charges`, `list_reminders`, `list_rent_changes`. Each takes filters (compound, property, lessee, status, date ranges…) and pages with `limit` / `offset`, returning `total` and `next_offset`, with ids and names resolved.
+- **Shortcuts** (`lib/mcp/tools.ts`): portfolio summary, `analyze` (the dashboard's analytics for any slice), who owes what, unpaid items, lessee statements, cash-flow forecast, expiring leases, rent roll, search, property / lease details, costs breakdown, service charges, the audit trail.
+- **Writes**: record a payment, collect several items in full, log a reminder — the client is told to confirm with the user first.
 
 1. An admin opens **Admin → API keys & MCP**, picks the user the key should act as, and creates a key (`vk_…`, shown once; only its SHA-256 is stored). A key has exactly its owner's permissions — tools they can't use aren't even listed — and its writes are attributed to them in the audit trail.
 2. Connect a client:
@@ -192,7 +196,7 @@ The app serves its own MCP server at `/api/mcp` (Streamable HTTP, `mcp-handler`)
    - **Claude Code** — `claude mcp add --transport http variaka https://<your-app>/api/mcp --header "Authorization: Bearer <key>"`.
 3. Ask: *"Who owes us the most and for how long?"*, *"Give me Sunmay's statement for this year"*, *"Record Ksh 9,375 by M-Pesa ref SJK4H7Q2LP against Sunmay's August rent."*
 
-Revoke a key on the same page; it stops working immediately.
+Revoke a key on the same page; it stops working immediately. Revoked keys can then be removed from the list.
 
 ## Architecture
 

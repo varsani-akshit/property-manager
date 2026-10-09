@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { rowLink } from "@/lib/row-link";
 import { Download } from "lucide-react";
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
@@ -7,6 +8,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { Kpi } from "@/components/Kpi";
 import { Pagination, parsePage } from "@/components/Pagination";
 import { guardView } from "@/lib/guard";
+import { has } from "@/lib/permissions";
 import { resolvePeriod, type Range } from "@/lib/period";
 import { fmtDate, money } from "@/lib/format";
 import { methodLabel, PAYMENT_METHODS } from "@/lib/payment-methods";
@@ -22,7 +24,8 @@ const monthName = (iso?: string | null) => (iso ? `${MONTHS[Number(iso.slice(5, 
 type Search = { range?: string; from?: string; to?: string; q?: string; method?: string; kind?: string; page?: string };
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<Search> }) {
-  await guardView("view_rent");
+  const profile = await guardView("view_rent");
+  const canLease = has(profile, "view_leases");
   const sp = await searchParams;
   const period = resolvePeriod(sp);
   const page = parsePage(sp.page);
@@ -152,7 +155,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                   : p.kind === "cost" ? one<any>(p.costs)?.description ?? "Charge"
                   : "Deposit";
                 return (
-                  <tr key={p.id}>
+                  <tr key={p.id} {...rowLink(lease ? (canLease ? `/leases/${lease.id}` : `/rent/statement?lessee=${encodeURIComponent(lease.lessee_name)}`) : undefined)}>
                     <td>{fmtDate(p.paid_on)}</td>
                     <td>
                       <div className="max-w-[8.5rem] truncate sm:max-w-[14rem]">

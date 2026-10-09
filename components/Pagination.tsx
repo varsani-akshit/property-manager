@@ -38,7 +38,7 @@ export function Pagination({
     return q ? `?${q}` : "?";
   };
 
-  const btn = "rounded-md border border-border p-1 text-fg-soft transition-colors hover:bg-muted hover:text-fg";
+  const btn = "rounded-md border border-border p-2 text-fg-soft transition-colors hover:bg-muted hover:text-fg sm:p-1";
   return (
     <div className="flex items-center justify-between gap-3 border-t border-line-subtle px-4 py-2.5 text-[12.5px] text-muted-fg">
       <span className="tabular-nums">

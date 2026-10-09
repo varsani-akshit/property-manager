@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { rowLink } from "@/lib/row-link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
@@ -106,7 +107,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                   const amt = o.rent + o.costs;
                   const msg = `Hello ${o.lessee}, this is a reminder that Ksh ${amt.toLocaleString("en-KE")} is overdue for ${o.properties.join(", ")}${o.oldestDue ? ` (oldest amount due ${fmtDate(o.oldestDue)})` : ""}. Kindly arrange payment at your earliest convenience and share the payment reference. Thank you.`;
                   return (
-                    <tr key={o.lessee}>
+                    <tr key={o.lessee} {...rowLink(`/rent/statement?lessee=${encodeURIComponent(o.lessee)}`)}>
                       <td>
                         <Link href={`/rent/statement?lessee=${encodeURIComponent(o.lessee)}`} className="block max-w-[8rem] font-medium hover:underline [overflow-wrap:anywhere] sm:max-w-none">{o.lessee}</Link>
                         <div className="mt-0.5 max-w-[8rem] truncate text-[12px] text-muted-fg sm:max-w-[18rem]">{o.properties.join(", ")}</div>
@@ -117,7 +118,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                       <td className="text-right font-medium text-danger">{money(amt)}<div className="text-[11px] font-normal text-muted-fg sm:hidden">{o.daysOverdue}d late</div></td>
                       <td className={cn("text-right hidden sm:table-cell", o.daysOverdue > 30 ? "font-medium text-danger" : "text-warning")}>{o.daysOverdue}d</td>
                       <td className="hidden md:table-cell">{last(o.lessee)}</td>
-                      <td className="text-right">
+                      <td className="text-right" data-row-ignore>
                         <ReminderActions lessee={o.lessee} leaseId={o.leaseIds[0]} contact={o.contact} kind="overdue" amount={amt} message={msg} subject="Rent reminder" canSend={canSend} />
                       </td>
                     </tr>
@@ -139,7 +140,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                   const prop = one<any>(l.properties)?.name ?? "the property";
                   const msg = `Hello ${l.lessee_name}, your lease for ${prop} ends on ${fmtDate(l.end_date)}. Please let us know whether you would like to renew so we can prepare the paperwork. Thank you.`;
                   return (
-                    <tr key={l.id}>
+                    <tr key={l.id} {...rowLink(`/leases/${l.id}`)}>
                       <td><Link href={`/leases/${l.id}`} className="font-medium hover:underline">{l.lessee_name}</Link><div className="text-[11.5px] text-muted-fg sm:hidden">{prop} · ends {fmtDate(l.end_date)}</div></td>
                       <td className="hidden sm:table-cell">{prop}</td>
                       <td className="text-muted-fg hidden lg:table-cell">{l.lessee_contact || "—"}</td>
@@ -147,7 +148,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                       <td className={cn("text-right font-medium", days <= 14 ? "text-danger" : days <= 30 ? "text-warning" : "")}>{days}</td>
                       <td className="text-right hidden md:table-cell">{money(l.gross_rent_monthly)}</td>
                       <td className="hidden md:table-cell">{last(l.lessee_name)}</td>
-                      <td className="text-right">
+                      <td className="text-right" data-row-ignore>
                         <ReminderActions lessee={l.lessee_name} leaseId={l.id} contact={l.lessee_contact} kind="expiry" message={msg} subject="Your lease renewal" canSend={canSend} />
                       </td>
                     </tr>
@@ -167,13 +168,13 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                 {show(deposits).map((o) => {
                   const msg = `Hello ${o.lessee}, our records show a deposit balance of Ksh ${o.deposit.toLocaleString("en-KE")} outstanding for ${o.properties.join(", ")}. Kindly arrange payment and share the reference. Thank you.`;
                   return (
-                    <tr key={o.lessee}>
+                    <tr key={o.lessee} {...rowLink(`/rent/statement?lessee=${encodeURIComponent(o.lessee)}`)}>
                       <td><Link href={`/rent/statement?lessee=${encodeURIComponent(o.lessee)}`} className="font-medium hover:underline">{o.lessee}</Link></td>
                       <td className="hidden sm:table-cell"><div className="max-w-[18rem] truncate">{o.properties.join(", ")}</div></td>
                       <td className="text-muted-fg hidden lg:table-cell">{o.contact || "—"}</td>
                       <td className="text-right font-medium text-danger">{money(o.deposit)}</td>
                       <td className="hidden md:table-cell">{last(o.lessee)}</td>
-                      <td className="text-right">
+                      <td className="text-right" data-row-ignore>
                         <ReminderActions lessee={o.lessee} leaseId={o.leaseIds[0]} contact={o.contact} kind="deposit" amount={o.deposit} message={msg} subject="Deposit balance" canSend={canSend} />
                       </td>
                     </tr>
@@ -191,7 +192,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
               </thead>
               <tbody>
                 {show(reminders).map((r) => (
-                  <tr key={r.id}>
+                  <tr key={r.id} {...rowLink(`/rent/statement?lessee=${encodeURIComponent(r.lessee_name)}`)}>
                     <td>{fmtDate(r.sent_at)}</td>
                     <td className="font-medium">{r.lessee_name}</td>
                     <td className="capitalize hidden sm:table-cell">{r.kind}</td>

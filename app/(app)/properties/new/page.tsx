@@ -56,33 +56,33 @@ export default async function NewPropertyPage() {
             <CompoundPicker compounds={compounds as { id: string; name: string }[]} />
           </div>
           <div>
-            <label className="label">Property name</label>
-            <input name="name" required className="input" placeholder="e.g. Block A, Unit 12" />
+            <label className="label" htmlFor="f-name">Property name</label>
+            <input id="f-name" name="name" required className="input" placeholder="e.g. Block A, Unit 12" />
           </div>
           <div>
-            <label className="label">Area (sqft)</label>
-            <input name="area_sqft" required type="number" step="0.01" min="0.01" className="input" />
+            <label className="label" htmlFor="f-area_sqft">Area (sqft)</label>
+            <input id="f-area_sqft" name="area_sqft" required type="number" step="0.01" min="0.01" className="input" />
           </div>
           <div>
-            <label className="label">Valuation (KES)</label>
-            <input name="valuation" type="number" step="0.01" min="0" className="input" defaultValue={0} />
+            <label className="label" htmlFor="f-valuation">Valuation (KES)</label>
+            <input id="f-valuation" name="valuation" type="number" step="0.01" min="0" className="input" defaultValue={0} />
           </div>
           <div>
-            <label className="label">Service charge / month (KES)</label>
-            <input name="service_charge_monthly" type="number" step="0.01" min="0" className="input" defaultValue={0} />
+            <label className="label" htmlFor="f-service_charge_monthly">Service charge / month (KES)</label>
+            <input id="f-service_charge_monthly" name="service_charge_monthly" type="number" step="0.01" min="0" className="input" defaultValue={0} />
           </div>
           <div>
-            <label className="label">Service charge start date</label>
-            <input name="service_charge_start_date" type="date" className="input" />
+            <label className="label" htmlFor="f-service_charge_start_date">Service charge start date</label>
+            <input id="f-service_charge_start_date" name="service_charge_start_date" type="date" className="input" />
           </div>
         </div>
         <div>
-          <label className="label">Deed link (Google Drive URL)</label>
-          <input name="deed_url" type="url" className="input" placeholder="https://drive.google.com/..." />
+          <label className="label" htmlFor="f-deed_url">Deed link (Google Drive URL)</label>
+          <input id="f-deed_url" name="deed_url" type="url" className="input" placeholder="https://drive.google.com/..." />
         </div>
         <div>
-          <label className="label">Notes</label>
-          <textarea name="notes" className="input" rows={3} />
+          <label className="label" htmlFor="f-notes">Notes</label>
+          <textarea id="f-notes" name="notes" className="input" rows={3} />
         </div>
         <div className="flex gap-2">
           <SubmitButton loadingText="Creating…">Create property</SubmitButton>

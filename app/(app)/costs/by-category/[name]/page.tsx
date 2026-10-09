@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase/server";
+import { rowLink } from "@/lib/row-link";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
@@ -124,7 +125,7 @@ export default async function CategoryDetailPage({
                 const allocs = (c.cost_allocations ?? []) as any[];
                 const catAmt = categoryAmountByCostId.get(c.id) ?? 0;
                 return (
-                  <tr key={c.id}>
+                  <tr key={c.id} {...rowLink(has(profile, "add_cost") ? `/costs/${c.id}/edit` : undefined)}>
                     <td>{fmtDate(c.incurred_on)}</td>
                     <td className="font-medium">{c.description}</td>
                     <td>

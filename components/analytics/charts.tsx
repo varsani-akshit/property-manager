@@ -179,14 +179,14 @@ export function TrendChart({
           </>
         )}
       </FloatTip>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 pl-[52px] text-[12px]">
+      <div className="mt-2 flex flex-wrap gap-x-4 pl-[52px] text-[12px] max-sm:pl-0">
         {bars.map((b) => (
-          <button key={b.key} type="button" onClick={() => setHidden((h) => { const x = new Set(h); x.has(b.key) ? x.delete(b.key) : x.add(b.key); return x; })} className={cn("inline-flex items-center gap-1.5", hidden.has(b.key) ? "text-disabled line-through" : "text-muted-fg hover:text-fg")}>
+          <button key={b.key} type="button" onClick={() => setHidden((h) => { const x = new Set(h); x.has(b.key) ? x.delete(b.key) : x.add(b.key); return x; })} className={cn("inline-flex min-h-8 items-center gap-1.5", hidden.has(b.key) ? "text-disabled line-through" : "text-muted-fg hover:text-fg")}>
             <Dot color={b.color} />{b.label}
           </button>
         ))}
         {line && (
-          <button type="button" onClick={() => setHidden((h) => { const x = new Set(h); x.has("__line") ? x.delete("__line") : x.add("__line"); return x; })} className={cn("inline-flex items-center gap-1.5", hidden.has("__line") ? "text-disabled line-through" : "text-muted-fg hover:text-fg")}>
+          <button type="button" onClick={() => setHidden((h) => { const x = new Set(h); x.has("__line") ? x.delete("__line") : x.add("__line"); return x; })} className={cn("inline-flex min-h-8 items-center gap-1.5", hidden.has("__line") ? "text-disabled line-through" : "text-muted-fg hover:text-fg")}>
             <span className="inline-block h-0.5 w-3 rounded" style={{ background: line.color }} />{line.label} (right axis)
           </button>
         )}

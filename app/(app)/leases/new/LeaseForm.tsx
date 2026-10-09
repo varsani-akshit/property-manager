@@ -70,20 +70,20 @@ export function LeaseForm({
           />
         </div>
         <div>
-          <label className="label">Contact (email or phone)</label>
-          <input name="lessee_contact" className="input" placeholder="Optional" />
+          <label className="label" htmlFor="f-lessee_contact">Contact (email or phone)</label>
+          <input id="f-lessee_contact" name="lessee_contact" className="input" placeholder="Optional" />
         </div>
         <div>
-          <label className="label">Lease start date</label>
-          <input name="start_date" type="date" required className="input" />
+          <label className="label" htmlFor="f-start_date">Lease start date</label>
+          <input id="f-start_date" name="start_date" type="date" required className="input" />
         </div>
         <div>
-          <label className="label">Lease end date</label>
-          <input name="end_date" type="date" required className="input" />
+          <label className="label" htmlFor="f-end_date">Lease end date</label>
+          <input id="f-end_date" name="end_date" type="date" required className="input" />
         </div>
         <div>
-          <label className="label">Gross rent / month (KES, incl. tax)</label>
-          <input
+          <label className="label" htmlFor="f-gross_rent_monthly">Gross rent / month (KES, incl. tax)</label>
+          <input id="f-gross_rent_monthly"
             name="gross_rent_monthly"
             type="number"
             step="0.01"
@@ -95,8 +95,8 @@ export function LeaseForm({
           />
         </div>
         <div>
-          <label className="label">Deposit charged (KES)</label>
-          <input
+          <label className="label" htmlFor="f-deposit_charged">Deposit charged (KES)</label>
+          <input id="f-deposit_charged"
             name="deposit_charged"
             type="number"
             step="0.01"
@@ -107,8 +107,8 @@ export function LeaseForm({
           />
         </div>
         <div>
-          <label className="label">Deposit collected (KES)</label>
-          <input
+          <label className="label" htmlFor="f-deposit_collected">Deposit collected (KES)</label>
+          <input id="f-deposit_collected"
             name="deposit_collected"
             type="number"
             step="0.01"
@@ -118,8 +118,8 @@ export function LeaseForm({
           />
         </div>
         <div>
-          <label className="label">Lessee document (Google Drive URL)</label>
-          <input
+          <label className="label" htmlFor="f-lessee_doc_url">Lessee document (Google Drive URL)</label>
+          <input id="f-lessee_doc_url"
             name="lessee_doc_url"
             type="url"
             className="input"

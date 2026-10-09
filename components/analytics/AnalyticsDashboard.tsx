@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { rowLink } from "@/lib/row-link";
 import Link from "next/link";
 import {
   ArrowDownRight, ArrowUpRight, Bookmark, Check, Download, ExternalLink, Info, Lightbulb, Link2, Settings2, X,
@@ -432,7 +433,7 @@ export function AnalyticsDashboard({
               <div className="min-w-0 sm:col-span-2">
                 <ul className="max-h-44 space-y-1 overflow-y-auto border-t border-line-subtle pt-3 text-[12.5px]">
                   {(expMonth ? expiries.filter((e) => e.month === expMonth) : expiries).flatMap((e) => e.leases).slice(0, expMonth ? 50 : 6).map((l) => (
-                    <li key={l.id} className="flex items-center justify-between gap-2">
+                    <li key={l.id} {...rowLink(`/leases/${l.id}`)} className="-mx-1.5 flex items-center justify-between gap-2 rounded-md px-1.5 py-0.5 hover:bg-muted/50">
                       <Link href={`/leases/${l.id}`} className="min-w-0 truncate hover:underline"><span className="font-medium">{l.lessee}</span> <span className="text-muted-fg">· {l.property}</span></Link>
                       <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-fg">{fmtDate(l.end)}<span className="hidden sm:inline"> · {money(l.rent)}</span></span>
                     </li>
@@ -531,7 +532,14 @@ export function AnalyticsDashboard({
               </thead>
               <tbody>
                 {sortedRows.map((r) => (
-                  <tr key={r.key} className={cn(selectedKeys.has(r.key) && "[&>td]:bg-primary-soft/60")}>
+                  <tr
+                    key={r.key}
+                    tabIndex={0}
+                    onClick={(e) => { if (!(e.target as Element).closest("a")) drill(r.key); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && e.target === e.currentTarget) drill(r.key); }}
+                    title={NEXT_DIM[dim] ? "Click to drill in" : "Click to focus"}
+                    className={cn("cursor-pointer", selectedKeys.has(r.key) && "[&>td]:bg-primary-soft/60")}
+                  >
                     <td>
                       <div className="flex max-w-[11rem] items-start gap-1 sm:max-w-xs">
                         <button type="button" className="min-w-0 text-left" onClick={() => drill(r.key)} title={NEXT_DIM[dim] ? "Drill in" : "Focus"}>
@@ -672,8 +680,10 @@ function Th({ label, k, sort, setSort, right, hide }: {
   const active = sort.key === k;
   const hideCls = hide ? { sm: "hidden sm:table-cell", md: "hidden md:table-cell", lg: "hidden lg:table-cell", xl: "hidden xl:table-cell", "2xl": "hidden 2xl:table-cell" }[hide] : "";
   return (
-    <th className={cn("th-sort", right && "text-right", active && "text-fg", hideCls)} onClick={() => setSort({ key: k, dir: active ? (sort.dir === 1 ? -1 : 1) : k === "label" ? 1 : -1 })} aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
-      {label}{active && <span className="ml-0.5 text-primary">{sort.dir === 1 ? "↑" : "↓"}</span>}
+    <th className={cn("th-sort", right && "text-right", active && "text-fg", hideCls)} aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
+      <button type="button" className={cn("h-9 w-full rounded uppercase tracking-[inherit] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40", right ? "text-right" : "text-left")} onClick={() => setSort({ key: k, dir: active ? (sort.dir === 1 ? -1 : 1) : k === "label" ? 1 : -1 })}>
+        {label}{active && <span className="ml-0.5 text-primary">{sort.dir === 1 ? "↑" : "↓"}</span>}
+      </button>
     </th>
   );
 }
@@ -683,9 +693,9 @@ function OverdueList({ items, links, onLessee }: { items: ReturnType<typeof over
   return (
     <ul className="mt-4 max-h-64 divide-y divide-line-subtle overflow-y-auto rounded-lg border border-line-subtle">
       {items.slice(0, 40).map((i, k) => (
-        <li key={k} className="flex items-center justify-between gap-3 px-3 py-2 text-[12.5px]">
+        <li key={k} {...rowLink(links ? `/rent/statement?lessee=${encodeURIComponent(i.lessee)}` : undefined)} className={cn("flex items-center justify-between gap-3 px-3 py-2 text-[12.5px]", links && "hover:bg-muted/50")}>
           <div className="min-w-0">
-            <button type="button" onClick={() => onLessee(i.lessee)} className="block max-w-full truncate text-left font-medium hover:text-primary">{i.lessee}</button>
+            <button type="button" onClick={() => onLessee(i.lessee)} title="Filter the dashboard to this client" className="block max-w-full truncate text-left font-medium hover:text-primary">{i.lessee}</button>
             <span className="block truncate text-[11.5px] text-muted-fg">{i.property} · due {fmtDate(i.due)}</span>
           </div>
           <div className="shrink-0 text-right">

@@ -1,4 +1,5 @@
 import { supabaseServer } from "@/lib/supabase/server";
+import { rowLink } from "@/lib/row-link";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
 import { DateFilter } from "@/components/DateFilter";
@@ -148,21 +149,19 @@ export default async function CostsPage({
             </thead>
             <tbody>
               {(recent ?? []).map((c: any) => {
-                const href = has(profile, "add_cost") ? `/costs/${c.id}/edit` : "#";
+                const href = has(profile, "add_cost") ? `/costs/${c.id}/edit` : undefined;
                 return (
-                  <tr key={c.id} className={has(profile, "add_cost") ? "cursor-pointer" : ""}>
-                    <td><Link href={href} className="block">{fmtDate(c.incurred_on)}</Link></td>
-                    <td><Link href={href} className="block">{c.description}</Link></td>
+                  <tr key={c.id} {...rowLink(href)}>
+                    <td className="whitespace-nowrap">{fmtDate(c.incurred_on)}</td>
+                    <td className="font-medium">{c.description}</td>
                     <td>
-                      <Link href={href} className="block">
-                        <div className="flex flex-wrap gap-1">
-                          {(c.cost_line_items ?? []).map((li: any, i: number) => (
-                            <span key={i} className="badge-muted">{li.category}</span>
-                          ))}
-                        </div>
-                      </Link>
+                      <div className="flex flex-wrap gap-1">
+                        {(c.cost_line_items ?? []).map((li: any, i: number) => (
+                          <span key={i} className="badge-muted">{li.category}</span>
+                        ))}
+                      </div>
                     </td>
-                    <td className="text-right"><Link href={href} className="block font-medium">{money(c.amount)}</Link></td>
+                    <td className="text-right font-medium">{money(c.amount)}</td>
                   </tr>
                 );
               })}

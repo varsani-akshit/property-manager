@@ -8,7 +8,7 @@ import { has, firstAllowedPath } from "@/lib/permissions";
 import { fmtDate } from "@/lib/format";
 import { MCP_TOOLS } from "@/lib/mcp/catalog";
 import { CreateKey } from "./CreateKey";
-import { revokeApiKey } from "./actions";
+import { revokeApiKey, deleteApiKey } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -60,13 +60,21 @@ export default async function ApiKeysPage() {
                       <td className="text-muted-fg">{k.last_used_at ? fmtDate(k.last_used_at) : "Never"}</td>
                       <td>{k.revoked_at ? <span className="badge-muted">Revoked</span> : <span className="badge-success">Active</span>}</td>
                       <td className="text-right">
-                        {!k.revoked_at && (
+                        {!k.revoked_at ? (
                           <ConfirmButton
                             action={revokeApiKey}
                             hiddenInputs={{ id: k.id }}
                             confirm={`Revoke "${k.name}"? Anything using it stops working immediately.`}
                             label="Revoke"
                             className="btn-danger-ghost btn-sm"
+                          />
+                        ) : (
+                          <ConfirmButton
+                            action={deleteApiKey}
+                            hiddenInputs={{ id: k.id }}
+                            confirm={`Remove the revoked key "${k.name}" from this list?`}
+                            label="Remove"
+                            className="btn-ghost btn-sm"
                           />
                         )}
                       </td>

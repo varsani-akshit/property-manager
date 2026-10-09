@@ -73,33 +73,33 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
             />
           </div>
           <div>
-            <label className="label">Property name</label>
-            <input name="name" required className="input" defaultValue={prop.name} />
+            <label className="label" htmlFor="f-name">Property name</label>
+            <input id="f-name" name="name" required className="input" defaultValue={prop.name} />
           </div>
           <div>
-            <label className="label">Area (sqft)</label>
-            <input name="area_sqft" required type="number" step="0.01" min="0.01" className="input" defaultValue={prop.area_sqft} />
+            <label className="label" htmlFor="f-area_sqft">Area (sqft)</label>
+            <input id="f-area_sqft" name="area_sqft" required type="number" step="0.01" min="0.01" className="input" defaultValue={prop.area_sqft} />
           </div>
           <div>
-            <label className="label">Valuation (KES)</label>
-            <input name="valuation" type="number" step="0.01" min="0" className="input" defaultValue={prop.valuation} />
+            <label className="label" htmlFor="f-valuation">Valuation (KES)</label>
+            <input id="f-valuation" name="valuation" type="number" step="0.01" min="0" className="input" defaultValue={prop.valuation} />
           </div>
           <div>
-            <label className="label">Service charge / month (KES)</label>
-            <input name="service_charge_monthly" type="number" step="0.01" min="0" className="input" defaultValue={prop.service_charge_monthly} />
+            <label className="label" htmlFor="f-service_charge_monthly">Service charge / month (KES)</label>
+            <input id="f-service_charge_monthly" name="service_charge_monthly" type="number" step="0.01" min="0" className="input" defaultValue={prop.service_charge_monthly} />
           </div>
           <div>
-            <label className="label">Service charge start date</label>
-            <input name="service_charge_start_date" type="date" className="input" defaultValue={prop.service_charge_start_date ?? ""} />
+            <label className="label" htmlFor="f-service_charge_start_date">Service charge start date</label>
+            <input id="f-service_charge_start_date" name="service_charge_start_date" type="date" className="input" defaultValue={prop.service_charge_start_date ?? ""} />
           </div>
         </div>
         <div>
-          <label className="label">Deed link (Google Drive URL)</label>
-          <input name="deed_url" type="url" className="input" defaultValue={prop.deed_url ?? ""} />
+          <label className="label" htmlFor="f-deed_url">Deed link (Google Drive URL)</label>
+          <input id="f-deed_url" name="deed_url" type="url" className="input" defaultValue={prop.deed_url ?? ""} />
         </div>
         <div>
-          <label className="label">Notes</label>
-          <textarea name="notes" className="input" rows={3} defaultValue={prop.notes ?? ""} />
+          <label className="label" htmlFor="f-notes">Notes</label>
+          <textarea id="f-notes" name="notes" className="input" rows={3} defaultValue={prop.notes ?? ""} />
         </div>
         <div className="flex gap-2">
           <SubmitButton>Save changes</SubmitButton>

@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, Fragment } from "react";
+import { rowLink } from "@/lib/row-link";
 import Link from "next/link";
 import { BellRing, ChevronRight, FileText, Pencil, Search, X } from "lucide-react";
 import { money, fmtDate } from "@/lib/format";
@@ -588,8 +589,8 @@ function RentTable({ rows, active, lessee }: { rows: RawRentRow[]; active: "outs
             const statusLabel = r.status === "partial" ? "partial" : active === "outstanding" ? "overdue" : "due";
             const statusBadge = r.status === "partial" ? "badge-warning" : active === "outstanding" ? "badge-danger" : "badge-warning";
             return (
-              <tr key={r.id}>
-                {canPay && <td>{rem > 0 && <RowSelect target={targetOf(r)} />}</td>}
+              <tr key={r.id} {...rowLink(canPay ? `/rent/${r.id}/edit` : undefined)}>
+                {canPay && <td data-row-ignore>{rem > 0 && <RowSelect target={targetOf(r)} />}</td>}
                 <td>{fmtDate(r.due_date)}</td>
                 <td className="hidden sm:table-cell">{p?.name}</td>
                 <td className="hidden text-right sm:table-cell">{money(r.net_amount)}</td>
@@ -651,8 +652,8 @@ function CostTable({ rows, today, lessee }: { rows: RawCostRow[]; today: string;
             const statusBadge = c.collection_status === "partial" ? "badge-warning" : overdue ? "badge-danger" : "badge-warning";
             const lineItems = c.cost_line_items ?? [];
             return (
-              <tr key={c.id}>
-                {canPay && <td>{rem > 0 && <RowSelect target={targetOf(c)} />}</td>}
+              <tr key={c.id} {...rowLink(canPay ? `/costs/${c.id}/collect` : undefined)}>
+                {canPay && <td data-row-ignore>{rem > 0 && <RowSelect target={targetOf(c)} />}</td>}
                 <td>{fmtDate(c.due_date)}</td>
                 <td>{c.description}</td>
                 <td className="hidden lg:table-cell">
@@ -709,7 +710,7 @@ function CollectedTable({ items, canMarkRent }: { items: CollectedItem[]; canMar
               const r = it.row;
               const p = pickOne(r.properties);
               return (
-                <tr key={`rent-${r.id}`}>
+                <tr key={`rent-${r.id}`} {...rowLink(canMarkRent ? `/rent/${r.id}/edit` : undefined)}>
                   <td>{fmtDate(r.collected_at)}</td>
                   <td><span className="badge-success">Rent</span></td>
                   <td>{p?.name}</td>
@@ -728,7 +729,7 @@ function CollectedTable({ items, canMarkRent }: { items: CollectedItem[]; canMar
             const p = pickOne(lease?.properties ?? null);
             const lineItems = c.cost_line_items ?? [];
             return (
-              <tr key={`cost-${c.id}`}>
+              <tr key={`cost-${c.id}`} {...rowLink(canMarkRent ? `/costs/${c.id}/collect` : undefined)}>
                 <td>{fmtDate(c.collected_at)}</td>
                 <td><span className="badge-warning">Cost</span></td>
                 <td>
