@@ -82,11 +82,13 @@ Open [http://localhost:3000](http://localhost:3000). You'll be redirected to `/l
 
 ### 6. Sign up & become admin
 
-1. Click **Sign up** on the login page, create your account.
-2. In Supabase → Table Editor → `user_profiles`, find your row and flip `is_admin` to `true`. (One-time only — afterwards you grant other users permissions from inside the app at `/users`.)
+Public sign-up is turned off (Supabase → Authentication → Sign In / Providers → *Allow new users to sign up*); people join only by invite.
+
+1. In Supabase → Authentication → Users, click **Invite user** and invite yourself; open the email and set a password.
+2. In Supabase → Table Editor → `user_profiles`, find your row and flip `is_admin` to `true`. (One-time only — afterwards you invite people and set their access from **Team** in the app.)
 3. Refresh.
 
-You should now see the dashboard with empty KPIs, a sidebar, and a **Users** link.
+You should now see the dashboard, a sidebar, and a **Team** link.
 
 ## Using the app
 
