@@ -9,6 +9,11 @@ import { fetchAll } from "@/lib/fetch-all";
 import { getDashboardSnapshot } from "@/lib/dashboard-cache";
 import { methodLabel, PAYMENT_METHODS } from "@/lib/payment-methods";
 import { revalidateApp } from "@/lib/revalidate";
+import { getAnalyticsFacts } from "@/lib/analytics/server";
+import {
+  aging as agingBuckets, breakdown, expiryTimeline, forecast as rentForecast, insights as analyticsInsights,
+  metrics as analyticsMetrics, monthly, overdueItems, presetRange, previousRange, scopeOf, type Dim, type Filters,
+} from "@/lib/analytics/compute";
 
 /**
  * Variaka's MCP tools. One list drives the server (app/api/mcp), the tool list
@@ -80,6 +85,73 @@ export const TOOLS = [
         expected_rent_per_month: r2(leases.reduce((a, l) => a + Number(l.gross_rent_monthly || 0), 0)),
         portfolio_valuation: r2(valuation),
         roi_annualised_pct: valuation > 0 ? r2((net / valuation) * (365 / days) * 100) : null,
+      };
+    },
+  }),
+
+  def({
+    name: "analyze",
+    title: "Analyze the portfolio",
+    summary: "The dashboard's analytics for any slice: KPIs vs previous period, ranking, trend, aging, insights.",
+    description: "Run the dashboard analytics for any combination of period, compound(s), property(ies) and client(s)/lessee(s) (names, partial matches allowed). Returns KPIs for the period and the previous period of equal length (rent received, billed, collection rate, outstanding, net, occupancy, rent roll, yield, deposits), a breakdown ranked by a chosen metric at compound / property / lessee level, the monthly trend, overdue aging buckets, upcoming lease expiries, a 6-month forecast and plain-language insights. Use this for comparisons and 'why' questions; call it several times to compare slices.",
+    perm: "view_dashboard",
+    input: z.object({
+      from: ISO.optional().describe("Start YYYY-MM-DD (default: 12 months ago)"),
+      to: ISO.optional().describe("End YYYY-MM-DD (default today)"),
+      compounds: z.array(z.string()).default([]).describe("Compound names (partial ok)"),
+      properties: z.array(z.string()).default([]).describe("Property names (partial ok)"),
+      lessees: z.array(z.string()).default([]).describe("Lessee / client names (partial ok)"),
+      breakdown_by: z.enum(["compound", "property", "lessee"]).default("compound"),
+      rank_by: z.enum(["outstanding", "received", "billed", "collectionRate", "net", "yieldPct", "occupancy", "monthlyRent", "valuation", "oldestDays"]).default("outstanding"),
+      limit: z.number().int().min(1).max(100).default(15),
+      include_monthly: z.boolean().default(true),
+    }),
+    run: async (a) => {
+      const f = await getAnalyticsFacts();
+      const match = (list: string[], q: string[]) => list.map((n, i) => ({ n, i })).filter(({ n }) => q.some((x) => n.toLowerCase().includes(x.toLowerCase())));
+      const comps = match(f.compounds.map((c) => c.name), a.compounds);
+      const props = match(f.properties.map((p) => p.name), a.properties);
+      const lessees = f.lessees.filter((n) => a.lessees.some((x) => n.toLowerCase().includes(x.toLowerCase())));
+      const unmatched = [
+        ...a.compounds.filter((x) => !comps.some(({ n }) => n.toLowerCase().includes(x.toLowerCase()))).map((x) => `compound "${x}"`),
+        ...a.properties.filter((x) => !props.some(({ n }) => n.toLowerCase().includes(x.toLowerCase()))).map((x) => `property "${x}"`),
+        ...a.lessees.filter((x) => !lessees.some((n) => n.toLowerCase().includes(x.toLowerCase()))).map((x) => `lessee "${x}"`),
+      ];
+      if (unmatched.length) return { error: `No match for ${unmatched.join(", ")}.`, hint: "Use search to find exact names." };
+      const r = a.from || a.to ? { from: a.from ?? presetRange("12m", f.today).from, to: a.to ?? f.today } : presetRange("12m", f.today);
+      const flt: Filters = { preset: "custom", ...r, compounds: comps.map((c) => c.i), properties: props.map((p) => p.i), lessees, staff: [], compare: true };
+      const scope = scopeOf(f, flt);
+      const cur = analyticsMetrics(f, scope, flt.from, flt.to);
+      const pr = previousRange(flt.from, flt.to);
+      const prev = analyticsMetrics(f, scope, pr.from, pr.to);
+      const rows = breakdown(f, flt, a.breakdown_by as Dim);
+      const byLessee = a.breakdown_by === "lessee" ? rows : breakdown(f, flt, "lessee");
+      const byProperty = a.breakdown_by === "property" ? rows : breakdown(f, flt, "property");
+      const items = overdueItems(f, scope);
+      const pick = (m: typeof cur) => ({
+        rent_received: r2(m.received), rent_billed: r2(m.billed), collection_rate_pct: m.collectionRate != null ? r2(m.collectionRate * 100) : null,
+        outstanding_now: r2(m.outstanding), overdue_lessees: m.overdueLessees, oldest_overdue_days: m.oldestDays,
+        landlord_costs: r2(m.costs), net: r2(m.net), units: m.units, leased: m.leased, occupancy_pct: m.occupancy != null ? r2(m.occupancy * 100) : null,
+        rent_roll_per_month: r2(m.monthlyRent), rent_per_sqft: m.rentPerSqft != null ? r2(m.rentPerSqft) : null, valuation: r2(m.valuation),
+        yield_annualised_pct: m.yieldPct != null ? r2(m.yieldPct * 100) : null, deposit_shortfall: r2(m.depositShortfall),
+        lessee_charges_outstanding: r2(m.chargesOutstanding), leases_ending_90d: m.expiring90, rent_at_risk_90d: r2(m.expiring90Rent),
+        paid_on_time_pct: m.onTimePct != null ? r2(m.onTimePct * 100) : null,
+      });
+      const key = a.rank_by as keyof typeof cur;
+      return {
+        currency: "KES",
+        scope: { period: r, previous_period: pr, compounds: comps.map((c) => c.n), properties: props.map((p) => p.n), lessees },
+        current: pick(cur),
+        previous: pick(prev),
+        breakdown: {
+          by: a.breakdown_by, ranked_by: a.rank_by,
+          rows: rows.filter((x) => x.m[key] != null).sort((x, y) => Number(y.m[key]) - Number(x.m[key])).slice(0, a.limit).map((x) => ({ name: x.label, detail: x.sub, ...pick(x.m) })),
+        },
+        monthly: a.include_monthly ? monthly(f, scope, flt.from, flt.to).map((m) => ({ month: m.month, billed: r2(m.billed), received: r2(m.received), costs: r2(m.costs), collection_rate_pct: m.rate != null ? r2(m.rate * 100) : null })) : undefined,
+        overdue_aging: agingBuckets(items).map((b) => ({ bucket: b.label, amount: r2(b.amount), items: b.count })),
+        lease_expiries_next_12m: expiryTimeline(f, scope).filter((e) => e.count).map((e) => ({ month: e.month, leases: e.leases.map((l) => `${l.lessee} (${l.property}) ${l.end}`), rent: r2(e.rent) })),
+        forecast_next_6m: rentForecast(f, scope).map((x) => ({ month: x.month, billed: r2(x.due), still_to_collect: r2(x.unpaid) })),
+        insights: analyticsInsights(f, flt, cur, prev, byLessee, byProperty, items).map((i) => i.text),
       };
     },
   }),

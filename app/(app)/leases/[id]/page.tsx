@@ -3,7 +3,8 @@ import { PageHeader } from "@/components/PageHeader";
 import { Pagination, PAGE_SIZE, parsePage } from "@/components/Pagination";
 import { DateFilter } from "@/components/DateFilter";
 import { resolvePeriod, type Range } from "@/lib/period";
-import { StackedBarTrend, DonutChart } from "@/components/Charts";
+import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
+import { getAnalyticsFacts, pruneFacts } from "@/lib/analytics/server";
 import { ConfirmButton, ConfirmPostButton } from "@/components/ConfirmButton";
 import { money, fmtDate } from "@/lib/format";
 import Link from "next/link";
@@ -14,22 +15,6 @@ import { guardView } from "@/lib/guard";
 import { revalidateApp } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
-
-function ymKey(d: Date | string): string {
-  const dt = typeof d === "string" ? new Date(d) : d;
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-function listMonths(fromISO: string, toISO: string): string[] {
-  const out: string[] = [];
-  const a = new Date(fromISO + "T00:00:00Z");
-  const b = new Date(toISO + "T00:00:00Z");
-  let y = a.getUTCFullYear(), m = a.getUTCMonth();
-  while (y < b.getUTCFullYear() || (y === b.getUTCFullYear() && m <= b.getUTCMonth())) {
-    out.push(`${y}-${String(m + 1).padStart(2, "0")}`);
-    m++; if (m > 11) { m = 0; y++; }
-  }
-  return out;
-}
 
 export default async function LeaseDetailPage({
   params,
@@ -71,7 +56,6 @@ export default async function LeaseDetailPage({
   const filterPeriod = resolvePeriod(sp);
   const periodFrom = filterPeriod.from > leaseStart ? filterPeriod.from : leaseStart;
   const periodTo = filterPeriod.to < leaseEffectiveEnd ? filterPeriod.to : leaseEffectiveEnd;
-  const days = Math.max(1, Math.round((new Date(periodTo).getTime() - new Date(periodFrom).getTime()) / 86400000));
 
   const property_id = (lease as { property_id: string }).property_id;
 
@@ -82,9 +66,8 @@ export default async function LeaseDetailPage({
   const [
     rentsPageRes,
     allocsPageRes,
-    rentPeriodRes,
-    costsPeriodRes,
     lesseeCostRes,
+    facts,
   ] = await Promise.all([
     sb.from("rent_collections").select("*", { count: "exact" })
       .eq("lease_id", id)
@@ -99,20 +82,12 @@ export default async function LeaseDetailPage({
       .lte("costs.incurred_on", periodTo)
       .order("costs(incurred_on)", { ascending: false })
       .range(...rangeFor(costPage)),
-    sb.from("rent_collections").select("status, net_amount, collected_amount, collected_at, due_date")
-      .eq("lease_id", id)
-      .gte("due_date", periodFrom)
-      .lte("due_date", periodTo),
-    sb.from("cost_allocations").select("allocated_amount, costs!inner(incurred_on, amount, payable_by_lessee, cost_line_items(category, amount))")
-      .eq("property_id", property_id)
-      .eq("costs.payable_by_lessee", false)
-      .gte("costs.incurred_on", periodFrom)
-      .lte("costs.incurred_on", periodTo),
     // Lessee-billed costs (separate flow — what the tenant owes us)
     sb.from("costs").select("id, description, amount, due_date, collected_amount, collection_status, collected_at, cost_line_items(category, amount)")
       .eq("payable_by_lessee", true)
       .eq("lease_id", id)
       .order("due_date", { ascending: false }),
+    getAnalyticsFacts(),
   ]);
 
   const rentRows = rentsPageRes.data ?? [];
@@ -120,63 +95,8 @@ export default async function LeaseDetailPage({
   const allocs = (allocsPageRes.data ?? []) as any[];
   const costTotal = allocsPageRes.count ?? 0;
 
-  const rent = (rentPeriodRes.data ?? []) as any[];
-  const collected = rent
-    .filter((r) => r.status === "collected" || r.status === "partial")
-    .reduce((s, r) => s + Number(r.collected_amount || (r.status === "collected" ? r.net_amount : 0)), 0);
-  const billed = rent.reduce((s, r) => s + Number(r.net_amount || 0), 0);
-  const outstanding = rent
-    .filter((r) => r.status === "due" || r.status === "partial")
-    .reduce((s, r) => s + Math.max(0, Number(r.net_amount || 0) - Number(r.collected_amount || 0)), 0);
-
-  const costsPeriod = (costsPeriodRes.data ?? []) as any[];
-  const totalCosts = costsPeriod.reduce((s, a) => s + Number(a.allocated_amount), 0);
-  const net = collected - totalCosts;
-  const collectionRate = billed > 0 ? (collected / billed) * 100 : null;
-
   const lesseeCosts = (lesseeCostRes.data ?? []) as any[];
-  const lesseeBilled = lesseeCosts.reduce((s, c) => s + Number(c.amount || 0), 0);
-  const lesseeCollected = lesseeCosts.reduce((s, c) => s + Number(c.collected_amount || 0), 0);
-  const lesseeOutstanding = Math.max(0, lesseeBilled - lesseeCollected);
 
-  // === TREND ===
-  const months = listMonths(periodFrom, periodTo);
-  const monthBuckets = new Map<string, { collected: number; costs: number }>();
-  for (const m of months) monthBuckets.set(m, { collected: 0, costs: 0 });
-  for (const r of rent) {
-    // Same rule as the "Collected" figure above: partial payments count, by the amount paid.
-    if ((r.status === "collected" || r.status === "partial") && r.collected_at) {
-      const k = ymKey(r.collected_at);
-      if (monthBuckets.has(k)) monthBuckets.get(k)!.collected += Number(r.collected_amount || (r.status === "collected" ? r.net_amount : 0));
-    }
-  }
-  for (const c of costsPeriod) {
-    const incurred = c.costs?.incurred_on;
-    if (incurred) {
-      const k = ymKey(incurred);
-      if (monthBuckets.has(k)) monthBuckets.get(k)!.costs += Number(c.allocated_amount || 0);
-    }
-  }
-  const trend = Array.from(monthBuckets.entries()).map(([ym, v]) => ({ ym, ...v }));
-
-  // === COST CATEGORIES ===
-  const byCategory: Record<string, number> = {};
-  for (const a of costsPeriod) {
-    const lineItems = (a.costs?.cost_line_items ?? []) as { category: string; amount: number }[];
-    const allocated = Number(a.allocated_amount || 0);
-    const totalLines = lineItems.reduce((s, l) => s + Number(l.amount || 0), 0);
-    if (totalLines > 0) {
-      for (const li of lineItems) {
-        byCategory[li.category] = (byCategory[li.category] ?? 0) + (Number(li.amount) / totalLines) * allocated;
-      }
-    } else {
-      byCategory["uncategorized"] = (byCategory["uncategorized"] ?? 0) + allocated;
-    }
-  }
-  const categoryRows = Object.entries(byCategory).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
-
-  const prop = (lease as any).properties;
-  const compound = Array.isArray(prop?.compounds) ? prop.compounds[0] : prop?.compounds;
   const isActive = (lease as any).active;
   const wasCancelled = !!(lease as any).cancelled_at;
 
@@ -278,61 +198,20 @@ export default async function LeaseDetailPage({
         )}
       </div>
 
+      <div className="mb-3 mt-8">
+        <h2 className="text-[15px] font-medium tracking-[-0.01em] text-fg">Analytics</h2>
+        <p className="text-[12.5px] text-muted-fg">This lease only.</p>
+      </div>
+      <AnalyticsDashboard
+        facts={pruneFacts(facts, { leaseIds: [id] })}
+        lock={{ properties: [(lease as any).property_id], lessees: [(lease as any).lessee_name] }}
+        embedded
+        links={{ rent: has(profile, "view_rent") }}
+      />
+
       <div className="mb-3 mt-8 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-[15px] font-medium tracking-[-0.01em] text-fg">Performance</h2>
+        <h2 className="text-[15px] font-medium tracking-[-0.01em] text-fg">History</h2>
         <DateFilter active={filterPeriod.range as Range} />
-      </div>
-
-      {/* HERO KPIs */}
-      <div className="stat-row mb-6">
-        <div className="kpi">
-          <div className="kpi-label">Net</div>
-          <div className={`kpi-value ${net < 0 ? "text-danger" : "text-success"}`}>{money(net)}</div>
-          <div className="kpi-hint">{money(collected)} in − {money(totalCosts)} out</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Collection rate</div>
-          <div className="kpi-value">{collectionRate !== null ? `${collectionRate.toFixed(0)}%` : "—"}</div>
-          <div className="kpi-hint">{money(collected)} of {money(billed)} billed</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Outstanding</div>
-          <div className={`kpi-value ${outstanding > 0 ? "text-danger" : ""}`}>{money(outstanding)}</div>
-          <div className="kpi-hint">Rent only</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Cost charges</div>
-          <div className={`kpi-value ${lesseeOutstanding > 0 ? "text-warning" : ""}`}>{money(lesseeOutstanding)}</div>
-          <div className="kpi-hint">
-            {lesseeCosts.length} cost{lesseeCosts.length === 1 ? "" : "s"} billed to lessee
-          </div>
-        </div>
-      </div>
-
-      {/* TREND + COST BREAKDOWN — merged */}
-      <div className="card mb-6 grid p-0 lg:grid-cols-2 lg:divide-x lg:divide-line-subtle">
-        <div>
-          <div className="section-head"><h2>Monthly trend</h2></div>
-          <div className="panel">
-            <StackedBarTrend
-              data={trend.map((t) => ({ label: t.ym.slice(2), collected: t.collected, costs: t.costs }))}
-              formatValue={(n) => money(n)}
-            />
-          </div>
-        </div>
-        <div>
-          <div className="section-head">
-            <h2>Cost breakdown</h2>
-            <span className="text-xs text-muted-fg">{money(totalCosts)} total</span>
-          </div>
-          <div className="panel">
-            {categoryRows.length > 0 ? (
-              <DonutChart data={categoryRows} formatValue={(n) => money(n)} />
-            ) : (
-              <p className="py-10 text-center text-[13px] text-muted-fg">No costs in this period.</p>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* RENT HISTORY */}
