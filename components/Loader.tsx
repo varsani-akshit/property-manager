@@ -10,13 +10,13 @@ export function Loader({
   className,
   tone = "brand",
 }: {
-  size?: "xs" | "sm" | "md";
+  size?: "xs" | "sm" | "md" | "lg";
   className?: string;
   /** `current` follows the text colour (e.g. white inside a primary button). */
   tone?: "brand" | "current";
 }) {
-  const dims = { xs: "h-3 gap-[1.5px]", sm: "h-4 gap-[2px]", md: "h-7 gap-[3px]" }[size];
-  const bar = { xs: "w-[2.5px]", sm: "w-[3px]", md: "w-[5px]" }[size];
+  const dims = { xs: "h-3 gap-[1.5px]", sm: "h-4 gap-[2px]", md: "h-7 gap-[3px]", lg: "h-10 gap-1" }[size];
+  const bar = { xs: "w-[2.5px]", sm: "w-[3px]", md: "w-[5px]", lg: "w-[7px]" }[size];
   return (
     <span role="status" aria-label="Loading" className={cn("vk-loader inline-flex items-end", dims, className)}>
       {[0.55, 0.9, 0.7, 1].map((h, i) => (

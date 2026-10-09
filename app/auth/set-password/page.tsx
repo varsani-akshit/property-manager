@@ -12,8 +12,10 @@ export default function SetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reset, setReset] = useState(false);
 
   useEffect(() => {
+    setReset(new URLSearchParams(window.location.search).has("reset"));
     supabaseBrowser().auth.getUser().then(({ data: { user } }) => {
       if (!user) router.replace("/login");
       else setEmail(user.email ?? null);
@@ -39,8 +41,8 @@ export default function SetPasswordPage() {
 
   return (
     <AuthLayout
-      title="Set your password"
-      subtitle={<>Welcome{email ? `, ${email}` : ""}. Choose a password to finish setting up your account.</>}
+      title={reset ? "Choose a new password" : "Set your password"}
+      subtitle={reset ? <>For {email ?? "your account"}.</> : <>Welcome{email ? `, ${email}` : ""}. Choose a password to finish setting up your account.</>}
     >
       <form onSubmit={onSubmit} className="space-y-4">
         <div>

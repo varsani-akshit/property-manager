@@ -2,280 +2,61 @@ import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
-import { PERMISSION_LABELS, VIEW_PERMS, ACTION_PERMS, type Permission, type UserProfile,  } from "@/lib/permissions";
+import { FIELD_MAP, VIEW_PERMS, ACTION_PERMS, type Permission, type UserProfile } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
-import { guardView } from "@/lib/guard";
-import { revalidateApp } from "@/lib/revalidate";
-import { redirect } from "next/navigation";
-import { fmtDate } from "@/lib/format";
-import { ConfirmButton } from "@/components/ConfirmButton";
-import { SubmitButton } from "@/components/SubmitButton";
 import { SearchBar } from "@/components/SearchBar";
+import { Team, type Member } from "./Team";
 
 export const dynamic = "force-dynamic";
 
-function flash(key: "error" | "ok", msg: string): never {
-  // Server-action helper: redirect back to /users with a flash message in the URL.
-  redirect(`/users?${key}=${encodeURIComponent(msg)}`);
-}
-
-const FIELD_MAP: Record<Permission, keyof UserProfile> = {
-  view_dashboard: "can_view_dashboard",
-  view_compounds: "can_view_compounds",
-  view_properties: "can_view_properties",
-  view_leases: "can_view_leases",
-  view_rent: "can_view_rent",
-  view_costs: "can_view_costs",
-  view_service_charges: "can_view_service_charges",
-  create_property: "can_create_property",
-  edit_property: "can_edit_property",
-  delete_property: "can_delete_property",
-  create_lease: "can_create_lease",
-  cancel_lease: "can_cancel_lease",
-  mark_rent: "can_mark_rent",
-  add_cost: "can_add_cost",
-  delete_cost: "can_delete_cost",
-  pay_service_charges: "can_pay_service_charges",
-  manage_users: "can_manage_users",
-};
-
 const ALL_PERMS: Permission[] = [...VIEW_PERMS, ...ACTION_PERMS];
 
-async function inviteUser(formData: FormData) {
-  "use server";
-  await requirePermission("manage_users");
-  const email = String(formData.get("email") || "").trim().toLowerCase();
-  if (!email) flash("error", "Email is required");
-
-  const admin = supabaseAdmin();
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${site}/auth/callback?next=/`,
-  });
-  if (error) flash("error", `Invite failed: ${error.message}`);
-  revalidateApp("/users");
-  flash("ok", `Invite sent to ${email}.`);
-}
-
-async function updateUser(formData: FormData) {
-  "use server";
-  await requirePermission("manage_users");
-  const id = String(formData.get("id"));
-  const sb = await supabaseServer();
-
-  const patch: Partial<Record<keyof UserProfile, boolean>> = {
-    is_admin: formData.get("is_admin") === "on",
-  };
-  for (const p of ALL_PERMS) {
-    patch[FIELD_MAP[p]] = formData.get(p) === "on";
-  }
-  const { error } = await sb.from("user_profiles").update(patch).eq("id", id);
-  if (error) flash("error", `Update failed: ${error.message}`);
-  revalidateApp("/users");
-  flash("ok", "Permissions saved.");
-}
-
-async function resendInvite(formData: FormData) {
-  "use server";
-  await requirePermission("manage_users");
-  const email = String(formData.get("email") || "").trim().toLowerCase();
-  if (!email) flash("error", "Email required");
-  const admin = supabaseAdmin();
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${site}/auth/callback?next=/`,
-  });
-  if (error) flash("error", `Resend failed: ${error.message}`);
-  revalidateApp("/users");
-  flash("ok", `Invite re-sent to ${email}.`);
-}
-
-async function deleteUser(formData: FormData) {
-  "use server";
-  await requirePermission("manage_users");
-  const id = String(formData.get("id"));
-  const admin = supabaseAdmin();
-  const { error } = await admin.auth.admin.deleteUser(id);
-  if (error) flash("error", `Delete failed: ${error.message}`);
-  revalidateApp("/users");
-  flash("ok", "User deleted.");
-}
-
-type AuthState = { invited_at: string | null; email_confirmed_at: string | null; last_sign_in_at: string | null };
-
-function statusOf(s: AuthState | null): { label: string; cls: string } {
-  if (!s) return { label: "unknown", cls: "badge-muted" };
-  if (s.last_sign_in_at) return { label: "active", cls: "badge-success" };
-  if (s.email_confirmed_at) return { label: "accepted (no password yet)", cls: "badge-warning" };
-  if (s.invited_at) return { label: "invited — pending", cls: "badge-warning" };
-  return { label: "no auth record", cls: "badge-muted" };
-}
-
-export default async function UsersPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string; ok?: string; q?: string }>;
-}) {
-  await guardView("view_dashboard"); // /users is gated below by manage_users
-  await requirePermission("manage_users");
-
-  const sp = await searchParams;
-  const { error: flashError, ok: flashOk } = sp;
-  const q = sp.q?.trim() || "";
+export default async function UsersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const me = await requirePermission("manage_users");
+  const q = (await searchParams).q?.trim() || "";
 
   const sb = await supabaseServer();
-  const admin = supabaseAdmin();
-
   let usersQ = sb.from("user_profiles").select("*");
   if (q) usersQ = usersQ.or(`email.ilike.%${q}%,full_name.ilike.%${q}%`);
-  const [allRes, authResult] = await Promise.all([
+  const [allRes, authRes] = await Promise.all([
     usersQ.order("full_name", { ascending: true, nullsFirst: false }).order("email"),
-    admin.auth.admin.listUsers({ perPage: 200 }).catch((e: Error) => {
+    supabaseAdmin().auth.admin.listUsers({ perPage: 200 }).catch((e: Error) => {
       console.error("listUsers failed:", e.message);
-      return { data: { users: [] }, error: e } as any;
+      return { data: { users: [] } };
     }),
   ]);
-  const users = (allRes.data ?? []) as unknown as UserProfile[];
-  const total = users.length;
-  const allProfiles = users.map((u) => ({ id: u.id, is_admin: u.is_admin }));
+  const profiles = (allRes.data ?? []) as unknown as UserProfile[];
+  const auth = new Map((authRes.data?.users ?? []).map((u) => [u.id, u]));
 
-  const authById: Record<string, AuthState> = {};
-  for (const u of authResult?.data?.users ?? []) {
-    authById[u.id] = {
-      invited_at: u.invited_at ?? null,
-      email_confirmed_at: u.email_confirmed_at ?? null,
-      last_sign_in_at: u.last_sign_in_at ?? null,
+  const members: Member[] = profiles.map((u) => {
+    const a = auth.get(u.id);
+    return {
+      id: u.id,
+      email: u.email,
+      name: u.full_name && u.full_name.trim().toLowerCase() !== u.email.toLowerCase() ? u.full_name.trim() : null,
+      isAdmin: u.is_admin,
+      perms: ALL_PERMS.filter((p) => u[FIELD_MAP[p]]),
+      status: !a ? "unknown" : a.last_sign_in_at ? "active" : a.email_confirmed_at ? "opened" : a.invited_at ? "invited" : "unknown",
+      lastSignIn: a?.last_sign_in_at ?? null,
+      joined: u.created_at,
+      isMe: u.id === me.id,
     };
-  }
-
-  // KPIs computed across the whole user base (not the current page).
-  const admins = allProfiles.filter((u) => u.is_admin).length;
-  const invitedPending = allProfiles.filter((u) => {
-    const a = authById[u.id];
-    return a && a.invited_at && !a.last_sign_in_at;
-  }).length;
-  const active = allProfiles.filter((u) => authById[u.id]?.last_sign_in_at).length;
+  });
+  // Admins first, then by name.
+  members.sort((a, b) => Number(b.isAdmin) - Number(a.isAdmin) || (a.name || a.email).localeCompare(b.name || b.email));
 
   return (
     <div>
-      <PageHeader
-        title="Users & permissions"
-        right={<SearchBar placeholder="Search name or email…" />}
-      />
-
-      {flashError && (
-        <div className="notice-danger">{flashError}</div>
-      )}
-      {flashOk && (
-        <div className="notice-success">{flashOk}</div>
-      )}
+      <PageHeader title="Team" subtitle="Who can use Variaka, and what each person can see and do." right={<SearchBar placeholder="Search name or email…" />} />
 
       <div className="stat-row mb-6">
-        <Kpi label="Users" value={String(total)} />
-        <Kpi label="Active" value={String(active)} hint="Have signed in" />
-        <Kpi label="Invited / pending" value={String(invitedPending)} hint="Haven't logged in yet" />
-        <Kpi label="Admins" value={String(admins)} />
+        <Kpi label="Members" value={String(members.length)} />
+        <Kpi label="Active" value={String(members.filter((m) => m.status === "active").length)} hint="Have signed in" />
+        <Kpi label="Pending" value={String(members.filter((m) => m.status === "invited" || m.status === "opened").length)} hint="Haven't finished setup" />
+        <Kpi label="Admins" value={String(members.filter((m) => m.isAdmin).length)} />
       </div>
 
-      <div className="card mb-4">
-        <h2 className="h2">Invite a user</h2>
-        <p className="mb-3 mt-0.5 text-[12.5px] text-muted-fg">They get an email link to set a password. Grant pages below once they appear.</p>
-        <form action={inviteUser} className="flex flex-col gap-2 sm:flex-row">
-          <input
-            type="email"
-            name="email"
-            required
-            placeholder="teammate@company.com"
-            className="input flex-1"
-          />
-          <SubmitButton loadingText="Sending…">Send invite</SubmitButton>
-        </form>
-      </div>
-
-      <div className="space-y-4">
-        {users.map((u) => (
-          <div key={u.id} className="card">
-            {/* Single outer form for permission updates. Delete is a SIBLING form, never nested. */}
-            <form action={updateUser}>
-              <input type="hidden" name="id" value={u.id} />
-              <div className="flex items-center justify-between mb-3 gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="truncate text-[14px] font-medium text-fg">{u.full_name || u.email}</span>
-                    {(() => { const s = statusOf(authById[u.id] ?? null); return <span className={s.cls}>{s.label}</span>; })()}
-                  </div>
-                  <div className="mt-0.5 truncate text-[12px] text-muted-fg">{u.email}</div>
-                </div>
-                <label className="flex items-center gap-2 whitespace-nowrap rounded-md border border-border px-2.5 py-1.5 text-[12.5px]">
-                  <input type="checkbox" name="is_admin" defaultChecked={u.is_admin} />
-                  <span className="font-medium">Admin</span>
-                </label>
-              </div>
-
-              <div className="grid gap-4 border-t border-line-subtle pt-3 md:grid-cols-2">
-                <div>
-                  <div className="eyebrow mb-2 !text-[10.5px]">Page visibility</div>
-                  <div className="grid gap-0.5 text-[13px] sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
-                    {VIEW_PERMS.map((p) => (
-                      <label key={p} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-fg-soft transition-colors hover:bg-muted/60 hover:text-fg">
-                        <input type="checkbox" name={p} defaultChecked={Boolean(u[FIELD_MAP[p]])} />
-                        <span>{PERMISSION_LABELS[p]}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="eyebrow mb-2 !text-[10.5px]">Actions</div>
-                  <div className="grid gap-0.5 text-[13px] sm:grid-cols-2 md:grid-cols-1 xl:grid-cols-2">
-                    {ACTION_PERMS.map((p) => (
-                      <label key={p} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-fg-soft transition-colors hover:bg-muted/60 hover:text-fg">
-                        <input type="checkbox" name={p} defaultChecked={Boolean(u[FIELD_MAP[p]])} />
-                        <span>{PERMISSION_LABELS[p]}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex justify-end items-center gap-3">
-                <span className="text-[12px] text-muted-fg">Joined {fmtDate(u.created_at)}</span>
-                <SubmitButton className="btn-primary">Save permissions</SubmitButton>
-              </div>
-            </form>
-
-            {/* Resend invite — shown when user is invited but hasn't signed in. Sibling form. */}
-            {(() => {
-              const a = authById[u.id];
-              const pending = a && a.invited_at && !a.last_sign_in_at;
-              if (!pending) return null;
-              return (
-                <form action={resendInvite} className="mt-3 flex items-center gap-2 border-t border-line-subtle pt-3">
-                  <input type="hidden" name="email" value={u.email} />
-                  <p className="flex-1 text-[12px] text-muted-fg">User hasn&apos;t accepted the invite yet.</p>
-                  <button type="submit" className="btn-secondary">Resend invite</button>
-                </form>
-              );
-            })()}
-
-            {/* Separate, sibling form for delete — never nested inside the permissions form. */}
-            <details className="mt-3 border-t border-line-subtle pt-3">
-              <summary className="cursor-pointer text-[12px] text-danger">Delete this user permanently</summary>
-              <div className="mt-2 flex items-center gap-2 justify-end">
-                <ConfirmButton
-                  action={deleteUser}
-                  hiddenInputs={{ id: u.id }}
-                  confirm={`Permanently delete ${u.email}? They will be signed out and removed from the system. This cannot be undone.`}
-                  label="Permanently delete"
-                />
-              </div>
-            </details>
-          </div>
-        ))}
-      </div>
-
-      {q && !users.length && (
-        <p className="py-10 text-center text-[13px] text-muted-fg">No users match &ldquo;{q}&rdquo;.</p>
-      )}
+      <Team members={members} query={q} />
     </div>
   );
 }

@@ -27,7 +27,7 @@ const NAV: NavItem[] = [
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { href: "/users",          label: "Users",           icon: Users,    perm: "manage_users" },
+  { href: "/users",          label: "Team",            icon: Users,    perm: "manage_users" },
   { href: "/audit",          label: "Audit trail",     icon: History,  perm: "manage_users" },
   { href: "/admin/api-keys", label: "API keys & MCP",  icon: KeyRound, perm: "manage_users" },
 ];

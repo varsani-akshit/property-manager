@@ -14,7 +14,7 @@ import {
   type Dim, type DimRow, type Filters, type Metrics,
 } from "@/lib/analytics/compute";
 import { DonutChart } from "@/components/Charts";
-import { MixList, RankBars, Spark, StackBar, TrendChart, compactNum, monthLabel, Dot } from "./charts";
+import { FloatTip, MixList, RankBars, Spark, StackBar, TrendChart, compactNum, monthLabel, Dot, useTip } from "./charts";
 import { MultiSelect, PeriodPicker } from "./filters";
 
 // ─── Widgets & customisation ────────────────────────────────────────────────
@@ -417,29 +417,24 @@ export function AnalyticsDashboard({
         {/* ── Occupancy & expiries ── */}
         {show("leases") && (
           <Widget title="Occupancy & lease expiries" sub="Next 12 months · click a month to see which leases end">
-            <div className="grid grid-cols-[minmax(0,1fr)] gap-4 p-4 sm:grid-cols-[150px_minmax(0,1fr)]">
-              <div className="flex flex-col items-center justify-center">
-                <DonutChart size={120} thickness={16} data={[{ label: "Let", value: cur.leased, color: "rgb(var(--c-brand))" }, { label: "Vacant", value: Math.max(0, cur.units - cur.leased), color: "var(--chart-muted)" }]} formatValue={(n) => `${n} units`} />
+            <div className="grid grid-cols-[minmax(0,1fr)] gap-5 p-4 sm:grid-cols-[minmax(0,170px)_minmax(0,1fr)]">
+              <DonutChart
+                stacked
+                size={116}
+                thickness={14}
+                center={{ label: "Let", value: cur.units ? `${Math.round((cur.leased / cur.units) * 100)}%` : "—" }}
+                data={[{ label: "Let", value: cur.leased, color: "rgb(var(--c-brand))" }, { label: "Vacant", value: Math.max(0, cur.units - cur.leased), color: "var(--chart-muted)" }]}
+                formatValue={(n) => `${n} unit${n === 1 ? "" : "s"}`}
+              />
+              <div className="min-w-0 self-center">
+                <ExpiryBars expiries={expiries} active={expMonth} onPick={(m) => setExpMonth((x) => (x === m ? null : m))} />
               </div>
-              <div>
-                <div className="flex h-28 items-end gap-1">
-                  {expiries.map((e) => {
-                    const max = Math.max(1, ...expiries.map((x) => x.rent));
-                    return (
-                      <button type="button" key={e.month} onClick={() => setExpMonth((m) => (m === e.month ? null : e.month))} title={`${monthLabel(e.month)}: ${e.count} lease${e.count === 1 ? "" : "s"}, ${money(e.rent)}/mo`}
-                        className={cn("group flex h-full min-w-0 flex-1 flex-col items-center justify-end rounded-t-md hover:bg-muted/60", expMonth === e.month && "bg-primary-soft")}>
-                        {e.count > 0 && <span className="mb-0.5 text-[10px] font-medium tabular-nums text-fg">{e.count}</span>}
-                        <span className="w-full max-w-[18px] rounded-t-[3px] bg-[color:var(--chart-3)]" style={{ height: `${(e.rent / max) * 80}%` }} />
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-1 flex">{expiries.map((e) => <span key={e.month} className="min-w-0 flex-1 overflow-hidden text-center text-[9.5px] text-muted-fg">{monthLabel(e.month, false).slice(0, 3)}</span>)}</div>
-                <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto text-[12.5px]">
+              <div className="min-w-0 sm:col-span-2">
+                <ul className="max-h-44 space-y-1 overflow-y-auto border-t border-line-subtle pt-3 text-[12.5px]">
                   {(expMonth ? expiries.filter((e) => e.month === expMonth) : expiries).flatMap((e) => e.leases).slice(0, expMonth ? 50 : 6).map((l) => (
                     <li key={l.id} className="flex items-center justify-between gap-2">
                       <Link href={`/leases/${l.id}`} className="min-w-0 truncate hover:underline"><span className="font-medium">{l.lessee}</span> <span className="text-muted-fg">· {l.property}</span></Link>
-                      <span className="shrink-0 tabular-nums text-muted-fg">{fmtDate(l.end)} · {money(l.rent)}</span>
+                      <span className="shrink-0 whitespace-nowrap tabular-nums text-muted-fg">{fmtDate(l.end)}<span className="hidden sm:inline"> · {money(l.rent)}</span></span>
                     </li>
                   ))}
                   {!expiries.some((e) => e.count) && <li className="text-muted-fg">No leases end in the next 12 months.</li>}
@@ -530,8 +525,8 @@ export function AnalyticsDashboard({
                   <Th label="Collected %" k="collectionRate" sort={sort} setSort={setSort} right hide="md" />
                   <Th label="Outstanding" k="outstanding" sort={sort} setSort={setSort} right />
                   <Th label="Oldest" k="oldestDays" sort={sort} setSort={setSort} right hide="lg" />
-                  <Th label="Net" k="net" sort={sort} setSort={setSort} right hide="xl" />
-                  <Th label="Yield" k="yieldPct" sort={sort} setSort={setSort} right hide="xl" />
+                  <Th label="Net" k="net" sort={sort} setSort={setSort} right hide="2xl" />
+                  <Th label="Yield" k="yieldPct" sort={sort} setSort={setSort} right hide="2xl" />
                 </tr>
               </thead>
               <tbody>
@@ -555,8 +550,8 @@ export function AnalyticsDashboard({
                     <td className={cn("hidden text-right md:table-cell", r.m.collectionRate != null && r.m.collectionRate < 0.8 && "text-warning")}>{fmtMetric("collectionRate", r.m.collectionRate)}</td>
                     <td className={cn("text-right font-medium", r.m.outstanding > 0 && "text-danger")}>{money(r.m.outstanding)}</td>
                     <td className="hidden text-right lg:table-cell">{r.m.outstanding > 0 ? `${r.m.oldestDays}d` : "—"}</td>
-                    <td className="hidden text-right xl:table-cell">{money(r.m.net)}</td>
-                    <td className="hidden text-right xl:table-cell">{fmtMetric("yieldPct", r.m.yieldPct)}</td>
+                    <td className="hidden text-right 2xl:table-cell">{money(r.m.net)}</td>
+                    <td className="hidden text-right 2xl:table-cell">{fmtMetric("yieldPct", r.m.yieldPct)}</td>
                   </tr>
                 ))}
                 {!sortedRows.length && <tr><td colSpan={10} className="!py-10 text-center text-muted-fg">Nothing matches these filters.</td></tr>}
@@ -616,6 +611,34 @@ function KpiCard({
   return onClick ? <button type="button" onClick={onClick} className={cn(cls, "transition-colors hover:border-line-strong")}>{body}</button> : <div className={cls}>{body}</div>;
 }
 
+function ExpiryBars({ expiries, active, onPick }: { expiries: ReturnType<typeof expiryTimeline>; active: string | null; onPick: (m: string) => void }) {
+  const { tip, bind } = useTip<number>();
+  const max = Math.max(1, ...expiries.map((x) => x.rent));
+  const t = tip ? expiries[tip.item] : null;
+  return (
+    <div>
+      <div className="flex h-28 items-end gap-0.5 sm:gap-1">
+        {expiries.map((e, i) => (
+          <button type="button" key={e.month} onClick={() => onPick(e.month)} aria-label={`${monthLabel(e.month)}: ${e.count} lease${e.count === 1 ? "" : "s"} end`} {...bind(i)}
+            className={cn("flex h-full min-w-0 flex-1 flex-col items-center justify-end rounded-t-md hover:bg-muted/60", active === e.month && "bg-primary-soft")}>
+            {e.count > 0 && <span className="mb-0.5 text-[10px] font-medium tabular-nums text-fg">{e.count}</span>}
+            <span className="w-full max-w-[18px] rounded-t-[3px] bg-[color:var(--chart-3)]" style={{ height: `${(e.rent / max) * 80}%` }} />
+          </button>
+        ))}
+      </div>
+      <div className="mt-1 flex border-t border-border pt-1">{expiries.map((e) => <span key={e.month} className="min-w-0 flex-1 overflow-hidden text-center text-[9.5px] text-muted-fg">{monthLabel(e.month, false).slice(0, 3)}</span>)}</div>
+      <FloatTip anchor={tip?.rect}>
+        {t && (
+          <>
+            <span className="block text-muted-fg">{monthLabel(t.month)}</span>
+            {t.count ? <span className="block font-medium">{t.count} lease{t.count === 1 ? "" : "s"} end · {money(t.rent)}/mo</span> : <span className="block">No leases end</span>}
+          </>
+        )}
+      </FloatTip>
+    </div>
+  );
+}
+
 function Widget({ id, title, sub, right, icon, children }: { id?: string; title: string; sub?: string; right?: React.ReactNode; icon?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section id={id} className="card scroll-mt-40 p-0">
@@ -644,10 +667,10 @@ function DimTabs({ dims, dim, onDim }: { dims: Dim[]; dim: Dim; onDim: (d: Dim) 
 
 function Th({ label, k, sort, setSort, right, hide }: {
   label: string; k: MetricKey | "label"; sort: { key: MetricKey | "label"; dir: 1 | -1 };
-  setSort: (s: { key: MetricKey | "label"; dir: 1 | -1 }) => void; right?: boolean; hide?: "sm" | "md" | "lg" | "xl";
+  setSort: (s: { key: MetricKey | "label"; dir: 1 | -1 }) => void; right?: boolean; hide?: "sm" | "md" | "lg" | "xl" | "2xl";
 }) {
   const active = sort.key === k;
-  const hideCls = hide ? { sm: "hidden sm:table-cell", md: "hidden md:table-cell", lg: "hidden lg:table-cell", xl: "hidden xl:table-cell" }[hide] : "";
+  const hideCls = hide ? { sm: "hidden sm:table-cell", md: "hidden md:table-cell", lg: "hidden lg:table-cell", xl: "hidden xl:table-cell", "2xl": "hidden 2xl:table-cell" }[hide] : "";
   return (
     <th className={cn("th-sort", right && "text-right", active && "text-fg", hideCls)} onClick={() => setSort({ key: k, dir: active ? (sort.dir === 1 ? -1 : 1) : k === "label" ? 1 : -1 })} aria-sort={active ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
       {label}{active && <span className="ml-0.5 text-primary">{sort.dir === 1 ? "↑" : "↓"}</span>}

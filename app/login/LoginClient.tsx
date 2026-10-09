@@ -60,7 +60,10 @@ export function LoginClient() {
           <input id="email" type="email" required autoComplete="email" className="input h-10" value={email} onChange={(e) => setEmail(e.target.value)} />
         </div>
         <div>
-          <label className="label" htmlFor="password">Password</label>
+          <div className="flex items-baseline justify-between">
+            <label className="label" htmlFor="password">Password</label>
+            <a href="/auth/forgot" className="text-[12px] text-muted-fg hover:text-primary">Forgot password?</a>
+          </div>
           <input id="password" type="password" required autoComplete="current-password" className="input h-10" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
 

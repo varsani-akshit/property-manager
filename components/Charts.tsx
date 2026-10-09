@@ -1,5 +1,6 @@
 // Charts in plain HTML/SVG: server-rendered, no JS, no dependencies.
 // Colours come from the --chart-* tokens in app/globals.css.
+import { cn } from "@/lib/cn";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -186,11 +187,17 @@ export function DonutChart({
   size = 140,
   thickness = 22,
   formatValue = (n: number) => n.toLocaleString(),
+  stacked = false,
+  center,
 }: {
   data: { label: string; value: number; color?: string }[];
   size?: number;
   thickness?: number;
   formatValue?: (n: number) => string;
+  /** For a narrow side column: legend under the ring from sm up, beside it on phones. */
+  stacked?: boolean;
+  /** Text inside the ring; defaults to the total. */
+  center?: { label: string; value: string };
 }) {
   const total = data.reduce((s, d) => s + Math.max(0, d.value), 0);
   if (total <= 0) return <p className="text-[13px] text-muted-fg">No data.</p>;
@@ -217,7 +224,7 @@ export function DonutChart({
     });
 
   return (
-    <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+    <div className={cn("flex w-full min-w-0 items-center", stacked ? "flex-row gap-5 sm:flex-col sm:gap-4" : "flex-col gap-4 sm:flex-row sm:gap-5")}>
       <div className="relative shrink-0" style={{ width: size, height: size }}>
         <svg viewBox={`0 0 ${size} ${size}`} className="h-full w-full">
           {slices.map((s, i) => (
@@ -227,17 +234,17 @@ export function DonutChart({
           ))}
         </svg>
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted-fg">Total</span>
-          <span className="max-w-[80px] truncate text-[12.5px] font-medium tabular-nums text-fg">{compact(total)}</span>
+          <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-muted-fg">{center?.label ?? "Total"}</span>
+          <span className="truncate text-[13px] font-medium tabular-nums text-fg" style={{ maxWidth: innerR * 1.6 }}>{center?.value ?? compact(total)}</span>
         </div>
       </div>
       <ul className="w-full min-w-0 flex-1 space-y-1.5 text-[12.5px]">
         {slices.map((s, i) => (
           <li key={i} className="flex items-center gap-2">
             <Dot color={s.color} />
-            <span className="flex-1 truncate capitalize text-fg-soft">{s.label}</span>
-            <span className="font-medium tabular-nums text-fg">{formatValue(s.value)}</span>
-            <span className="w-9 text-right tabular-nums text-muted-fg">{((s.value / total) * 100).toFixed(0)}%</span>
+            <span className="min-w-0 flex-1 truncate capitalize text-fg-soft" title={s.label}>{s.label}</span>
+            <span className="shrink-0 font-medium tabular-nums text-fg">{formatValue(s.value)}</span>
+            <span className="w-9 shrink-0 text-right tabular-nums text-muted-fg">{((s.value / total) * 100).toFixed(0)}%</span>
           </li>
         ))}
       </ul>

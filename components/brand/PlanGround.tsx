@@ -1,7 +1,9 @@
 /**
  * Ground for the sign-in screens: a drafting grid that fades out toward the
- * centre, with a faint floor plan (walls, door swings, dimension lines) drawn
- * across the lower right — like a sheet from the architect's set.
+ * centre, dressed like a sheet from the architect's set — a floor plan across
+ * the lower right, structural grid bubbles down the left edge, a north arrow
+ * and scale bar top right, and the sheet's title block bottom left. Phones get
+ * the plan and the north arrow only.
  */
 export function PlanGround({ className }: { className?: string }) {
   const ink = "rgb(var(--c-brand))";
@@ -23,10 +25,76 @@ export function PlanGround({ className }: { className?: string }) {
         }}
       />
 
+      {/* structural grid bubbles, left edge */}
+      <svg viewBox="0 0 220 420" className="absolute left-0 top-[18%] hidden w-[220px] sm:block" fill="none" stroke={ink}>
+        <defs>
+          <linearGradient id="pg-fade" x1="0" x2="1">
+            <stop offset="0.15" stopColor="white" />
+            <stop offset="1" stopColor="white" stopOpacity="0" />
+          </linearGradient>
+          <mask id="pg-fade-mask"><rect width="220" height="420" fill="url(#pg-fade)" /></mask>
+        </defs>
+        <g mask="url(#pg-fade-mask)" strokeOpacity="0.16" strokeWidth="1" strokeDasharray="10 4 2 4">
+          {[30, 150, 270, 390].map((y) => <path key={y} d={`M46 ${y} H220`} />)}
+        </g>
+        <g strokeOpacity="0.2" strokeWidth="1.2">
+          {[30, 150, 270, 390].map((y) => <circle key={y} cx="28" cy={y} r="13" />)}
+        </g>
+        <g fill={ink} fillOpacity="0.32" stroke="none" fontFamily="Geist Mono, ui-monospace, monospace" fontSize="11" textAnchor="middle">
+          {["A", "B", "C", "D"].map((t, i) => <text key={t} x="28" y={30 + i * 120 + 4}>{t}</text>)}
+        </g>
+      </svg>
+
+      {/* north arrow and scale bar, upper right */}
+      <svg viewBox="0 0 230 150" className="absolute right-1 top-14 w-[150px] opacity-80 sm:right-8 sm:top-6 sm:w-[230px] sm:opacity-100" fill="none" stroke={ink}>
+        <g strokeOpacity="0.2" strokeWidth="1.2">
+          <circle cx="186" cy="52" r="26" />
+          <path d="M186 20 V84 M154 52 H218" strokeOpacity="0.6" strokeDasharray="2 3" />
+        </g>
+        <path d="M186 28 L196 64 L186 57 L176 64 Z" fill={ink} fillOpacity="0.2" stroke="none" />
+        <g strokeOpacity="0.22" strokeWidth="1">
+          <rect x="20" y="118" width="160" height="6" />
+          <path d="M60 118 V124 M100 118 V124 M140 118 V124" />
+        </g>
+        <path d="M20 118 H60 V124 H20 Z M100 118 H140 V124 H100 Z" fill={ink} fillOpacity="0.14" stroke="none" />
+        <g fill={ink} fillOpacity="0.32" stroke="none" fontFamily="Geist Mono, ui-monospace, monospace" fontSize="9" letterSpacing="1">
+          <text x="182" y="12">N</text>
+          <text x="17" y="140">0</text>
+          <text x="57" y="140">2</text>
+          <text x="97" y="140">4</text>
+          <text x="137" y="140">6</text>
+          <text x="166" y="140">8 M</text>
+        </g>
+      </svg>
+
+      {/* title block, lower left */}
+      <svg viewBox="0 0 280 112" className="absolute bottom-6 left-8 hidden w-[280px] md:block" fill="none" stroke={ink}>
+        <g strokeOpacity="0.2" strokeWidth="1">
+          <rect x="0.5" y="0.5" width="279" height="111" />
+          <path d="M0 38 H280 M0 75 H280 M140 38 V112" />
+        </g>
+        <g fill={ink} stroke="none" fontFamily="Geist Mono, ui-monospace, monospace" letterSpacing="1.2">
+          <g fillOpacity="0.26" fontSize="7.5">
+            <text x="10" y="13">PROJECT</text>
+            <text x="10" y="50">SHEET</text>
+            <text x="150" y="50">SCALE</text>
+            <text x="10" y="87">DRAWING</text>
+            <text x="150" y="87">STATUS</text>
+          </g>
+          <g fillOpacity="0.38" fontSize="10.5">
+            <text x="10" y="29">VARIAKA · PROPERTIES</text>
+            <text x="10" y="66">A-101</text>
+            <text x="150" y="66">1 : 100</text>
+            <text x="10" y="103">GROUND FLOOR</text>
+            <text x="150" y="103">ISSUED</text>
+          </g>
+        </g>
+      </svg>
+
       {/* floor plan, lower right */}
       <svg
         viewBox="0 0 640 480"
-        className="absolute -bottom-16 -right-24 w-[min(56vw,640px)]"
+        className="absolute -bottom-10 -right-[25%] w-[120vw] max-w-[640px] sm:-bottom-16 sm:-right-24 sm:w-[min(56vw,640px)]"
         fill="none"
         stroke={ink}
         strokeLinecap="square"

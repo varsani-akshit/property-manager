@@ -1,12 +1,18 @@
 import { Loader } from "@/components/Loader";
 
-/** Route transition: the title strip and a faint outline of the page, with the skyline loader. */
+/** Route transition: a faint outline of the page with the skyline loader centred over it. */
 export default function Loading() {
   return (
-    <div aria-busy="true">
+    <div aria-busy="true" className="relative">
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 top-12 z-20 flex items-center justify-center lg:left-[216px] lg:top-2">
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-border bg-surface/90 px-7 py-5 shadow-token-md backdrop-blur animate-fade-in">
+          <Loader size="lg" />
+          <span className="text-[12px] text-muted-fg">Loading…</span>
+        </div>
+      </div>
+      <div className="opacity-50">
       <div className="-mx-4 mb-6 flex items-center justify-between border-b border-border px-4 py-5 sm:-mx-5 sm:px-5 md:-mx-8 md:px-8">
         <div className="h-6 w-44 animate-pulse rounded-md bg-muted" />
-        <Loader size="sm" />
       </div>
 
       <div className="stat-row mb-6">
@@ -29,6 +35,7 @@ export default function Loading() {
             <div className="ml-auto h-3.5 w-24 animate-pulse rounded bg-muted" />
           </div>
         ))}
+      </div>
       </div>
     </div>
   );

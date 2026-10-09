@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -21,6 +22,59 @@ function niceMax(max: number) {
 
 export function Dot({ color, className }: { color: string; className?: string }) {
   return <span className={cn("inline-block h-2 w-2 shrink-0 rounded-[2px]", className)} style={{ background: color }} />;
+}
+
+// ─── Floating tooltip ───────────────────────────────────────────────────────
+
+/** Hover state for a chart: which item, and where it sits on screen. */
+export function useTip<T>() {
+  const [tip, setTip] = useState<{ item: T; rect: DOMRect } | null>(null);
+  useEffect(() => {
+    if (!tip) return;
+    const hide = () => setTip(null);
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", hide);
+    return () => { window.removeEventListener("scroll", hide, true); window.removeEventListener("resize", hide); };
+  }, [tip]);
+  const bind = (item: T) => ({
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => setTip({ item, rect: e.currentTarget.getBoundingClientRect() }),
+    onFocus: (e: React.FocusEvent<HTMLElement>) => setTip({ item, rect: e.currentTarget.getBoundingClientRect() }),
+    onMouseLeave: () => setTip(null),
+    onBlur: () => setTip(null),
+  });
+  return { tip, bind };
+}
+
+/**
+ * Tooltip rendered into <body> with fixed positioning, so cards with
+ * overflow-hidden and horizontally scrolling charts never clip it. Sits beside
+ * the anchor (right, else left) and is clamped to the viewport.
+ */
+export function FloatTip({ anchor, children }: { anchor: DOMRect | null | undefined; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!anchor || !el) { setPos(null); return; }
+    const m = 8, w = el.offsetWidth, h = el.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    let left = anchor.right + m;
+    if (left + w > vw - m) left = anchor.left - m - w;
+    if (left < m) left = Math.min(vw - m - w, Math.max(m, anchor.left + anchor.width / 2 - w / 2));
+    const top = Math.min(Math.max(m, anchor.top + 4), vh - m - h);
+    setPos({ left, top });
+  }, [anchor]);
+  if (!anchor || typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      ref={ref}
+      role="tooltip"
+      className="pointer-events-none fixed z-[100] max-w-[min(280px,calc(100vw-16px))] rounded-md border border-border bg-raised px-2.5 py-1.5 text-left text-[11.5px] text-fg shadow-token-md"
+      style={pos ?? { left: -9999, top: 0, visibility: "hidden" }}
+    >
+      {children}
+    </div>,
+    document.body
+  );
 }
 
 // ─── Trend: billed vs received (bars) + collection rate (line) ──────────────
@@ -45,6 +99,7 @@ export function TrendChart({
   height?: number;
 }) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const { tip, bind } = useTip<number>();
   const shown = bars.filter((b) => !hidden.has(b.key));
   const top = niceMax(Math.max(0, ...shown.flatMap((b) => b.values)));
   const ticks = [1, 0.75, 0.5, 0.25, 0];
@@ -81,20 +136,11 @@ export function TrendChart({
                       activeMonth === m && "bg-primary-soft"
                     )}
                     aria-label={`${monthLabel(m)} — filter to this month`}
+                    {...bind(i)}
                   >
                     {shown.map((b) => (
                       <span key={b.key} className="w-full max-w-[16px] rounded-t-[3px]" style={{ height: `${Math.max(0, (b.values[i]! / top) * 100)}%`, background: b.color }} />
                     ))}
-                    <span className={cn("pointer-events-none absolute top-1 z-10 hidden whitespace-nowrap rounded-md border border-border bg-raised px-2.5 py-1.5 text-left text-[11.5px] shadow-token-md group-hover:block", i < n / 2 ? "left-full ml-1" : "right-full mr-1")}>
-                      <span className="mb-0.5 block text-muted-fg">{monthLabel(m)}</span>
-                      {bars.map((b) => (
-                        <span key={b.key} className="flex items-center gap-1.5"><Dot color={b.color} />{b.label}<span className="ml-auto pl-3 font-medium tabular-nums">{format(b.values[i]!)}</span></span>
-                      ))}
-                      {line && line.values[i] != null && (
-                        <span className="flex items-center gap-1.5"><Dot color={line.color} />{line.label}<span className="ml-auto pl-3 font-medium tabular-nums">{Math.round((line.values[i] ?? 0) * 100)}%</span></span>
-                      )}
-                      {onMonth && <span className="mt-1 block text-[10.5px] text-muted-fg">Click to zoom into this month</span>}
-                    </span>
                   </button>
                 ))}
               </div>
@@ -119,6 +165,20 @@ export function TrendChart({
           </div>
         </div>
       </div>
+      <FloatTip anchor={tip?.rect}>
+        {tip && (
+          <>
+            <span className="mb-0.5 block text-muted-fg">{monthLabel(months[tip.item]!)}</span>
+            {bars.map((b) => (
+              <span key={b.key} className="flex items-center gap-1.5"><Dot color={b.color} />{b.label}<span className="ml-auto pl-3 font-medium tabular-nums">{format(b.values[tip.item]!)}</span></span>
+            ))}
+            {line && line.values[tip.item] != null && (
+              <span className="flex items-center gap-1.5"><Dot color={line.color} />{line.label}<span className="ml-auto pl-3 font-medium tabular-nums">{Math.round((line.values[tip.item] ?? 0) * 100)}%</span></span>
+            )}
+            {onMonth && <span className="mt-1 block text-[10.5px] text-muted-fg">Click to zoom into this month</span>}
+          </>
+        )}
+      </FloatTip>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 pl-[52px] text-[12px]">
         {bars.map((b) => (
           <button key={b.key} type="button" onClick={() => setHidden((h) => { const x = new Set(h); x.has(b.key) ? x.delete(b.key) : x.add(b.key); return x; })} className={cn("inline-flex items-center gap-1.5", hidden.has(b.key) ? "text-disabled line-through" : "text-muted-fg hover:text-fg")}>
@@ -208,15 +268,18 @@ export function StackBar({
   format: (n: number) => string;
 }) {
   const total = parts.reduce((t, p) => t + p.value, 0);
+  const { tip, bind } = useTip<number>();
   if (total <= 0) return <p className="py-6 text-center text-[13px] text-muted-fg">Nothing overdue.</p>;
+  const t = tip ? parts[tip.item] : null;
   return (
     <div>
       <div className="flex h-4 overflow-hidden rounded-full bg-muted">
-        {parts.filter((p) => p.value > 0).map((p) => (
+        {parts.map((p, i) => p.value > 0 && (
           <button
             type="button"
             key={p.key}
-            title={`${p.label}: ${format(p.value)}`}
+            aria-label={`${p.label}: ${format(p.value)}`}
+            {...bind(i)}
             onClick={() => onPick?.(p.key)}
             className={cn("h-full transition-opacity hover:opacity-80", active && active !== p.key && "opacity-35")}
             style={{ width: `${(p.value / total) * 100}%`, background: p.color }}
@@ -234,6 +297,9 @@ export function StackBar({
           </li>
         ))}
       </ul>
+      <FloatTip anchor={tip?.rect}>
+        {t && <><span className="block text-muted-fg">{t.label}</span><span className="block font-medium tabular-nums">{format(t.value)}{t.count != null && ` · ${t.count} item${t.count === 1 ? "" : "s"}`}</span></>}
+      </FloatTip>
     </div>
   );
 }
