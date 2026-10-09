@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -29,6 +30,7 @@ export default async function NewPropertyPage() {
     };
     const { error } = await sb.from("properties").insert(payload);
     if (error) throw new Error(error.message);
+    revalidateApp();
     redirect("/properties");
   }
 

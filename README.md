@@ -8,12 +8,16 @@ A small, opinionated property and rental management app for landlords managing a
 
 - **Compounds → properties → leases**, with full history per property
 - **Granular per-user permissions** (no fixed roles): create / edit / delete properties, put on rent, cancel rental, mark rent collected, add / delete costs, manage users. Admin flag implicitly grants everything.
-- **Monthly rent collection workflow** — auto-generates "due" rows for every active lease at month start; one-click "mark collected" per row.
+- **Monthly rent collection workflow** — auto-generates "due" rows for every active lease at month start. Collect a single month (full or part-payment) or tick several rent months / charges and collect them together under one date, method and reference.
+- **Payment log** (`/payments`) — every payment with date, method (M-Pesa, bank, cheque, cash), reference and who recorded it. Collected totals on rent rows, charges and deposits are only changed through it (`record_payment` / `set_collected_total` in `supabase/024`), so the history always adds up. CSV export.
+- **Tenant statements** (`/rent/statement`) — per lessee or per lease: charges, payments and running balance, deposit position. Download as CSV or print / save as PDF.
+- **Reminders** (`/reminders`) — who is overdue, whose lease ends soon, deposit shortfalls; a pre-written message opens in WhatsApp, SMS or email, and every reminder sent is logged.
+- **Audit trail** (`/audit`, admins) — database triggers record who created, changed or deleted what, field by field.
 - **Service charge handling** — stored on the property as a recurring cost. Each lease has a *"lessee pays service charge"* toggle. When on, net rent we receive auto-calculates as `gross − service_charge`; service charge is still posted as a company cost.
 - **Cost splitting** — apply a cost to one property (full amount) or multiple properties (auto-split by sqft using largest-remainder rounding so allocations sum exactly).
 - **Dashboards** at three levels: portfolio-wide, per-compound, per-property — KPIs for valuation, monthly expected rent, collected vs outstanding, costs, net, ROI.
 - **Excel import** — bulk-import properties and leases from a spreadsheet via a seed script.
-- **MCP-ready** — Postgres-backed, so you can hook up the [Supabase MCP server](https://github.com/supabase-community/supabase-mcp) and let Claude / your LLM of choice answer questions like *"what was my YTD return on Block A?"* by writing SQL itself.
+- **Built-in MCP server** (`/api/mcp`) — connect Claude, ChatGPT or any MCP client with a per-user API key and ask about the portfolio, pull statements, or record payments. See *Querying with Claude* below.
 
 ## Stack
 
@@ -58,6 +62,12 @@ cp .env.example .env.local
 
 ```bash
 npm run migrate
+```
+
+Then apply the numbered migrations in `supabase/` in order (each is idempotent), e.g.
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/024_payments_audit_reminders_mcp.sql
 ```
 
 This creates all tables, indexes, RLS policies, helper functions, and the auth trigger that auto-creates a `user_profiles` row on signup.
@@ -166,29 +176,16 @@ Until then, use the **Generate this month** button on `/rent`.
 
 ## Querying with Claude (or any LLM with MCP)
 
-Because all your data sits in Postgres, you can hook up the [Supabase MCP server](https://github.com/supabase-community/supabase-mcp) and ask natural-language questions. Add to your Claude Desktop config:
+The app serves its own MCP server at `/api/mcp` (Streamable HTTP, `mcp-handler`). Tools live in `lib/mcp/tools.ts` — portfolio summary, who owes what, unpaid items, lessee statements, payments, cash-flow forecast, expiring leases, rent roll, search, property / lease details, costs, service charges, the audit trail, and three writes (record a payment, collect several items in full, log a reminder).
 
-```json
-{
-  "mcpServers": {
-    "supabase": {
-      "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase@latest",
-               "--project-ref=<your-project-ref>",
-               "--read-only"],
-      "env": { "SUPABASE_ACCESS_TOKEN": "<personal access token>" }
-    }
-  }
-}
-```
+1. An admin opens **Admin → API keys & MCP**, picks the user the key should act as, and creates a key (`vk_…`, shown once; only its SHA-256 is stored). A key has exactly its owner's permissions — tools they can't use aren't even listed — and its writes are attributed to them in the audit trail.
+2. Connect a client:
+   - **Claude.ai / Claude Desktop** — Settings → Connectors → *Add custom connector* → paste `https://<your-app>/api/mcp/<key>`.
+   - **ChatGPT** — Settings → Apps & Connectors → Advanced → Developer mode → *Create*, same URL, no authentication.
+   - **Claude Code** — `claude mcp add --transport http variaka https://<your-app>/api/mcp --header "Authorization: Bearer <key>"`.
+3. Ask: *"Who owes us the most and for how long?"*, *"Give me Sunmay's statement for this year"*, *"Record Ksh 9,375 by M-Pesa ref SJK4H7Q2LP against Sunmay's August rent."*
 
-Then ask:
-
-- *"What's my YTD return on the Sunrise compound?"*
-- *"Which rents are uncollected this month?"*
-- *"What did I spend on maintenance last quarter?"*
-
-The LLM writes the SQL itself.
+Revoke a key on the same page; it stops working immediately.
 
 ## Architecture
 
@@ -262,6 +259,9 @@ Supabase free tier + Vercel free tier is enough for a small team and a few hundr
 - **Never** put the Supabase `service_role` / `sb_secret_…` key in any `NEXT_PUBLIC_*` env var. It bypasses RLS and gives full DB access. The publishable / `sb_publishable_…` key is the one for the browser.
 - RLS is enabled on every table — unauthenticated users can read nothing.
 - Write permissions are enforced both in the UI (buttons hidden) and on the server (every server action / API route calls `requirePermission()`).
+- `user_profiles` can only be updated by admins / user managers (`is_user_manager()`), so nobody can grant themselves permissions through the API.
+- MCP API keys are stored hashed; the endpoint uses the service-role key server-side and checks the key owner's permissions on every tool.
+- Bulk backfill (the one-off migration import) is switched off; set `ENABLE_BULK_BACKFILL=true` to reopen it.
 - The `user_profiles` SELECT policy is permissive (all authenticated users can see other users' profiles) so the sidebar, lessee dropdowns, and `/users` page work. If you need stricter isolation, lock it down further.
 
 ## Contributing

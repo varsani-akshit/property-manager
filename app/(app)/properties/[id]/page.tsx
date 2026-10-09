@@ -10,6 +10,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { guardView } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
@@ -163,6 +164,7 @@ export default async function PropertyDetailPage({
     await requirePermission("delete_property");
     const sb = await supabaseServer();
     await sb.from("properties").update({ archived: true }).eq("id", id);
+    revalidateApp();
     redirect("/properties");
   }
 

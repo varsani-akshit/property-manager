@@ -11,7 +11,7 @@ import { notFound, redirect } from "next/navigation";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
-import { revalidatePath } from "next/cache";
+import { revalidateApp } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
 
@@ -57,8 +57,8 @@ export default async function LeaseDetailPage({
     const sb = await supabaseServer();
     const { data, error } = await sb.rpc("backfill_lease_rents", { p_lease_id: id });
     if (error) throw new Error(error.message);
-    revalidatePath(`/leases/${id}`);
-    revalidatePath("/rent");
+    revalidateApp(`/leases/${id}`);
+    revalidateApp("/rent");
     redirect(`/leases/${id}?msg=${encodeURIComponent(`Inserted ${data ?? 0} rent rows`)}`);
   }
 
@@ -189,6 +189,9 @@ export default async function LeaseDetailPage({
         ]}
         actions={
           <>
+            {has(profile, "view_rent") && (
+              <Link href={`/rent/statement?lease=${id}`} className="btn-secondary">Statement</Link>
+            )}
             {has(profile, "create_lease") && (
               <ConfirmButton
                 action={backfillRents}

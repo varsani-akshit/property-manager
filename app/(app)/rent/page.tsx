@@ -3,11 +3,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { Kpi } from "@/components/Kpi";
 import { money } from "@/lib/format";
 import { has } from "@/lib/permissions";
-import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
-import { revalidatePath } from "next/cache";
 import Link from "next/link";
 import { BULK_BACKFILL_ENABLED } from "@/lib/features";
+import { fetchAll } from "@/lib/fetch-all";
 import { LesseeAccordion, type RawRentRow, type RawCostRow } from "./LesseeAccordion";
 
 export const dynamic = "force-dynamic";
@@ -17,40 +16,6 @@ function plusDaysISO(d: string, n: number): string {
   const dt = new Date(d + "T00:00:00Z");
   dt.setUTCDate(dt.getUTCDate() + n);
   return dt.toISOString().slice(0, 10);
-}
-
-async function markCollectedFull(formData: FormData) {
-  "use server";
-  await requirePermission("mark_rent");
-  const id = String(formData.get("id"));
-  const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  const { data: row } = await sb.from("rent_collections").select("net_amount").eq("id", id).maybeSingle();
-  if (!row) return;
-  await sb.from("rent_collections").update({
-    status: "collected",
-    collected_amount: Number((row as { net_amount: number }).net_amount),
-    collected_at: new Date().toISOString(),
-    collected_by: user?.id,
-  }).eq("id", id);
-  revalidatePath("/rent");
-}
-
-async function markCostCollectedFull(formData: FormData) {
-  "use server";
-  await requirePermission("mark_rent");
-  const id = String(formData.get("id"));
-  const sb = await supabaseServer();
-  const { data: { user } } = await sb.auth.getUser();
-  const { data: row } = await sb.from("costs").select("amount").eq("id", id).maybeSingle();
-  if (!row) return;
-  await sb.from("costs").update({
-    collection_status: "collected",
-    collected_amount: Number((row as { amount: number }).amount),
-    collected_at: new Date().toISOString(),
-    collected_by: user?.id,
-  }).eq("id", id);
-  revalidatePath("/rent");
 }
 
 export default async function RentPage({
@@ -86,11 +51,15 @@ export default async function RentPage({
     return out;
   };
 
-  const [outstandingRes, upcomingRes, recentCollectedRes] = await Promise.all([
-    apply(sb.from("rent_collections").select(cols).in("status", ["due", "partial"]).lte("due_date", today)).order("due_date", { ascending: true }),
-    apply(sb.from("rent_collections").select(cols).in("status", ["due", "partial"]).gt("due_date", today).lte("due_date", upcomingHorizon)).order("due_date", { ascending: true }),
-    apply(sb.from("rent_collections").select(cols).eq("status", "collected").gte("collected_at", `${collectedFloor}T00:00:00Z`)).order("collected_at", { ascending: false }),
+  // Paged: portfolio-wide rent rows easily pass Supabase's 1,000-row response cap.
+  const [outstandingRows, upcomingRows, recentCollectedRows] = await Promise.all([
+    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).in("status", ["due", "partial"]).lte("due_date", today)).order("due_date", { ascending: true }).range(f, t)),
+    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).in("status", ["due", "partial"]).gt("due_date", today).lte("due_date", upcomingHorizon)).order("due_date", { ascending: true }).range(f, t)),
+    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).eq("status", "collected").gte("collected_at", `${collectedFloor}T00:00:00Z`)).order("collected_at", { ascending: false }).range(f, t)),
   ]);
+  const outstandingRes = { data: outstandingRows };
+  const upcomingRes = { data: upcomingRows };
+  const recentCollectedRes = { data: recentCollectedRows };
 
   const rentRows: RawRentRow[] = [
     ...((outstandingRes.data ?? []) as unknown as RawRentRow[]),
@@ -190,8 +159,6 @@ export default async function RentPage({
         today={today}
         upcomingHorizon={upcomingHorizon}
         canMarkRent={has(profile, "mark_rent")}
-        markFullAction={markCollectedFull}
-        markCostFullAction={markCostCollectedFull}
       />
     </div>
   );

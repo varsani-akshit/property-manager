@@ -1,3 +1,4 @@
+import { getDashboardSnapshot } from "@/lib/dashboard-cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/PageHeader";
 import { DateFilter } from "@/components/DateFilter";
@@ -41,12 +42,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const horizon60 = new Date(); horizon60.setDate(horizon60.getDate() + 60);
   const horizon90 = new Date(); horizon90.setDate(horizon90.getDate() + 90);
 
-  const sb = await supabaseServer();
 
-  // ONE round-trip instead of eight — see supabase/023_dashboard_rpc.sql
-  const { data: snap } = await sb.rpc("dashboard_snapshot", {
-    p_from: period.from,
-    p_to: period.to,
+  // ONE round-trip instead of eight — see supabase/023_dashboard_rpc.sql — and
+  // cached across requests until something changes (lib/dashboard-cache.ts).
+  // Falls back to an uncached read with the user's session if the service key isn't configured.
+  const snap = await getDashboardSnapshot(period.from, period.to).catch(async (e) => {
+    console.error("dashboard cache unavailable, reading directly:", (e as Error).message);
+    const { data } = await (await supabaseServer()).rpc("dashboard_snapshot", { p_from: period.from, p_to: period.to });
+    return data;
   });
   const s: any = snap ?? {};
 

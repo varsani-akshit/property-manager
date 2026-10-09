@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { CostForm } from "./CostForm";
@@ -101,6 +102,8 @@ export default async function NewCostPage() {
       });
       if (e3) throw new Error(e3.message);
     }
+
+    revalidateApp();
 
     redirect("/costs");
   }

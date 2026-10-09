@@ -1,15 +1,27 @@
 "use client";
-import { useEffect, useMemo, useState, Fragment } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, Fragment } from "react";
 import Link from "next/link";
-import { ChevronRight, Search, X } from "lucide-react";
+import { BellRing, ChevronRight, FileText, Search, X } from "lucide-react";
 import { money, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { SortTh, TablePager } from "@/components/TableBits";
-import { SubmitButton } from "@/components/SubmitButton";
+import { PaymentDialog, type PayTarget } from "@/components/PaymentDialog";
 
 type GroupSort = "default" | "lessee" | "outstanding" | "upcoming" | "collected";
 const PAGE_SIZE = 25;
 const nat = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+/** Selection + "record payment" shared by every table inside the accordion. */
+type PayCtx = {
+  canPay: boolean;
+  selected: Map<string, PayTarget>;
+  toggle: (t: PayTarget) => void;
+  setMany: (ts: PayTarget[], on: boolean) => void;
+  pay: (ts: PayTarget[]) => void;
+};
+const PayContext = createContext<PayCtx | null>(null);
+const usePay = () => useContext(PayContext)!;
+const keyOf = (t: { kind: string; id: string }) => `${t.kind}:${t.id}`;
 
 type PropRef = {
   name: string;
@@ -115,8 +127,6 @@ export function LesseeAccordion({
   today,
   upcomingHorizon,
   canMarkRent,
-  markFullAction,
-  markCostFullAction,
 }: {
   rentRows: RawRentRow[];
   costRows: RawCostRow[];
@@ -124,9 +134,37 @@ export function LesseeAccordion({
   today: string;
   upcomingHorizon: string;
   canMarkRent: boolean;
-  markFullAction: (fd: FormData) => Promise<void>;
-  markCostFullAction: (fd: FormData) => Promise<void>;
 }) {
+  // ── selection + payment dialog ──
+  const [selected, setSelected] = useState<Map<string, PayTarget>>(new Map());
+  const [payTargets, setPayTargets] = useState<PayTarget[] | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
+  const toggleSel = useCallback((t: PayTarget) => {
+    setSelected((cur) => {
+      const next = new Map(cur);
+      if (next.has(keyOf(t))) next.delete(keyOf(t)); else next.set(keyOf(t), t);
+      return next;
+    });
+  }, []);
+  const setMany = useCallback((ts: PayTarget[], on: boolean) => {
+    setSelected((cur) => {
+      const next = new Map(cur);
+      for (const t of ts) on ? next.set(keyOf(t), t) : next.delete(keyOf(t));
+      return next;
+    });
+  }, []);
+  const payCtx = useMemo<PayCtx>(
+    () => ({ canPay: canMarkRent, selected, toggle: toggleSel, setMany, pay: setPayTargets }),
+    [canMarkRent, selected, toggleSel, setMany]
+  );
+  const selectedList = useMemo(() => Array.from(selected.values()), [selected]);
+  const selectedTotal = selectedList.reduce((s, t) => s + t.owed, 0);
+
   const groups: LesseeGroup[] = useMemo(() => {
     const map = new Map<string, LesseeGroup>();
 
@@ -264,6 +302,7 @@ export function LesseeAccordion({
   }
 
   return (
+    <PayContext.Provider value={payCtx}>
     <div className="card p-0">
       <div className="section-head flex-wrap">
         <h2>
@@ -349,9 +388,6 @@ export function LesseeAccordion({
                           upcomingHorizon={upcomingHorizon}
                           active={activeTab}
                           setActive={(t) => setTabs((s) => ({ ...s, [g.lessee_name]: t }))}
-                          canMarkRent={canMarkRent}
-                          markFullAction={markFullAction}
-                          markCostFullAction={markCostFullAction}
                         />
                       </td>
                     </tr>
@@ -370,7 +406,37 @@ export function LesseeAccordion({
         </table>
       </div>
       <TablePager page={page} pageSize={PAGE_SIZE} total={view.length} onPage={setPage} label="lessees" />
+
     </div>
+
+    {selectedList.length > 0 && (
+      <div className="fixed bottom-5 left-1/2 z-[60] flex -translate-x-1/2 animate-fade-in items-center gap-3 rounded-xl border border-border bg-raised py-2 pl-4 pr-2 shadow-token-lg lg:left-[calc(50%+108px)]">
+        <span className="whitespace-nowrap text-[12.5px] text-fg">
+          <span className="font-medium">{selectedList.length} selected</span>
+          <span className="text-muted-fg"> · {money(selectedTotal)} owed</span>
+        </span>
+        <button type="button" className="btn-ghost btn-sm" onClick={() => setSelected(new Map())}>Clear</button>
+        <button type="button" className="btn-primary btn-sm" onClick={() => setPayTargets(selectedList)}>
+          Collect selected in full
+        </button>
+      </div>
+    )}
+
+    <PaymentDialog
+      open={payTargets !== null}
+      targets={payTargets ?? []}
+      onClose={() => setPayTargets(null)}
+      onDone={(msg) => {
+        setToast(msg);
+        setSelected(new Map());
+      }}
+    />
+    {toast && (
+      <div role="status" className="fixed bottom-5 left-1/2 z-[160] -translate-x-1/2 animate-fade-in rounded-lg bg-fg px-4 py-2.5 text-[12.5px] text-white shadow-token-lg">
+        {toast}
+      </div>
+    )}
+    </PayContext.Provider>
   );
 }
 
@@ -380,64 +446,56 @@ function Tabs({
   upcomingHorizon,
   active,
   setActive,
-  canMarkRent,
-  markFullAction,
-  markCostFullAction,
 }: {
   group: LesseeGroup;
   today: string;
   upcomingHorizon: string;
   active: Bucket;
   setActive: (t: Bucket) => void;
-  canMarkRent: boolean;
-  markFullAction: (fd: FormData) => Promise<void>;
-  markCostFullAction: (fd: FormData) => Promise<void>;
 }) {
+  const { canPay } = usePay();
   const labels: { key: Bucket; label: string; count: number }[] = [
     { key: "outstanding", label: "Due", count: group.outstanding_count },
     { key: "upcoming",   label: "Upcoming", count: group.upcoming_count },
     { key: "cost_due",   label: "Cost Due", count: group.cost_due_count },
     { key: "collected",  label: "Collected", count: group.collected_count },
   ];
+  const q = encodeURIComponent(group.lessee_name);
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-1" role="tablist">
-        {labels.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={active === t.key}
-            onClick={() => setActive(t.key)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] transition-colors",
-              active === t.key ? "bg-surface font-medium text-fg shadow-token-sm ring-1 ring-border" : "text-muted-fg hover:text-fg"
-            )}
-          >
-            {t.label}
-            <span className="text-[11px] tabular-nums text-muted-fg">{t.count}</span>
-          </button>
-        ))}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1" role="tablist">
+          {labels.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={active === t.key}
+              onClick={() => setActive(t.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12.5px] transition-colors",
+                active === t.key ? "bg-surface font-medium text-fg shadow-token-sm ring-1 ring-border" : "text-muted-fg hover:text-fg"
+              )}
+            >
+              {t.label}
+              <span className="text-[11px] tabular-nums text-muted-fg">{t.count}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
+          <Link href={`/rent/statement?lessee=${q}`} className="btn-ghost btn-sm"><FileText size={13} /> Statement</Link>
+          {canPay && <Link href={`/reminders?lessee=${q}`} className="btn-ghost btn-sm"><BellRing size={13} /> Remind</Link>}
+        </div>
       </div>
 
       {active === "outstanding" || active === "upcoming" ? (
-        <RentTable
-          rows={group.rentRows.filter((r) => rentBucketOf(r, today, upcomingHorizon) === active)}
-          active={active}
-          canMarkRent={canMarkRent}
-          markFullAction={markFullAction}
-        />
+        <RentTable rows={group.rentRows.filter((r) => rentBucketOf(r, today, upcomingHorizon) === active)} active={active} lessee={group.lessee_name} />
       ) : active === "cost_due" ? (
-        <CostTable
-          rows={group.costRows.filter((c) => costBucketOf(c) === "cost_due")}
-          today={today}
-          canMarkRent={canMarkRent}
-          markCostFullAction={markCostFullAction}
-        />
+        <CostTable rows={group.costRows.filter((c) => costBucketOf(c) === "cost_due")} today={today} lessee={group.lessee_name} />
       ) : (
         <CollectedTable
-          canMarkRent={canMarkRent}
+          canMarkRent={canPay}
           items={[
             ...group.rentRows.filter((r) => r.status === "collected").map((r) => ({ kind: "rent" as const, row: r })),
             ...group.costRows.filter((c) => c.collection_status === "collected").map((c) => ({ kind: "cost" as const, row: c })),
@@ -452,30 +510,49 @@ function Tabs({
   );
 }
 
-function RentTable({
-  rows,
-  active,
-  canMarkRent,
-  markFullAction,
-}: {
-  rows: RawRentRow[];
-  active: "outstanding" | "upcoming";
-  canMarkRent: boolean;
-  markFullAction: (fd: FormData) => Promise<void>;
-}) {
+/** Header checkbox that ticks/unticks every payable row in a table. */
+function SelectAll({ targets }: { targets: PayTarget[] }) {
+  const { selected, setMany } = usePay();
+  const on = targets.length > 0 && targets.every((t) => selected.has(keyOf(t)));
+  const some = targets.some((t) => selected.has(keyOf(t)));
+  return (
+    <input
+      type="checkbox"
+      aria-label="Select all"
+      checked={on}
+      disabled={!targets.length}
+      ref={(el) => { if (el) el.indeterminate = !on && some; }}
+      onChange={() => setMany(targets, !on)}
+    />
+  );
+}
+
+function RowSelect({ target }: { target: PayTarget }) {
+  const { selected, toggle } = usePay();
+  return <input type="checkbox" aria-label={`Select ${target.label}`} checked={selected.has(keyOf(target))} onChange={() => toggle(target)} />;
+}
+
+function RentTable({ rows, active, lessee }: { rows: RawRentRow[]; active: "outstanding" | "upcoming"; lessee: string }) {
+  const { canPay, pay } = usePay();
   const sorted = [...rows].sort((a, b) => a.due_date.localeCompare(b.due_date));
+  const targetOf = (r: RawRentRow): PayTarget => ({
+    kind: "rent", id: r.id, owed: rentRemainder(r),
+    label: `Rent due ${fmtDate(r.due_date)} · ${pickOne(r.properties)?.name ?? lessee}`,
+  });
+  const targets = sorted.filter((r) => rentRemainder(r) > 0).map(targetOf);
   return (
     <div className="table-wrap rounded-lg border border-border bg-surface">
       <table className="table">
         <thead>
           <tr>
+            {canPay && <th className="w-8"><SelectAll targets={targets} /></th>}
             <th>Due date</th>
             <th>Property</th>
             <th className="text-right">Rent</th>
             <th className="text-right">Paid</th>
             <th className="text-right">Outstanding</th>
             <th>Status</th>
-            {canMarkRent && <th></th>}
+            {canPay && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -486,19 +563,17 @@ function RentTable({
             const statusBadge = r.status === "partial" ? "badge-warning" : active === "outstanding" ? "badge-danger" : "badge-warning";
             return (
               <tr key={r.id}>
+                {canPay && <td>{rem > 0 && <RowSelect target={targetOf(r)} />}</td>}
                 <td>{fmtDate(r.due_date)}</td>
                 <td>{p?.name}</td>
                 <td className="text-right">{money(r.net_amount)}</td>
                 <td className="text-right">{money(r.collected_amount)}</td>
                 <td className={cn("text-right tabular-nums", rem > 0 && "text-danger font-medium")}>{money(rem)}</td>
                 <td><span className={statusBadge}>{statusLabel}</span></td>
-                {canMarkRent && (
+                {canPay && (
                   <td className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      <form action={markFullAction}>
-                        <input type="hidden" name="id" value={r.id} />
-                        <SubmitButton className="btn-primary btn-sm" loadingText="Saving…">Mark collected</SubmitButton>
-                      </form>
+                    <div className="flex justify-end gap-1">
+                      {rem > 0 && <button type="button" className="btn-primary btn-sm" onClick={() => pay([targetOf(r)])}>Collect</button>}
                       <Link href={`/rent/${r.id}/edit`} className="btn-secondary btn-sm">Edit</Link>
                     </div>
                   </td>
@@ -507,7 +582,7 @@ function RentTable({
             );
           })}
           {!sorted.length && (
-            <tr><td colSpan={canMarkRent ? 7 : 6} className="!py-10 text-center text-muted-fg">Nothing here.</td></tr>
+            <tr><td colSpan={canPay ? 8 : 6} className="!py-10 text-center text-muted-fg">Nothing here.</td></tr>
           )}
         </tbody>
       </table>
@@ -515,23 +590,20 @@ function RentTable({
   );
 }
 
-function CostTable({
-  rows,
-  today,
-  canMarkRent,
-  markCostFullAction,
-}: {
-  rows: RawCostRow[];
-  today: string;
-  canMarkRent: boolean;
-  markCostFullAction: (fd: FormData) => Promise<void>;
-}) {
+function CostTable({ rows, today, lessee }: { rows: RawCostRow[]; today: string; lessee: string }) {
+  const { canPay, pay } = usePay();
   const sorted = [...rows].sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? ""));
+  const targetOf = (c: RawCostRow): PayTarget => ({
+    kind: "cost", id: c.id, owed: costRemainder(c),
+    label: `${c.description}${c.due_date ? ` · due ${fmtDate(c.due_date)}` : ""}`,
+  });
+  const targets = sorted.filter((c) => costRemainder(c) > 0).map(targetOf);
   return (
     <div className="table-wrap rounded-lg border border-border bg-surface">
       <table className="table">
         <thead>
           <tr>
+            {canPay && <th className="w-8"><SelectAll targets={targets} /></th>}
             <th>Due date</th>
             <th>Description</th>
             <th>Categories</th>
@@ -540,7 +612,7 @@ function CostTable({
             <th className="text-right">Paid</th>
             <th className="text-right">Outstanding</th>
             <th>Status</th>
-            {canMarkRent && <th></th>}
+            {canPay && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -554,6 +626,7 @@ function CostTable({
             const lineItems = c.cost_line_items ?? [];
             return (
               <tr key={c.id}>
+                {canPay && <td>{rem > 0 && <RowSelect target={targetOf(c)} />}</td>}
                 <td>{fmtDate(c.due_date)}</td>
                 <td>{c.description}</td>
                 <td>
@@ -570,13 +643,10 @@ function CostTable({
                 <td className="text-right">{money(c.collected_amount)}</td>
                 <td className={cn("text-right tabular-nums", rem > 0 && "text-danger font-medium")}>{money(rem)}</td>
                 <td><span className={statusBadge}>{statusLabel}</span></td>
-                {canMarkRent && (
+                {canPay && (
                   <td className="text-right">
-                    <div className="flex gap-1 justify-end">
-                      <form action={markCostFullAction}>
-                        <input type="hidden" name="id" value={c.id} />
-                        <SubmitButton className="btn-primary btn-sm" loadingText="Saving…">Mark collected</SubmitButton>
-                      </form>
+                    <div className="flex justify-end gap-1">
+                      {rem > 0 && <button type="button" className="btn-primary btn-sm" onClick={() => pay([targetOf(c)])}>Collect</button>}
                       <Link href={`/costs/${c.id}/collect`} className="btn-secondary btn-sm">Edit</Link>
                     </div>
                   </td>
@@ -585,7 +655,7 @@ function CostTable({
             );
           })}
           {!sorted.length && (
-            <tr><td colSpan={canMarkRent ? 9 : 8} className="!py-10 text-center text-muted-fg">No cost charges.</td></tr>
+            <tr><td colSpan={canPay ? 10 : 8} className="!py-10 text-center text-muted-fg">No cost charges.</td></tr>
           )}
         </tbody>
       </table>

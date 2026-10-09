@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { guardView } from "@/lib/guard";
 import { ConfirmButton } from "@/components/ConfirmButton";
 
@@ -59,6 +60,7 @@ export default async function CompoundDetailPage({
     if ((count ?? 0) > 0) throw new Error("Compound is not empty");
     const { error } = await sb.from("compounds").delete().eq("id", id);
     if (error) throw new Error(error.message);
+    revalidateApp();
     redirect("/compounds");
   }
 

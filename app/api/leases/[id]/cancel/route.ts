@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requirePermission } from "@/lib/permissions-server";
 import { supabaseServer } from "@/lib/supabase/server";
+import { revalidateApp } from "@/lib/revalidate";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await requirePermission("cancel_lease");
@@ -35,13 +36,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle();
   if (e1) return NextResponse.json({ error: e1.message }, { status: 400 });
 
-  // 2) Delete only FUTURE unpaid rent rows (due or partial with due_date > today).
-  //    Everything past — collected, overdue (status='due' with due_date <= today),
-  //    or partially collected — stays as history.
+  // 2) Delete only FUTURE rent rows nothing has been paid against. Everything
+  //    past, and any future month already part-paid (a prepayment), stays —
+  //    deleting a paid row would also erase its payment log entries.
   await sb.from("rent_collections")
     .delete()
     .eq("lease_id", id)
-    .in("status", ["due", "partial"])
+    .eq("status", "due")
+    .eq("collected_amount", 0)
     .gt("due_date", today);
 
   // 3) Flip future "lessee_direct" SC rows back to "pending" since the property
@@ -54,6 +56,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .gte("due_month", today.slice(0, 7) + "-01");
   }
 
+  revalidateApp();
   const url = new URL(`/properties/${lease?.property_id ?? ""}`, req.url);
   return NextResponse.redirect(url, { status: 303 });
 }

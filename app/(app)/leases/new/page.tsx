@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { LeaseForm } from "./LeaseForm";
@@ -39,7 +40,7 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
       end_date: String(formData.get("end_date")),
       gross_rent_monthly: Number(formData.get("gross_rent_monthly")),
       deposit_charged: Number(formData.get("deposit_charged") || 0),
-      deposit_collected: Number(formData.get("deposit_collected") || 0),
+      deposit_collected: 0, // recorded below through the payment log
       deposit_amount: Number(formData.get("deposit_charged") || 0), // legacy sync
       sc_payment_mode,
       // legacy boolean kept in sync for any older code paths
@@ -53,6 +54,14 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
     // Idempotent — safe even if the daily cron has already touched some months.
     if (inserted?.id) {
       await sb.rpc("backfill_lease_rents", { p_lease_id: (inserted as { id: string }).id });
+      const deposit = Number(formData.get("deposit_collected") || 0);
+      if (deposit > 0) {
+        await sb.rpc("record_payment", {
+          p_kind: "deposit", p_target: (inserted as { id: string }).id, p_amount: deposit,
+          p_paid_on: payload.start_date <= new Date().toISOString().slice(0, 10) ? payload.start_date : new Date().toISOString().slice(0, 10),
+          p_method: "other", p_notes: "Deposit at lease start",
+        });
+      }
     }
 
     // Mark SC rows for this lease period as lessee_direct if applicable
@@ -67,6 +76,8 @@ export default async function NewLeasePage({ searchParams }: { searchParams: Pro
         .gte("due_month", startMonth)
         .lte("due_month", endMonth);
     }
+
+    revalidateApp();
 
     redirect(`/properties/${property_id}`);
   }

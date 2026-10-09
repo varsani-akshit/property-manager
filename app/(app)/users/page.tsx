@@ -5,7 +5,7 @@ import { Kpi } from "@/components/Kpi";
 import { PERMISSION_LABELS, VIEW_PERMS, ACTION_PERMS, type Permission, type UserProfile,  } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
-import { revalidatePath } from "next/cache";
+import { revalidateApp } from "@/lib/revalidate";
 import { redirect } from "next/navigation";
 import { fmtDate } from "@/lib/format";
 import { ConfirmButton } from "@/components/ConfirmButton";
@@ -53,7 +53,7 @@ async function inviteUser(formData: FormData) {
     redirectTo: `${site}/auth/callback?next=/`,
   });
   if (error) flash("error", `Invite failed: ${error.message}`);
-  revalidatePath("/users");
+  revalidateApp("/users");
   flash("ok", `Invite sent to ${email}.`);
 }
 
@@ -71,7 +71,7 @@ async function updateUser(formData: FormData) {
   }
   const { error } = await sb.from("user_profiles").update(patch).eq("id", id);
   if (error) flash("error", `Update failed: ${error.message}`);
-  revalidatePath("/users");
+  revalidateApp("/users");
   flash("ok", "Permissions saved.");
 }
 
@@ -86,7 +86,7 @@ async function resendInvite(formData: FormData) {
     redirectTo: `${site}/auth/callback?next=/`,
   });
   if (error) flash("error", `Resend failed: ${error.message}`);
-  revalidatePath("/users");
+  revalidateApp("/users");
   flash("ok", `Invite re-sent to ${email}.`);
 }
 
@@ -97,7 +97,7 @@ async function deleteUser(formData: FormData) {
   const admin = supabaseAdmin();
   const { error } = await admin.auth.admin.deleteUser(id);
   if (error) flash("error", `Delete failed: ${error.message}`);
-  revalidatePath("/users");
+  revalidateApp("/users");
   flash("ok", "User deleted.");
 }
 

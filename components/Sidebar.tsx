@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import {
   LayoutDashboard, Building2, Landmark, FileSignature, Wallet, ReceiptText, Wrench, Users,
-  LogOut, X, ChevronUp,
+  LogOut, X, ChevronUp, Banknote, BellRing, History, KeyRound,
 } from "lucide-react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 import { has, type Permission, type UserProfile } from "@/lib/permissions";
@@ -20,12 +20,16 @@ const NAV: NavItem[] = [
   { href: "/properties",      label: "Properties",      icon: Building2,       perm: "view_properties" },
   { href: "/leases",          label: "Leases",          icon: FileSignature,   perm: "view_leases" },
   { href: "/rent",            label: "Rent Collection", icon: Wallet,          perm: "view_rent" },
+  { href: "/payments",        label: "Payments",        icon: Banknote,        perm: "view_rent" },
+  { href: "/reminders",       label: "Reminders",       icon: BellRing,        perm: "view_rent" },
   { href: "/costs",           label: "Costs",           icon: ReceiptText,     perm: "view_costs" },
   { href: "/service-charges", label: "Service Charges", icon: Wrench,          perm: "view_service_charges" },
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { href: "/users", label: "Users", icon: Users, perm: "manage_users" },
+  { href: "/users",          label: "Users",           icon: Users,    perm: "manage_users" },
+  { href: "/audit",          label: "Audit trail",     icon: History,  perm: "manage_users" },
+  { href: "/admin/api-keys", label: "API keys & MCP",  icon: KeyRound, perm: "manage_users" },
 ];
 
 const ITEM = "group mx-2 flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] leading-5 transition-colors duration-150";

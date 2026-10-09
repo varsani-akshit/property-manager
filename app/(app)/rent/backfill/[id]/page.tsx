@@ -5,7 +5,7 @@ import { guardView } from "@/lib/guard";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { revalidatePath } from "next/cache";
+import { revalidateApp } from "@/lib/revalidate";
 import { BackfillGrid, type BackfillRow } from "./BackfillGrid";
 import { BULK_BACKFILL_ENABLED } from "@/lib/features";
 import { BackfillLocked } from "@/components/BackfillLocked";
@@ -111,8 +111,8 @@ export default async function PropertyBackfillPage({
       else updated += 1;
     }
 
-    revalidatePath(`/rent/backfill/${id}`);
-    revalidatePath("/rent");
+    revalidateApp(`/rent/backfill/${id}`);
+    revalidateApp("/rent");
     const params = new URLSearchParams();
     if (updated > 0) params.set("msg", `Saved ${updated} row${updated === 1 ? "" : "s"}`);
     if (errors.length) params.set("err", errors.slice(0, 3).join(" · "));

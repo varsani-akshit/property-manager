@@ -1,5 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
+import { setCollectedTotal } from "@/lib/payments-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import { LeaseEditForm } from "./LeaseEditForm";
@@ -39,12 +41,17 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
       end_date: endDate,
       gross_rent_monthly: newGross,
       deposit_charged: Number(formData.get("deposit_charged") || 0),
-      deposit_collected: Number(formData.get("deposit_collected") || 0),
       deposit_amount: Number(formData.get("deposit_charged") || 0), // legacy sync
       sc_payment_mode: scMode,
       lessee_pays_service_charge: scMode !== "lessee_direct",
     }).eq("id", id);
     if (error) throw new Error(error.message);
+
+    // Deposit received goes through the payment log (logs the difference).
+    const depErr = await setCollectedTotal(sb, "deposit", id, Number(formData.get("deposit_collected") || 0), {
+      paid_on: new Date().toISOString().slice(0, 10), method: "other", reference: null, notes: "Deposit updated on the lease form",
+    });
+    if (depErr) throw new Error(depErr);
 
     // Re-sync future uncollected rent rows to the new gross rent (no SC netting).
     const today = new Date().toISOString().slice(0, 10);
@@ -83,6 +90,8 @@ export default async function EditLeasePage({ params }: { params: Promise<{ id: 
     if (startDate < oldStart || endDate > oldEnd) {
       await sb.rpc("backfill_lease_rents", { p_lease_id: id });
     }
+
+    revalidateApp();
 
     redirect(`/properties/${property_id}`);
   }

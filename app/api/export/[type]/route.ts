@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { guardView } from "@/lib/guard";
 import { resolvePeriod } from "@/lib/period";
-
+import { fetchAll } from "@/lib/fetch-all";
+import { methodLabel } from "@/lib/payment-methods";
+import { buildStatement } from "@/lib/statement";
 function csv(rows: (string | number | null | undefined)[][]): string {
   const escape = (v: string | number | null | undefined) => {
     if (v === null || v === undefined) return "";
@@ -23,9 +25,12 @@ function asAttachment(content: string, filename: string) {
   });
 }
 
+const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ? v[0] ?? null : v ?? null);
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
-  await guardView("view_dashboard"); // require dashboard access to export
   const { type } = await params;
+  // Money-in exports follow Rent Collection access; the rest follow the dashboard.
+  await guardView(["payments", "statement", "outstanding", "collected"].includes(type) ? "view_rent" : "view_dashboard");
   const url = new URL(req.url);
   const sb = await supabaseServer();
   const today = new Date().toISOString().slice(0, 10);
@@ -36,58 +41,101 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ type
   });
 
   if (type === "outstanding") {
-    const { data } = await sb
+    // Every overdue rent row with money still owed (unpaid and part-paid).
+    const data = await fetchAll<any>((f, t) => sb
       .from("rent_collections")
-      .select("due_date, net_amount, gross_amount, properties(name, compounds(name)), leases(lessee_name, lessee_contact)")
-      .eq("status", "due")
+      .select("due_date, net_amount, collected_amount, properties(name, compounds(name)), leases(lessee_name, lessee_contact)")
+      .in("status", ["due", "partial", "overdue"])
       .lte("due_date", today)
-      .order("due_date");
+      .order("due_date")
+      .range(f, t));
     const rows: (string | number | null | undefined)[][] = [
-      ["Due date", "Compound", "Property", "Lessee", "Contact", "Gross", "Net"],
+      ["Due date", "Days overdue", "Compound", "Property", "Lessee", "Contact", "Rent", "Paid", "Outstanding"],
     ];
-    for (const r of data ?? []) {
-      const p: any = Array.isArray((r as any).properties) ? (r as any).properties[0] : (r as any).properties;
-      const c: any = Array.isArray(p?.compounds) ? p?.compounds[0] : p?.compounds;
-      const l: any = Array.isArray((r as any).leases) ? (r as any).leases[0] : (r as any).leases;
+    const t0 = new Date(today + "T00:00:00Z").getTime();
+    for (const r of data) {
+      const rem = Math.max(0, Number(r.net_amount) - Number(r.collected_amount || 0));
+      if (rem <= 0) continue;
+      const p = one<any>(r.properties);
+      const l = one<any>(r.leases);
       rows.push([
-        (r as any).due_date,
-        c?.name ?? "",
-        p?.name ?? "",
-        l?.lessee_name ?? "",
-        l?.lessee_contact ?? "",
-        Number((r as any).gross_amount),
-        Number((r as any).net_amount),
+        r.due_date,
+        Math.round((t0 - new Date(r.due_date + "T00:00:00Z").getTime()) / 86400000),
+        one<any>(p?.compounds)?.name ?? "", p?.name ?? "", l?.lessee_name ?? "", l?.lessee_contact ?? "",
+        Number(r.net_amount), Number(r.collected_amount || 0), rem,
       ]);
     }
     return asAttachment(csv(rows), `outstanding-${today}.csv`);
   }
 
-  if (type === "collected") {
-    const { data } = await sb
-      .from("rent_collections")
-      .select("collected_at, due_date, net_amount, gross_amount, properties(name, compounds(name)), leases(lessee_name)")
-      .eq("status", "collected")
-      .gte("collected_at", `${period.from}T00:00:00Z`)
-      .lte("collected_at", `${period.to}T23:59:59Z`)
-      .order("collected_at", { ascending: false });
+  if (type === "collected" || type === "payments") {
+    // Money received in the period, from the payment log (part-payments included).
+    const q = url.searchParams.get("q")?.trim() ?? "";
+    const method = url.searchParams.get("method") ?? "";
+    const kind = type === "collected" ? "" : url.searchParams.get("kind") ?? "";
+    let leaseIds: string[] = [];
+    if (q) {
+      const like = `%${q}%`;
+      const [{ data: a }, { data: b }] = await Promise.all([
+        sb.from("leases").select("id").ilike("lessee_name", like),
+        sb.from("leases").select("id, properties!inner(name)").ilike("properties.name", like),
+      ]);
+      leaseIds = [...new Set([...(a ?? []), ...(b ?? [])].map((l: any) => l.id as string))];
+    }
+    const data = await fetchAll<any>((f, t) => {
+      let qb = sb.from("payments")
+        .select("paid_on, kind, amount, method, reference, notes, leases(lessee_name), properties(name, compounds(name)), rent_collections(due_month), costs(description)")
+        .gte("paid_on", period.from).lte("paid_on", period.to);
+      if (type === "collected") qb = qb.neq("kind", "deposit");
+      if (method) qb = qb.eq("method", method);
+      if (kind) qb = qb.eq("kind", kind);
+      if (q) qb = qb.or(`${leaseIds.length ? `lease_id.in.(${leaseIds.join(",")}),` : ""}reference.ilike.%${q.replace(/[,()]/g, " ")}%`);
+      return qb.order("paid_on", { ascending: false }).range(f, t);
+    });
     const rows: (string | number | null | undefined)[][] = [
-      ["Collected at", "Due date", "Compound", "Property", "Lessee", "Gross", "Net"],
+      ["Received on", "Type", "For", "Compound", "Property", "Lessee", "Method", "Reference", "Amount", "Notes"],
     ];
-    for (const r of data ?? []) {
-      const p: any = Array.isArray((r as any).properties) ? (r as any).properties[0] : (r as any).properties;
-      const c: any = Array.isArray(p?.compounds) ? p?.compounds[0] : p?.compounds;
-      const l: any = Array.isArray((r as any).leases) ? (r as any).leases[0] : (r as any).leases;
+    for (const p of data) {
+      const prop = one<any>(p.properties);
       rows.push([
-        (r as any).collected_at,
-        (r as any).due_date,
-        c?.name ?? "",
-        p?.name ?? "",
-        l?.lessee_name ?? "",
-        Number((r as any).gross_amount),
-        Number((r as any).net_amount),
+        p.paid_on,
+        p.kind,
+        p.kind === "rent" ? `Rent ${String(one<any>(p.rent_collections)?.due_month ?? "").slice(0, 7)}` : p.kind === "cost" ? one<any>(p.costs)?.description ?? "" : "Deposit",
+        one<any>(prop?.compounds)?.name ?? "", prop?.name ?? "", one<any>(p.leases)?.lessee_name ?? "",
+        methodLabel(p.method), p.reference ?? "", Number(p.amount), p.notes ?? "",
       ]);
     }
-    return asAttachment(csv(rows), `collected-${period.from}-to-${period.to}.csv`);
+    return asAttachment(csv(rows), `${type}-${period.from}-to-${period.to}.csv`);
+  }
+
+  if (type === "statement") {
+    const lease = url.searchParams.get("lease");
+    const lessee = url.searchParams.get("lessee");
+    if (!lease && !lessee) return NextResponse.json({ error: "lease or lessee is required" }, { status: 400 });
+    const st = await buildStatement(sb, lease ? { leaseId: lease } : { lessee: lessee! }, {
+      from: url.searchParams.get("from") ?? undefined,
+      to: url.searchParams.get("to") ?? undefined,
+    });
+    if (!st) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const rows: (string | number | null | undefined)[][] = [
+      ["Statement", st.lessee],
+      ["Period", st.from, st.to],
+      ["Properties", st.leases.map((l) => l.property).join("; ")],
+      [],
+      ["Date", "Description", "Property", "Reference", "Charge", "Payment", "Balance"],
+      [st.from, "Balance brought forward", "", "", "", "", st.opening],
+      ...st.lines.map((l) => [l.date, l.description, l.property, l.reference ?? "", l.charge || "", l.payment || "", l.balance]),
+      [],
+      ["", "Total charges", "", "", st.charges, "", ""],
+      ["", "Total payments", "", "", "", st.payments, ""],
+      ["", "Balance due", "", "", "", "", st.closing],
+      [],
+      ["Deposit charged", st.deposit.charged],
+      ["Deposit received", st.deposit.received],
+      ["Deposit shortfall", st.deposit.shortfall],
+    ];
+    const slug = st.lessee.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    return asAttachment(csv(rows), `statement-${slug}-${st.to}.csv`);
   }
 
   if (type === "costs") {

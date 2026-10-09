@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -53,6 +54,8 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
         .in("status", ["pending", "lessee_direct"])
         .gte("due_month", today);
     }
+
+    revalidateApp();
 
     redirect(`/properties/${id}`);
   }

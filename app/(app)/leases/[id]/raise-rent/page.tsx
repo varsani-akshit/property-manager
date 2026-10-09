@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 import { money, fmtDate } from "@/lib/format";
 import { redirect, notFound } from "next/navigation";
@@ -76,6 +77,8 @@ export default async function RaiseRentPage({ params }: { params: Promise<{ id: 
       reason,
       changed_by: user?.id ?? null,
     });
+
+    revalidateApp();
 
     redirect(`/leases/${id}`);
   }

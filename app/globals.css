@@ -210,3 +210,17 @@
   .scrollbar-none { scrollbar-width: none; }
   .scrollbar-none::-webkit-scrollbar { display: none; }
 }
+
+/* Print (statements, any page): just the content, on white, no app chrome. */
+@media print {
+  @page { margin: 14mm; }
+  html, body { background: #fff !important; }
+  aside, header, nav[aria-label="Breadcrumb"], .print\:hidden, nextjs-portal { display: none !important; }
+  .h-dvh { height: auto !important; overflow: visible !important; }
+  #main-scroll { overflow: visible !important; padding: 0 !important; box-shadow: none !important; border: 0 !important; }
+  #main-scroll > * > .sticky, #main-scroll .md\:sticky { position: static !important; backdrop-filter: none !important; }
+  .card { break-inside: avoid; }
+  .table tr { break-inside: avoid; }
+  .table tbody tr:hover td { background: transparent; }
+  a { color: inherit !important; text-decoration: none !important; }
+}

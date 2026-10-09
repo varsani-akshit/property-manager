@@ -5,12 +5,17 @@ import { money, fmtDate } from "@/lib/format";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PaymentFields } from "@/components/PaymentFields";
+import { PaymentHistory } from "@/components/PaymentHistory";
+import { paymentFieldsFrom, setCollectedTotal } from "@/lib/payments-server";
+import { revalidateApp } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditRentPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditRentPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string }> }) {
   await requirePermission("mark_rent");
   const { id } = await params;
+  const { err } = await searchParams;
   const sb = await supabaseServer();
   const { data } = await sb
     .from("rent_collections")
@@ -31,38 +36,33 @@ export default async function EditRentPage({ params }: { params: Promise<{ id: s
     "use server";
     await requirePermission("mark_rent");
     const sb = await supabaseServer();
-    const { data: { user } } = await sb.auth.getUser();
 
-    const newRentAmount = Number(formData.get("rent_amount"));
-    if (!Number.isFinite(newRentAmount) || newRentAmount < 0) throw new Error("Invalid rent amount");
+    const newRent = Number(formData.get("rent_amount"));
+    const wanted = Number(formData.get("collected_amount"));
+    const back = (msg: string) => redirect(`/rent/${id}/edit?err=${encodeURIComponent(msg)}`);
+    if (!Number.isFinite(newRent) || newRent < 0) back("Enter a valid rent amount.");
+    if (!Number.isFinite(wanted) || wanted < 0) back("Enter a valid collected total.");
+    const newCollected = Math.min(wanted, newRent);
+    const fields = paymentFieldsFrom(formData);
 
-    const newCollectedRaw = Number(formData.get("collected_amount"));
-    if (!Number.isFinite(newCollectedRaw) || newCollectedRaw < 0) throw new Error("Invalid collected amount");
-    const newCollected = Math.min(newCollectedRaw, newRentAmount);
-
-    let status: "due" | "partial" | "collected" = "due";
-    let collected_at: string | null = row.collected_at ?? null;
-    if (newRentAmount > 0 && newCollected >= newRentAmount) {
-      status = "collected";
-      collected_at = collected_at ?? new Date().toISOString();
-    } else if (newCollected > 0) {
-      status = "partial";
-      collected_at = collected_at ?? new Date().toISOString();
-    } else {
-      status = "due";
-      collected_at = null;
+    // Lowering the rent below what's been paid: bring the paid total down first.
+    if (newRent < alreadyPaid) {
+      const err = await setCollectedTotal(sb, "rent", id, newCollected, fields);
+      if (err) back(err);
+    }
+    if (newRent !== currentAmount) {
+      const status = newRent > 0 && newCollected >= newRent ? "collected" : newCollected > 0 ? "partial" : "due";
+      const { error } = await sb.from("rent_collections").update({
+        gross_amount: newRent, service_charge_deduction: 0, net_amount: newRent, status,
+      }).eq("id", id);
+      if (error) back(error.message);
+    }
+    if (newRent >= alreadyPaid) {
+      const err = await setCollectedTotal(sb, "rent", id, newCollected, fields);
+      if (err) back(err);
     }
 
-    await sb.from("rent_collections").update({
-      gross_amount: newRentAmount,
-      service_charge_deduction: 0,
-      net_amount: newRentAmount,
-      collected_amount: newCollected,
-      status,
-      collected_at,
-      collected_by: newCollected > 0 ? user?.id ?? null : null,
-    }).eq("id", id);
-
+    revalidateApp("/rent");
     redirect("/rent");
   }
 
@@ -76,14 +76,15 @@ export default async function EditRentPage({ params }: { params: Promise<{ id: s
         ]}
       />
 
+      {err && <div className="notice-danger">{err}</div>}
       <form action={update} className="card space-y-4">
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <div className="text-xs text-muted-fg">Due date</div>
+            <div className="kpi-label">Due date</div>
             <div className="font-medium">{fmtDate(row.due_date)}</div>
           </div>
           <div>
-            <div className="text-xs text-muted-fg">Status</div>
+            <div className="kpi-label">Status</div>
             <div className="font-medium capitalize">{row.status}</div>
           </div>
         </div>
@@ -122,11 +123,14 @@ export default async function EditRentPage({ params }: { params: Promise<{ id: s
           />
         </div>
 
+        <PaymentFields />
+
         <div className="flex gap-2">
           <SubmitButton>Save</SubmitButton>
           <Link href="/rent" className="btn-secondary">Cancel</Link>
         </div>
       </form>
+      <PaymentHistory kind="rent" id={id} />
     </div>
   );
 }

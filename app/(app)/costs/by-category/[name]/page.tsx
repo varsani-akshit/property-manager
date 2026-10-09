@@ -11,7 +11,7 @@ import Link from "next/link";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
-import { revalidatePath } from "next/cache";
+import { revalidateApp } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ async function deleteCost(formData: FormData) {
   const id = String(formData.get("id"));
   const sb = await supabaseServer();
   await sb.from("costs").delete().eq("id", id);
-  revalidatePath("/costs");
+  revalidateApp("/costs");
 }
 
 export default async function CategoryDetailPage({

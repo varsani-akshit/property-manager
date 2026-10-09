@@ -5,12 +5,17 @@ import { money, fmtDate } from "@/lib/format";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { SubmitButton } from "@/components/SubmitButton";
+import { PaymentFields } from "@/components/PaymentFields";
+import { PaymentHistory } from "@/components/PaymentHistory";
+import { paymentFieldsFrom, setCollectedTotal } from "@/lib/payments-server";
+import { revalidateApp } from "@/lib/revalidate";
 
 export const dynamic = "force-dynamic";
 
-export default async function CollectCostPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function CollectCostPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ err?: string }> }) {
   await requirePermission("mark_rent");
   const { id } = await params;
+  const { err } = await searchParams;
   const sb = await supabaseServer();
   const { data } = await sb
     .from("costs")
@@ -41,30 +46,11 @@ export default async function CollectCostPage({ params }: { params: Promise<{ id
     "use server";
     await requirePermission("mark_rent");
     const sb = await supabaseServer();
-    const { data: { user } } = await sb.auth.getUser();
-    const newCollectedRaw = Number(formData.get("collected_amount"));
-    if (!Number.isFinite(newCollectedRaw) || newCollectedRaw < 0) throw new Error("Invalid amount");
-    const newCollected = Math.min(newCollectedRaw, expected);
-
-    let status: "due" | "partial" | "collected" = "due";
-    let collected_at: string | null = row.collected_at ?? null;
-    if (newCollected >= expected) {
-      status = "collected";
-      collected_at = collected_at ?? new Date().toISOString();
-    } else if (newCollected > 0) {
-      status = "partial";
-      collected_at = collected_at ?? new Date().toISOString();
-    } else {
-      collected_at = null;
-    }
-
-    await sb.from("costs").update({
-      collected_amount: newCollected,
-      collection_status: status,
-      collected_at,
-      collected_by: newCollected > 0 ? user?.id ?? null : null,
-    }).eq("id", id);
-
+    const wanted = Number(formData.get("collected_amount"));
+    if (!Number.isFinite(wanted) || wanted < 0) redirect(`/costs/${id}/collect?err=${encodeURIComponent("Enter a valid amount.")}`);
+    const err = await setCollectedTotal(sb, "cost", id, Math.min(wanted, expected), paymentFieldsFrom(formData));
+    if (err) redirect(`/costs/${id}/collect?err=${encodeURIComponent(err)}`);
+    revalidateApp("/rent");
     redirect("/rent");
   }
 
@@ -78,29 +64,30 @@ export default async function CollectCostPage({ params }: { params: Promise<{ id
         ]}
       />
 
+      {err && <div className="notice-danger">{err}</div>}
       <form action={update} className="card space-y-4">
         <div>
-          <div className="text-xs text-muted-fg">Cost</div>
+          <div className="kpi-label">Cost</div>
           <div className="font-medium">{row.description}</div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <div className="text-xs text-muted-fg">Due date</div>
+            <div className="kpi-label">Due date</div>
             <div className="font-medium">{fmtDate(row.due_date)}</div>
           </div>
           <div>
-            <div className="text-xs text-muted-fg">Total billed</div>
+            <div className="kpi-label">Total billed</div>
             <div className="font-medium">{money(expected)}</div>
           </div>
         </div>
 
         {lineItems.length > 0 && (
           <div>
-            <div className="text-xs text-muted-fg mb-1">Line items</div>
-            <div className="rounded border border-border divide-y">
+            <div className="kpi-label mb-1.5">Line items</div>
+            <div className="divide-y divide-line-subtle rounded-lg border border-border">
               {lineItems.map((li, i) => (
-                <div key={i} className="flex justify-between px-3 py-1.5 text-sm">
+                <div key={i} className="flex justify-between px-3 py-1.5 text-[13px]">
                   <span className="capitalize">{li.category}</span>
                   <span className="tabular-nums">{money(li.amount)}</span>
                 </div>
@@ -131,11 +118,14 @@ export default async function CollectCostPage({ params }: { params: Promise<{ id
           />
         </div>
 
+        <PaymentFields />
+
         <div className="flex gap-2">
           <SubmitButton>Save</SubmitButton>
           <Link href="/rent" className="btn-secondary">Cancel</Link>
         </div>
       </form>
+      <PaymentHistory kind="cost" id={id} />
     </div>
   );
 }

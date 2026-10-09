@@ -1,5 +1,7 @@
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
+import { setCollectedTotal } from "@/lib/payments-server";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import { CostForm } from "../../new/CostForm";
@@ -79,6 +81,17 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
     // Preserve existing collection state when toggling stays on
     const wasPayable = Boolean((cost as any).payable_by_lessee);
     const keepCollection = wasPayable && payableByLessee;
+    const paidSoFar = Number((cost as any).collected_amount || 0);
+    // Money already logged against this charge: reverse it (as an adjustment in the
+    // payment log) when the charge stops being the lessee's, or trim it if the
+    // new total is smaller than what's been paid.
+    if (wasPayable && paidSoFar > 0 && (!payableByLessee || totalAmount < paidSoFar)) {
+      const err = await setCollectedTotal(sb, "cost", id, payableByLessee ? totalAmount : 0, {
+        paid_on: new Date().toISOString().slice(0, 10), method: "other", reference: null,
+        notes: payableByLessee ? "Charge reduced below the amount paid" : "Charge no longer billed to the lessee",
+      });
+      if (err) throw new Error(err);
+    }
     const update_payload: Record<string, unknown> = {
       description: String(formData.get("description") || "").trim(),
       category: primaryCategory,
@@ -89,7 +102,10 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
       lease_id: leaseId,
       due_date: payableByLessee ? dueDate : null,
     };
-    if (!keepCollection) {
+    if (keepCollection) {
+      const paid = Math.min(paidSoFar, totalAmount);
+      update_payload.collection_status = paid >= totalAmount && totalAmount > 0 ? "collected" : paid > 0 ? "partial" : "due";
+    } else {
       update_payload.collection_status = payableByLessee ? "due" : null;
       update_payload.collected_amount = 0;
       update_payload.collected_at = null;
@@ -120,6 +136,8 @@ export default async function EditCostPage({ params }: { params: Promise<{ id: s
       });
       if (e3) throw new Error(e3.message);
     }
+
+    revalidateApp();
 
     redirect("/costs");
   }

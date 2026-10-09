@@ -7,7 +7,7 @@ import { money } from "@/lib/format";
 import { has } from "@/lib/permissions";
 import { requirePermission } from "@/lib/permissions-server";
 import { guardView } from "@/lib/guard";
-import { revalidatePath } from "next/cache";
+import { revalidateApp } from "@/lib/revalidate";
 import Link from "next/link";
 import { SCTable, type SCTableRow } from "./SCRows";
 
@@ -44,12 +44,12 @@ async function bulkAction(formData: FormData) {
 
   if (action === "skip") {
     await sb.from("service_charges").update({ status: "skipped" }).in("id", ids).eq("status", "pending");
-    revalidatePath("/service-charges");
+    revalidateApp("/service-charges");
     return;
   }
   if (action === "unskip") {
     await sb.from("service_charges").update({ status: "pending" }).in("id", ids).eq("status", "skipped");
-    revalidatePath("/service-charges");
+    revalidateApp("/service-charges");
     return;
   }
   if (action !== "pay") return;
@@ -89,8 +89,8 @@ async function bulkAction(formData: FormData) {
       }).eq("id", (r as any).id);
     }
   }
-  revalidatePath("/service-charges");
-  revalidatePath("/costs");
+  revalidateApp("/service-charges");
+  revalidateApp("/costs");
 }
 
 const SC_PAGE_SIZE = 50;

@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/PageHeader";
 import { requirePermission } from "@/lib/permissions-server";
+import { revalidateApp } from "@/lib/revalidate";
 import { supabaseServer } from "@/lib/supabase/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
@@ -23,6 +24,7 @@ export default async function EditCompoundPage({ params }: { params: Promise<{ i
       address: String(formData.get("address") || "").trim() || null,
     }).eq("id", id);
     if (error) throw new Error(error.message);
+    revalidateApp();
     redirect(`/compounds/${id}`);
   }
 
