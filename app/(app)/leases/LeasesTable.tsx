@@ -19,6 +19,7 @@ export type LeaseRow = {
 type SortKey = "property_name" | "lessee_name" | "start_date" | "end_date" | "gross_rent_monthly" | "active";
 type SortDir = "asc" | "desc";
 
+const MOBILE_HIDDEN = new Set<string>(["start_date", "end_date", "active"]);
 const nat = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSize?: number }) {
@@ -54,7 +55,7 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
   }
 
   function header(label: string, k: SortKey, align?: "left" | "right" | "center") {
-    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} />;
+    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} className={MOBILE_HIDDEN.has(k) ? "hidden sm:table-cell" : undefined} />;
   }
 
   return (
@@ -65,7 +66,7 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
             <tr>
               {header("Property", "property_name")}
               {header("Lessee", "lessee_name")}
-              <th>Contact</th>
+              <th className="hidden md:table-cell">Contact</th>
               {header("Start", "start_date")}
               {header("End", "end_date")}
               {header("Rent", "gross_rent_monthly", "right")}
@@ -79,14 +80,14 @@ export function LeasesTable({ rows, pageSize = 25 }: { rows: LeaseRow[]; pageSiz
                 <tr key={l.id} className="cursor-pointer">
                   <td>
                     <Link href={href} className="block font-medium">{l.property_name}</Link>
-                    <Link href={href} className="block text-xs text-muted-fg">{l.compound_name}</Link>
+                    <Link href={href} className="block text-xs text-muted-fg">{l.compound_name}<span className="sm:hidden"> · until {fmtDate(l.end_date)}{l.active ? "" : " (ended)"}</span></Link>
                   </td>
                   <td><Link href={href} className="block font-medium">{l.lessee_name}</Link></td>
-                  <td><Link href={href} className="block">{l.lessee_contact || "—"}</Link></td>
-                  <td><Link href={href} className="block">{fmtDate(l.start_date)}</Link></td>
-                  <td><Link href={href} className="block">{fmtDate(l.end_date)}</Link></td>
+                  <td className="hidden md:table-cell"><Link href={href} className="block">{l.lessee_contact || "—"}</Link></td>
+                  <td className="hidden sm:table-cell"><Link href={href} className="block">{fmtDate(l.start_date)}</Link></td>
+                  <td className="hidden sm:table-cell"><Link href={href} className="block">{fmtDate(l.end_date)}</Link></td>
                   <td className="text-right"><Link href={href} className="block">{money(l.gross_rent_monthly)}</Link></td>
-                  <td className="text-center">
+                  <td className="text-center hidden sm:table-cell">
                     <Link href={href} className="block">
                       {l.active ? <span className="badge-success">Active</span> : <span className="badge-muted">Ended</span>}
                     </Link>

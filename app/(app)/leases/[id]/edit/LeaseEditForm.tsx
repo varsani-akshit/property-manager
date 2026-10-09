@@ -15,7 +15,7 @@ export function LeaseEditForm({ lease, action }: { lease: any; action: (fd: Form
 
   return (
     <form action={action} className="card space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Lessee name</label>
           <input name="lessee_name" required className="input" defaultValue={lease.lessee_name} />

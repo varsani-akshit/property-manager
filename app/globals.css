@@ -91,6 +91,7 @@
   }
   *::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; }
   input[type="checkbox"], input[type="radio"] { accent-color: rgb(var(--c-brand)); width: 15px; height: 15px; cursor: pointer; }
+  @media (pointer: coarse) { input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; } }
   input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
 }
 
@@ -108,6 +109,11 @@
   .btn-danger { @apply btn bg-danger text-white hover:opacity-90; }
   .btn-danger-ghost { @apply btn bg-transparent px-2.5 text-danger hover:bg-danger-soft; }
   .btn-sm { @apply h-7 px-2.5 py-0 text-[12px]; }
+  /* Touch screens: bigger targets (≥ 36px buttons, 20px checkboxes). */
+  @media (pointer: coarse) {
+    .btn { min-height: 36px; }
+    .btn-sm { height: 34px; }
+  }
 
   /* INPUTS */
   .input {
@@ -144,7 +150,7 @@
   /* STATS — figures side by side between two hairlines, divided by hairlines.
      No boxes. `.stat-row` wraps several `.kpi`s. */
   .stat-row {
-    @apply grid grid-cols-2 gap-y-4 border-y border-line-subtle py-4 md:grid-cols-4 md:gap-x-6 xl:grid-flow-col xl:auto-cols-fr xl:grid-cols-none xl:gap-x-0;
+    @apply grid grid-cols-2 gap-y-4 border-b border-line-subtle pb-5 md:grid-cols-4 md:gap-x-6 xl:grid-flow-col xl:auto-cols-fr xl:grid-cols-none xl:gap-x-0;
   }
   .stat-row > * { @apply xl:border-l xl:border-line-subtle xl:px-5; }
   .stat-row > *:first-child { @apply xl:border-l-0 xl:pl-0; }
@@ -166,18 +172,23 @@
   /* TABLES — one hairline under the header, subtle row lines, no fills.
      Default alignment is left; text-right / text-center utilities override. */
   .table-wrap { @apply w-full overflow-x-auto; }
-  .table { @apply w-full border-collapse whitespace-nowrap text-[12.5px]; }
+  /* On phones names may wrap so tables fit; amounts, dates and headers never do. */
+  .table { @apply w-full border-collapse whitespace-normal text-[12.5px] sm:whitespace-nowrap; }
+  .table th, .table td.text-right, .table td.text-center, .table .badge { white-space: nowrap; }
   /* :where() keeps the default alignment at zero specificity so text-right / text-center win */
   :where(.table) :where(th, td) { text-align: left; }
   .table th {
-    @apply h-9 border-b border-border px-3 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-fg;
+    @apply h-9 border-b border-border px-2 text-[11px] font-medium uppercase tracking-[0.06em] text-muted-fg sm:px-3;
   }
-  .table th:first-child, .table td:first-child { @apply pl-4; }
-  .table th:last-child, .table td:last-child { @apply pr-4; }
+  .table th:first-child, .table td:first-child { @apply pl-3 sm:pl-4; }
+  .table th:last-child, .table td:last-child { @apply pr-3 sm:pr-4; }
   .table td {
-    @apply border-b border-line-subtle px-3 py-2.5 align-middle text-fg tabular-nums;
+    @apply border-b border-line-subtle px-2 py-2.5 align-middle text-fg tabular-nums sm:px-3;
   }
   .table tbody tr:last-child td { @apply border-b-0; }
+  /* Nested tables (e.g. inside an expanded row) hug their frame on phones */
+  .table-tight .table th:first-child, .table-tight .table td:first-child { @apply pl-2 sm:pl-4; }
+  .table-tight .table th:last-child, .table-tight .table td:last-child { @apply pr-2 sm:pr-4; }
   .table tbody tr:hover td { @apply bg-muted/50; }
   .table tfoot td { @apply border-t border-border border-b-0 font-medium; }
   .th-sort { @apply cursor-pointer select-none transition-colors hover:text-fg; }

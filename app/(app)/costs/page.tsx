@@ -32,7 +32,16 @@ export default async function CostsPage({
     .lte("costs.incurred_on", period.to)
     .eq("costs.payable_by_lessee", false);
   if (q) liQ = liQ.ilike("category", `%${q}%`);
-  const { data: lineItems } = await liQ;
+  // Recent entries (for context at the bottom) — fetched alongside.
+  const recentQ = sb
+    .from("costs")
+    .select("id, description, amount, incurred_on, cost_line_items(category)")
+    .eq("payable_by_lessee", false)
+    .gte("incurred_on", period.from)
+    .lte("incurred_on", period.to)
+    .order("incurred_on", { ascending: false })
+    .limit(6);
+  const [{ data: lineItems }, { data: recent }] = await Promise.all([liQ, recentQ]);
   const lis = (lineItems ?? []) as any[];
 
   // Aggregate by category
@@ -50,15 +59,6 @@ export default async function CostsPage({
 
   const grandTotal = categories.reduce((s, c) => s + c.total, 0);
 
-  // Recent entries (for context at the bottom)
-  const { data: recent } = await sb
-    .from("costs")
-    .select("id, description, amount, incurred_on, cost_line_items(category)")
-    .eq("payable_by_lessee", false)
-    .gte("incurred_on", period.from)
-    .lte("incurred_on", period.to)
-    .order("incurred_on", { ascending: false })
-    .limit(6);
 
   return (
     <div>

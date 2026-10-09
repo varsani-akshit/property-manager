@@ -133,15 +133,15 @@ export default async function ServiceChargesPage({
     .order("due_month", { ascending: tab === "pending" })
     .range(from, to);
   if (allowedPropertyIds) listQ = listQ.in("property_id", allowedPropertyIds);
-  const listRes = await listQ;
+  // Full-tab totals for KPIs — view aggregates counts + sums per status
+  // server-side (one small round-trip instead of hydrating every row).
+  const [listRes, { data: kpiRows }] = await Promise.all([
+    listQ,
+    sb.from("v_sc_status_totals").select("status, row_count, amount_sum"),
+  ]);
   const totalRows = listRes.count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRows / SC_PAGE_SIZE));
 
-  // Full-tab totals for KPIs — view aggregates counts + sums per status
-  // server-side (one small round-trip instead of hydrating every row).
-  const { data: kpiRows } = await sb
-    .from("v_sc_status_totals")
-    .select("status, row_count, amount_sum");
   const kpiByStatus: Record<string, { row_count: number; amount_sum: number }> = {};
   for (const r of kpiRows ?? []) {
     const row = r as { status: string; row_count: number; amount_sum: number };

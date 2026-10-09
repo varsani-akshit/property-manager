@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, Fragment } from "react";
 import Link from "next/link";
-import { BellRing, ChevronRight, FileText, Search, X } from "lucide-react";
+import { BellRing, ChevronRight, FileText, Pencil, Search, X } from "lucide-react";
 import { money, fmtDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { SortTh, TablePager } from "@/components/TableBits";
@@ -26,6 +26,20 @@ const keyOf = (t: { kind: string; id: string }) => `${t.kind}:${t.id}`;
 type PropRef = {
   name: string;
   compounds: { name: string } | { name: string }[] | null;
+};
+
+export type LeaseRef = { id: string; lessee_name: string; lessee_contact: string | null };
+export type PropertyRef = PropRef;
+/** A rent row as sent by the server: names are looked up from leaseRefs / propertyRefs. */
+export type LiteRentRow = {
+  id: string;
+  due_date: string;
+  net_amount: number;
+  collected_amount: number;
+  status: string;
+  collected_at: string | null;
+  lease_id: string;
+  property_id: string;
 };
 
 export type RawRentRow = {
@@ -121,20 +135,30 @@ function costRemainder(c: RawCostRow): number {
 }
 
 export function LesseeAccordion({
-  rentRows,
+  rentRows: liteRows,
+  leaseRefs,
+  propertyRefs,
   costRows,
   depositShortfallByLessee,
   today,
   upcomingHorizon,
   canMarkRent,
 }: {
-  rentRows: RawRentRow[];
+  rentRows: LiteRentRow[];
+  leaseRefs: Record<string, LeaseRef>;
+  propertyRefs: Record<string, PropertyRef>;
   costRows: RawCostRow[];
   depositShortfallByLessee: Record<string, number>;
   today: string;
   upcomingHorizon: string;
   canMarkRent: boolean;
 }) {
+  // Re-attach names to the slim rows the server sent.
+  const rentRows: RawRentRow[] = useMemo(
+    () => liteRows.map((r) => ({ ...r, gross_amount: r.net_amount, properties: propertyRefs[r.property_id] ?? null, leases: leaseRefs[r.lease_id] ?? null })),
+    [liteRows, leaseRefs, propertyRefs]
+  );
+
   // ── selection + payment dialog ──
   const [selected, setSelected] = useState<Map<string, PayTarget>>(new Map());
   const [payTargets, setPayTargets] = useState<PayTarget[] | null>(null);
@@ -330,11 +354,11 @@ export function LesseeAccordion({
         <table className="table">
           <thead>
             <tr>
-              <th className="w-8"></th>
+              <th className="w-6 sm:w-8"></th>
               <SortTh label="Lessee · Property" active={sort.key === "lessee"} dir={sort.dir} onClick={() => sortBy("lessee")} />
-              <SortTh label="Total outstanding" align="right" active={sort.key === "outstanding"} dir={sort.dir} onClick={() => sortBy("outstanding")} />
-              <SortTh label="Upcoming (6 mo)" align="right" active={sort.key === "upcoming"} dir={sort.dir} onClick={() => sortBy("upcoming")} />
-              <SortTh label="Collected (4 mo)" align="right" active={sort.key === "collected"} dir={sort.dir} onClick={() => sortBy("collected")} />
+              <SortTh label={<><span className="sm:hidden">Owed</span><span className="hidden sm:inline">Total outstanding</span></>} align="right" active={sort.key === "outstanding"} dir={sort.dir} onClick={() => sortBy("outstanding")} />
+              <SortTh label="Upcoming (6 mo)" align="right" active={sort.key === "upcoming"} dir={sort.dir} onClick={() => sortBy("upcoming")} className="hidden sm:table-cell" />
+              <SortTh label="Collected (4 mo)" align="right" active={sort.key === "collected"} dir={sort.dir} onClick={() => sortBy("collected")} className="hidden md:table-cell" />
             </tr>
           </thead>
           <tbody>
@@ -354,34 +378,36 @@ export function LesseeAccordion({
                     <td className="text-muted-fg">
                       <ChevronRight size={14} className={cn("transition-transform duration-150", isOpen && "rotate-90 text-fg")} />
                     </td>
-                    <td className="max-w-md">
-                      <div className="font-medium">{g.lessee_name}</div>
-                      <div className="mt-0.5 truncate text-[12px] text-muted-fg" title={g.properties.join(", ")}>
-                        {g.properties.join(", ") || (g.contact ?? "")}
+                    <td>
+                      <div className="max-w-[9.5rem] sm:max-w-xs lg:max-w-md">
+                        <div className="truncate font-medium" title={g.lessee_name}>{g.lessee_name}</div>
+                        <div className="mt-0.5 truncate text-[12px] text-muted-fg" title={g.properties.join(", ")}>
+                          {g.properties.join(", ") || (g.contact ?? "")}
+                        </div>
                       </div>
                     </td>
                     <td className={cn("text-right font-medium tabular-nums", totalOutstanding > 0 && "text-danger")}>
                       {money(totalOutstanding)}
                       {totalOutstanding > 0 && (
-                        <div className="mt-0.5 text-[11px] font-normal text-muted-fg">
+                        <div className="mt-0.5 hidden whitespace-normal text-[11px] font-normal text-muted-fg sm:block">
                           {g.outstanding_total > 0 && <>rent {money(g.outstanding_total)}</>}
                           {g.cost_due_total > 0 && <> · cost {money(g.cost_due_total)}</>}
                           {g.deposit_shortfall > 0 && <> · dep {money(g.deposit_shortfall)}</>}
                         </div>
                       )}
                     </td>
-                    <td className="text-right tabular-nums">
+                    <td className="hidden text-right tabular-nums sm:table-cell">
                       {money(g.upcoming_total)}
                       {g.upcoming_count > 0 && <span className="ml-1 text-[11.5px] text-muted-fg">({g.upcoming_count})</span>}
                     </td>
-                    <td className="text-right tabular-nums text-success">
+                    <td className="hidden text-right tabular-nums text-success md:table-cell">
                       {money(g.collected_total)}
                       {g.collected_count > 0 && <span className="ml-1 text-[11.5px] text-muted-fg">({g.collected_count})</span>}
                     </td>
                   </tr>
                   {isOpen && (
                     <tr className="[&>td]:!bg-sunken/60">
-                      <td colSpan={5} className="!px-4 !py-3">
+                      <td colSpan={5} className="max-w-0 !px-1 !py-3 sm:!px-4">
                         <Tabs
                           group={g}
                           today={today}
@@ -410,14 +436,14 @@ export function LesseeAccordion({
     </div>
 
     {selectedList.length > 0 && (
-      <div className="fixed bottom-5 left-1/2 z-[60] flex -translate-x-1/2 animate-fade-in items-center gap-3 rounded-xl border border-border bg-raised py-2 pl-4 pr-2 shadow-token-lg lg:left-[calc(50%+108px)]">
-        <span className="whitespace-nowrap text-[12.5px] text-fg">
+      <div className="fixed bottom-4 left-1/2 z-[60] flex w-max max-w-[calc(100vw-24px)] -translate-x-1/2 animate-fade-in flex-wrap items-center justify-end gap-2 rounded-xl border border-border bg-raised py-2 pl-4 pr-2 shadow-token-lg sm:gap-3 lg:left-[calc(50%+108px)]" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}>
+        <span className="mr-auto whitespace-nowrap text-[12.5px] text-fg">
           <span className="font-medium">{selectedList.length} selected</span>
           <span className="text-muted-fg"> · {money(selectedTotal)} owed</span>
         </span>
         <button type="button" className="btn-ghost btn-sm" onClick={() => setSelected(new Map())}>Clear</button>
         <button type="button" className="btn-primary btn-sm" onClick={() => setPayTargets(selectedList)}>
-          Collect selected in full
+          <span className="sm:hidden">Collect all</span><span className="hidden sm:inline">Collect selected in full</span>
         </button>
       </div>
     )}
@@ -541,17 +567,17 @@ function RentTable({ rows, active, lessee }: { rows: RawRentRow[]; active: "outs
   });
   const targets = sorted.filter((r) => rentRemainder(r) > 0).map(targetOf);
   return (
-    <div className="table-wrap rounded-lg border border-border bg-surface">
+    <div className="table-wrap table-tight rounded-lg border border-border bg-surface">
       <table className="table">
         <thead>
           <tr>
             {canPay && <th className="w-8"><SelectAll targets={targets} /></th>}
             <th>Due date</th>
-            <th>Property</th>
-            <th className="text-right">Rent</th>
-            <th className="text-right">Paid</th>
-            <th className="text-right">Outstanding</th>
-            <th>Status</th>
+            <th className="hidden sm:table-cell">Property</th>
+            <th className="hidden text-right sm:table-cell">Rent</th>
+            <th className="hidden text-right md:table-cell">Paid</th>
+            <th className="text-right"><span className="sm:hidden">Owed</span><span className="hidden sm:inline">Outstanding</span></th>
+            <th className="hidden sm:table-cell">Status</th>
             {canPay && <th></th>}
           </tr>
         </thead>
@@ -565,16 +591,16 @@ function RentTable({ rows, active, lessee }: { rows: RawRentRow[]; active: "outs
               <tr key={r.id}>
                 {canPay && <td>{rem > 0 && <RowSelect target={targetOf(r)} />}</td>}
                 <td>{fmtDate(r.due_date)}</td>
-                <td>{p?.name}</td>
-                <td className="text-right">{money(r.net_amount)}</td>
-                <td className="text-right">{money(r.collected_amount)}</td>
+                <td className="hidden sm:table-cell">{p?.name}</td>
+                <td className="hidden text-right sm:table-cell">{money(r.net_amount)}</td>
+                <td className="hidden text-right md:table-cell">{money(r.collected_amount)}</td>
                 <td className={cn("text-right tabular-nums", rem > 0 && "text-danger font-medium")}>{money(rem)}</td>
-                <td><span className={statusBadge}>{statusLabel}</span></td>
+                <td className="hidden sm:table-cell"><span className={statusBadge}>{statusLabel}</span></td>
                 {canPay && (
                   <td className="text-right">
                     <div className="flex justify-end gap-1">
                       {rem > 0 && <button type="button" className="btn-primary btn-sm" onClick={() => pay([targetOf(r)])}>Collect</button>}
-                      <Link href={`/rent/${r.id}/edit`} className="btn-secondary btn-sm">Edit</Link>
+                      <Link href={`/rent/${r.id}/edit`} className="btn-secondary btn-sm" aria-label="Edit"><Pencil size={13} className="sm:hidden" /><span className="hidden sm:inline">Edit</span></Link>
                     </div>
                   </td>
                 )}
@@ -599,19 +625,19 @@ function CostTable({ rows, today, lessee }: { rows: RawCostRow[]; today: string;
   });
   const targets = sorted.filter((c) => costRemainder(c) > 0).map(targetOf);
   return (
-    <div className="table-wrap rounded-lg border border-border bg-surface">
+    <div className="table-wrap table-tight rounded-lg border border-border bg-surface">
       <table className="table">
         <thead>
           <tr>
             {canPay && <th className="w-8"><SelectAll targets={targets} /></th>}
             <th>Due date</th>
             <th>Description</th>
-            <th>Categories</th>
-            <th>Property</th>
-            <th className="text-right">Total</th>
-            <th className="text-right">Paid</th>
-            <th className="text-right">Outstanding</th>
-            <th>Status</th>
+            <th className="hidden lg:table-cell">Categories</th>
+            <th className="hidden md:table-cell">Property</th>
+            <th className="hidden text-right sm:table-cell">Total</th>
+            <th className="hidden text-right md:table-cell">Paid</th>
+            <th className="text-right"><span className="sm:hidden">Owed</span><span className="hidden sm:inline">Outstanding</span></th>
+            <th className="hidden sm:table-cell">Status</th>
             {canPay && <th></th>}
           </tr>
         </thead>
@@ -629,7 +655,7 @@ function CostTable({ rows, today, lessee }: { rows: RawCostRow[]; today: string;
                 {canPay && <td>{rem > 0 && <RowSelect target={targetOf(c)} />}</td>}
                 <td>{fmtDate(c.due_date)}</td>
                 <td>{c.description}</td>
-                <td>
+                <td className="hidden lg:table-cell">
                   <div className="flex flex-wrap gap-1">
                     {lineItems.map((li, i) => (
                       <span key={i} className="badge-muted" title={`${money(li.amount)}`}>
@@ -638,16 +664,16 @@ function CostTable({ rows, today, lessee }: { rows: RawCostRow[]; today: string;
                     ))}
                   </div>
                 </td>
-                <td>{p?.name}</td>
-                <td className="text-right">{money(c.amount)}</td>
-                <td className="text-right">{money(c.collected_amount)}</td>
+                <td className="hidden md:table-cell">{p?.name}</td>
+                <td className="hidden text-right sm:table-cell">{money(c.amount)}</td>
+                <td className="hidden text-right md:table-cell">{money(c.collected_amount)}</td>
                 <td className={cn("text-right tabular-nums", rem > 0 && "text-danger font-medium")}>{money(rem)}</td>
-                <td><span className={statusBadge}>{statusLabel}</span></td>
+                <td className="hidden sm:table-cell"><span className={statusBadge}>{statusLabel}</span></td>
                 {canPay && (
                   <td className="text-right">
                     <div className="flex justify-end gap-1">
                       {rem > 0 && <button type="button" className="btn-primary btn-sm" onClick={() => pay([targetOf(c)])}>Collect</button>}
-                      <Link href={`/costs/${c.id}/collect`} className="btn-secondary btn-sm">Edit</Link>
+                      <Link href={`/costs/${c.id}/collect`} className="btn-secondary btn-sm" aria-label="Edit"><Pencil size={13} className="sm:hidden" /><span className="hidden sm:inline">Edit</span></Link>
                     </div>
                   </td>
                 )}
@@ -665,7 +691,7 @@ function CostTable({ rows, today, lessee }: { rows: RawCostRow[]; today: string;
 
 function CollectedTable({ items, canMarkRent }: { items: CollectedItem[]; canMarkRent: boolean }) {
   return (
-    <div className="table-wrap rounded-lg border border-border bg-surface">
+    <div className="table-wrap table-tight rounded-lg border border-border bg-surface">
       <table className="table">
         <thead>
           <tr>

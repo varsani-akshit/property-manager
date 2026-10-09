@@ -37,6 +37,8 @@ export type Column<Row> = {
   cellClass?: string;
   /** Fixed column width (e.g. "w-8", "w-32"). */
   width?: string;
+  /** Hide this column on phones (secondary detail). */
+  hideOnMobile?: boolean;
 };
 
 type SortState = { key: string; dir: "asc" | "desc" };
@@ -110,7 +112,7 @@ export function SortableTable<Row>({
             <tr>
               {columns.map((c) =>
                 c.sortable === false ? (
-                  <th key={c.key} className={cn(alignClass(c.align), c.width, c.headerClass)}>{c.label}</th>
+                  <th key={c.key} className={cn(alignClass(c.align), c.width, c.headerClass, c.hideOnMobile && "hidden sm:table-cell")}>{c.label}</th>
                 ) : (
                   <SortTh
                     key={c.key}
@@ -119,7 +121,7 @@ export function SortableTable<Row>({
                     dir={sort?.key === c.key ? sort.dir : "asc"}
                     onClick={() => toggle(c.key)}
                     align={c.align}
-                    className={cn(c.width, c.headerClass)}
+                    className={cn(c.width, c.headerClass, c.hideOnMobile && "hidden sm:table-cell")}
                   />
                 )
               )}
@@ -135,7 +137,7 @@ export function SortableTable<Row>({
                 onKeyDown={onRowClick ? (e) => { if (e.key === "Enter") onRowClick(row); } : undefined}
               >
                 {columns.map((c) => (
-                  <td key={c.key} className={cn(alignClass(c.align), c.cellClass)}>
+                  <td key={c.key} className={cn(alignClass(c.align), c.cellClass, c.hideOnMobile && "hidden sm:table-cell")}>
                     {c.cell ? c.cell(row) : String((row as any)[c.key] ?? "")}
                   </td>
                 ))}

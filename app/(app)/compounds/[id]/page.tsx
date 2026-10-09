@@ -49,7 +49,23 @@ export default async function CompoundDetailPage({
   const profile = await guardView("view_compounds");
   const sb = await supabaseServer();
 
-  const { data: compound } = await sb.from("compounds").select("*").eq("id", id).maybeSingle();
+  // Everything in one round trip: rows are filtered by compound through an inner
+  // join instead of first fetching the compound's property ids.
+  const [{ data: compound }, { data: allCompoundProps }, pageRes, rentInPeriod, costsInPeriod, activeLeasesRes] = await Promise.all([
+    sb.from("compounds").select("*").eq("id", id).maybeSingle(),
+    sb.from("properties").select("id, name, area_sqft, valuation, service_charge_monthly, archived").eq("compound_id", id),
+    sb.from("v_property_summary").select("*", { count: "exact" }).eq("compound_id", id).range(from, to),
+    sb.from("rent_collections").select("status, net_amount, collected_amount, collected_at, due_date, properties!inner(compound_id)")
+      .eq("properties.compound_id", id)
+      .gte("due_date", period.from)
+      .lte("due_date", period.to),
+    sb.from("cost_allocations").select("allocated_amount, properties!inner(compound_id), costs!inner(incurred_on, amount, payable_by_lessee, cost_line_items(category, amount))")
+      .eq("properties.compound_id", id)
+      .eq("costs.payable_by_lessee", false)
+      .gte("costs.incurred_on", period.from)
+      .lte("costs.incurred_on", period.to),
+    sb.from("leases").select("property_id, properties!inner(compound_id)").eq("properties.compound_id", id).eq("active", true),
+  ]);
   if (!compound) notFound();
 
   async function deleteCompoundAction() {
@@ -64,31 +80,6 @@ export default async function CompoundDetailPage({
     redirect("/compounds");
   }
 
-  const { data: allCompoundProps } = await sb
-    .from("properties")
-    .select("id, name, area_sqft, valuation, service_charge_monthly, archived")
-    .eq("compound_id", id);
-  const propIds = (allCompoundProps ?? []).map((p) => (p as { id: string }).id);
-
-  const [pageRes, rentInPeriod, costsInPeriod, activeLeasesRes] = await Promise.all([
-    sb.from("v_property_summary").select("*", { count: "exact" }).eq("compound_id", id).range(from, to),
-    propIds.length
-      ? sb.from("rent_collections").select("status, net_amount, collected_amount, collected_at, due_date")
-          .in("property_id", propIds)
-          .gte("due_date", period.from)
-          .lte("due_date", period.to)
-      : Promise.resolve({ data: [] }),
-    propIds.length
-      ? sb.from("cost_allocations").select("allocated_amount, costs!inner(incurred_on, amount, payable_by_lessee, cost_line_items(category, amount))")
-          .in("property_id", propIds)
-          .eq("costs.payable_by_lessee", false)
-          .gte("costs.incurred_on", period.from)
-          .lte("costs.incurred_on", period.to)
-      : Promise.resolve({ data: [] }),
-    propIds.length
-      ? sb.from("leases").select("property_id").in("property_id", propIds).eq("active", true)
-      : Promise.resolve({ data: [] }),
-  ]);
 
   const arr = pageRes.data ?? [];
   const total = pageRes.count ?? 0;
@@ -263,10 +254,10 @@ export default async function CompoundDetailPage({
             <thead>
               <tr>
                 <th>Property</th>
-                <th className="text-right">Sqft</th>
-                <th className="text-right">Valuation</th>
-                <th className="text-right">Rent collected (all-time)</th>
-                <th className="text-right">Costs (all-time)</th>
+                <th className="text-right hidden md:table-cell">Sqft</th>
+                <th className="text-right hidden sm:table-cell">Valuation</th>
+                <th className="text-right hidden lg:table-cell">Rent collected (all-time)</th>
+                <th className="text-right hidden lg:table-cell">Costs (all-time)</th>
                 <th>Status</th>
               </tr>
             </thead>
@@ -274,10 +265,10 @@ export default async function CompoundDetailPage({
               {arr.map((p) => (
                 <tr key={(p as any).id}>
                   <td><Link href={`/properties/${(p as any).id}`} className="font-medium hover:underline">{(p as any).name}</Link></td>
-                  <td className="text-right">{Number((p as any).area_sqft).toLocaleString()}</td>
-                  <td className="text-right">{money((p as any).valuation)}</td>
-                  <td className="text-right">{money((p as any).total_rent_collected)}</td>
-                  <td className="text-right">{money((p as any).total_costs)}</td>
+                  <td className="text-right hidden md:table-cell">{Number((p as any).area_sqft).toLocaleString()}</td>
+                  <td className="text-right hidden sm:table-cell">{money((p as any).valuation)}</td>
+                  <td className="text-right hidden lg:table-cell">{money((p as any).total_rent_collected)}</td>
+                  <td className="text-right hidden lg:table-cell">{money((p as any).total_costs)}</td>
                   <td>{Number((p as any).active_lease_count) > 0 ? <span className="badge-success">Rented</span> : <span className="badge-muted">Vacant</span>}</td>
                 </tr>
               ))}

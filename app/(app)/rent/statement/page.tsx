@@ -140,38 +140,47 @@ export default async function StatementPage({ searchParams }: { searchParams: Pr
               <tr>
                 <th>Date</th>
                 <th>Description</th>
-                <th>Property</th>
-                <th>Reference</th>
-                <th className="text-right">Charge</th>
-                <th className="text-right">Payment</th>
-                <th className="text-right">Balance</th>
+                <th className="hidden lg:table-cell print:table-cell">Property</th>
+                <th className="hidden md:table-cell print:table-cell">Reference</th>
+                <th className="text-right"><span className="sm:hidden">Amount</span><span className="hidden sm:inline print:inline">Charge</span></th>
+                <th className="hidden text-right sm:table-cell print:table-cell">Payment</th>
+                <th className="text-right hidden sm:table-cell print:table-cell">Balance</th>
               </tr>
             </thead>
             <tbody>
               <tr className="[&>td]:bg-sunken/60">
                 <td>{fmtDate(st.from)}</td>
-                <td className="font-medium" colSpan={5}>Balance brought forward</td>
-                <td className="text-right font-medium">{money(st.opening)}</td>
+                <td className="font-medium">Balance brought forward<span className="font-normal text-muted-fg sm:hidden"> · {money(st.opening)}</span></td>
+                <td className="hidden lg:table-cell print:table-cell" />
+                <td className="hidden md:table-cell print:table-cell" />
+                <td />
+                <td className="hidden sm:table-cell print:table-cell" />
+                <td className="hidden text-right font-medium sm:table-cell print:table-cell">{money(st.opening)}</td>
               </tr>
               {st.lines.map((l, i) => (
                 <tr key={i}>
                   <td>{fmtDate(l.date)}</td>
-                  <td className={l.kind === "payment" ? "text-success" : ""}>{l.description}</td>
-                  <td className="text-muted-fg">{l.property}</td>
-                  <td className="font-mono text-[11.5px]">{l.reference ?? ""}</td>
-                  <td className="text-right">{l.charge ? money(l.charge) : ""}</td>
-                  <td className="text-right text-success">{l.payment ? money(l.payment) : ""}</td>
-                  <td className={cn("text-right font-medium", l.balance > 0 ? "text-fg" : "text-success")}>{money(l.balance)}</td>
+                  <td className={l.kind === "payment" ? "text-success" : ""}>{l.description}<span className="block text-[11px] text-muted-fg sm:hidden">bal {money(l.balance)}</span></td>
+                  <td className="text-muted-fg hidden lg:table-cell print:table-cell">{l.property}</td>
+                  <td className="font-mono text-[11.5px] hidden md:table-cell print:table-cell">{l.reference ?? ""}</td>
+                  <td className="text-right">
+                    {l.charge ? money(l.charge) : ""}
+                    {l.payment ? <span className="text-success sm:hidden print:hidden">−{money(l.payment)}</span> : null}
+                  </td>
+                  <td className="hidden text-right text-success sm:table-cell print:table-cell">{l.payment ? money(l.payment) : ""}</td>
+                  <td className={cn("text-right font-medium hidden sm:table-cell print:table-cell", l.balance > 0 ? "text-fg" : "text-success")}>{money(l.balance)}</td>
                 </tr>
               ))}
               {!st.lines.length && <tr><td colSpan={7} className="!py-10 text-center text-muted-fg">No charges or payments in this period.</td></tr>}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={4}>Totals</td>
-                <td className="text-right">{money(st.charges)}</td>
-                <td className="text-right">{money(st.payments)}</td>
-                <td className={cn("text-right", st.closing > 0 ? "text-danger" : "text-success")}>{money(st.closing)}</td>
+                <td colSpan={2}>Totals</td>
+                <td className="hidden lg:table-cell print:table-cell" />
+                <td className="hidden md:table-cell print:table-cell" />
+                <td className="text-right">{money(st.charges)}<span className="block text-success sm:hidden">−{money(st.payments)}</span></td>
+                <td className="hidden text-right sm:table-cell print:table-cell">{money(st.payments)}</td>
+                <td className={cn("hidden text-right sm:table-cell print:table-cell", st.closing > 0 ? "text-danger" : "text-success")}>{money(st.closing)}</td>
               </tr>
             </tfoot>
           </table>

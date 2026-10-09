@@ -93,7 +93,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         <div className="table-wrap">
           <table className="table">
             <thead>
-              <tr><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Changes</th></tr>
+              <tr><th>When</th><th className="hidden md:table-cell">Who</th><th className="hidden sm:table-cell">Action</th><th>Record</th><th>Changes</th></tr>
             </thead>
             <tbody>
               {rows.map((r) => {
@@ -103,13 +103,13 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                 const link = LINK[r.entity]?.(r.entity_id);
                 return (
                   <tr key={r.id} className="align-top">
-                    <td className="whitespace-nowrap">{new Date(r.at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-                    <td>{r.actor_email ?? <span className="text-muted-fg">System</span>}</td>
-                    <td>
+                    <td className="whitespace-nowrap">{new Date(r.at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}<div className="max-w-[8rem] truncate text-[11px] text-muted-fg md:hidden">{r.actor_email ?? "System"}</div></td>
+                    <td className="hidden md:table-cell">{r.actor_email ?? <span className="text-muted-fg">System</span>}</td>
+                    <td className="hidden sm:table-cell">
                       <span className={r.action === "deleted" ? "badge-danger" : r.action === "created" ? "badge-success" : "badge-info"}>{r.action}</span>
                     </td>
-                    <td>
-                      <div className="text-[11px] text-muted-fg">{ENTITIES[r.entity] ?? r.entity}</div>
+                    <td className="[overflow-wrap:anywhere]">
+                      <div className="text-[11px] text-muted-fg">{ENTITIES[r.entity] ?? r.entity}<span className="sm:hidden"> · {r.action}</span></div>
                       {link && r.action !== "deleted" ? <Link href={link} className="font-medium hover:underline">{r.label ?? r.entity_id}</Link> : <span className="font-medium">{r.label ?? r.entity_id}</span>}
                     </td>
                     <td className="whitespace-normal">
@@ -117,7 +117,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                         <summary className="cursor-pointer text-[12px] text-fg-soft">
                           {isDiff ? keys.slice(0, 3).join(", ") + (keys.length > 3 ? ` +${keys.length - 3}` : "") : `${keys.length} field${keys.length === 1 ? "" : "s"}`}
                         </summary>
-                        <dl className="mt-2 grid max-w-xl grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[12px]">
+                        <dl className="mt-2 grid max-w-[16rem] grid-cols-[auto_1fr] sm:max-w-xl gap-x-3 gap-y-1 text-[12px]">
                           {keys.map((k) => (
                             <div key={k} className="contents">
                               <dt className="font-mono text-[11px] text-muted-fg">{k}</dt>

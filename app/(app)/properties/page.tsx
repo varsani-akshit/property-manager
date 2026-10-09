@@ -59,7 +59,12 @@ export default async function PropertiesPage({
     .select("id, name, area_sqft, valuation, service_charge_monthly, archived, compounds(name), leases(id, active, lessee_name, gross_rent_monthly)")
     .eq("archived", false);
   if (allowedPropertyIds) baseQ = baseQ.in("id", allowedPropertyIds);
-  const allRes = await baseQ;
+  // Summary always reflects the search filter so KPIs match what's shown.
+  let summaryQ = sb.from("v_property_summary")
+    .select("area_sqft, valuation, active_lease_count, current_gross_rent")
+    .eq("archived", false);
+  if (allowedPropertyIds) summaryQ = summaryQ.in("id", allowedPropertyIds);
+  const [allRes, summaryRes] = await Promise.all([baseQ, summaryQ]);
 
   const rows: PropertyTableRow[] = ((allRes.data ?? []) as unknown as PropertyDbRow[]).map((p) => {
     const lease = p.leases?.find((l) => l.active) ?? null;
@@ -76,12 +81,6 @@ export default async function PropertiesPage({
     };
   });
 
-  // Summary always reflects the search filter so KPIs match what's shown.
-  let summaryQ = sb.from("v_property_summary")
-    .select("area_sqft, valuation, active_lease_count, current_gross_rent")
-    .eq("archived", false);
-  if (allowedPropertyIds) summaryQ = summaryQ.in("id", allowedPropertyIds);
-  const summaryRes = await summaryQ;
   const summary = summaryRes.data ?? [];
   const totalSqft = summary.reduce((s, p) => s + Number((p as { area_sqft: number }).area_sqft || 0), 0);
   const totalValuation = summary.reduce((s, p) => s + Number((p as { valuation: number }).valuation || 0), 0);

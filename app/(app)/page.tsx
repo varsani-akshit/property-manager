@@ -8,6 +8,7 @@ import { money, fmtDate } from "@/lib/format";
 import { guardView } from "@/lib/guard";
 import Link from "next/link";
 import { Download } from "lucide-react";
+import { has } from "@/lib/permissions";
 import { Kpi } from "@/components/Kpi";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ function listMonths(fromISO: string, toISO: string): string[] {
 }
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<Search> }) {
-  await guardView("view_dashboard");
+  const profile = await guardView("view_dashboard");
   const sp = await searchParams;
   const period = resolvePeriod(sp);
   const days = periodDays(period);
@@ -205,9 +206,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         right={<DateFilter active={period.range as Range} />}
         actions={
           <div className="flex flex-wrap gap-2">
-            <a href={`/api/export/outstanding`} className="btn-secondary h-8"><Download size={13}/> Outstanding</a>
-            <a href={`/api/export/collected?${exportQuery}`} className="btn-secondary h-8"><Download size={13}/> Collected</a>
-            <a href={`/api/export/costs?${exportQuery}`} className="btn-secondary h-8"><Download size={13}/> Costs</a>
+            {has(profile, "view_rent") && <a href={`/api/export/outstanding`} className="btn-secondary h-8"><Download size={13}/> Outstanding</a>}
+            {has(profile, "view_rent") && <a href={`/api/export/collected?${exportQuery}`} className="btn-secondary h-8"><Download size={13}/> Collected</a>}
+            {has(profile, "view_costs") && <a href={`/api/export/costs?${exportQuery}`} className="btn-secondary h-8"><Download size={13}/> Costs</a>}
           </div>
         }
       />
@@ -253,7 +254,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             formatValue={(n) => money(n)}
           />
         </div>
-        <div className="stat-row mx-4 mb-1 border-b-0 border-t-line-subtle sm:grid-cols-none">
+        <div className="stat-row mx-4 mb-1 border-b-0 border-t border-line-subtle pt-4">
           <Kpi label="Occupancy" value={`${occupancyPct.toFixed(0)}%`} hint={`${activeLeases.length} of ${properties.length} leased`} />
           <Kpi label="Expected / mo" value={money(expectedMonthly)} hint="Active leases, gross" />
           <Kpi label="Next 30 days" value={money(next30)} />

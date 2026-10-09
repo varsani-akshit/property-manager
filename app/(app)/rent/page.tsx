@@ -7,7 +7,7 @@ import { guardView } from "@/lib/guard";
 import Link from "next/link";
 import { BULK_BACKFILL_ENABLED } from "@/lib/features";
 import { fetchAll } from "@/lib/fetch-all";
-import { LesseeAccordion, type RawRentRow, type RawCostRow } from "./LesseeAccordion";
+import { LesseeAccordion, type LiteRentRow, type LeaseRef, type PropertyRef, type RawCostRow } from "./LesseeAccordion";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,9 @@ export default async function RentPage({
   }
 
   // RENT — three slices then merge.
-  const cols = "id, due_date, gross_amount, net_amount, collected_amount, status, collected_at, lease_id, property_id, properties(name, compounds(name)), leases(id, lessee_name, lessee_contact)";
+  // Rent rows carry only their own figures; lessee / property names are sent once
+  // (leaseRefs / propertyRefs below) — keeps the page light on mobile data.
+  const cols = "id, due_date, net_amount, collected_amount, status, collected_at, lease_id, property_id";
 
   const apply = (q: any) => {
     let out = q;
@@ -50,22 +52,6 @@ export default async function RentPage({
     if (leaseIds) out = out.in("lease_id", leaseIds);
     return out;
   };
-
-  // Paged: portfolio-wide rent rows easily pass Supabase's 1,000-row response cap.
-  const [outstandingRows, upcomingRows, recentCollectedRows] = await Promise.all([
-    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).in("status", ["due", "partial"]).lte("due_date", today)).order("due_date", { ascending: true }).range(f, t)),
-    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).in("status", ["due", "partial"]).gt("due_date", today).lte("due_date", upcomingHorizon)).order("due_date", { ascending: true }).range(f, t)),
-    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).eq("status", "collected").gte("collected_at", `${collectedFloor}T00:00:00Z`)).order("collected_at", { ascending: false }).range(f, t)),
-  ]);
-  const outstandingRes = { data: outstandingRows };
-  const upcomingRes = { data: upcomingRows };
-  const recentCollectedRes = { data: recentCollectedRows };
-
-  const rentRows: RawRentRow[] = [
-    ...((outstandingRes.data ?? []) as unknown as RawRentRow[]),
-    ...((upcomingRes.data ?? []) as unknown as RawRentRow[]),
-    ...((recentCollectedRes.data ?? []) as unknown as RawRentRow[]),
-  ];
 
   // COSTS billed to a lessee — fetch unpaid (any due_date) + recently collected.
   const costCols = "id, description, amount, due_date, collected_amount, collection_status, collected_at, lease_id, leases(id, lessee_name, lessee_contact, property_id, properties(name, compounds(name))), cost_line_items(category, amount)";
@@ -75,10 +61,34 @@ export default async function RentPage({
     // Property filter for costs: filter via lease.property_id
     return out;
   };
-  const [costDueRes, costCollectedRes] = await Promise.all([
+
+  let depositsQ = sb.from("leases")
+    .select("lessee_name, deposit_charged, deposit_collected, property_id")
+    .eq("active", true);
+  if (leaseIds) depositsQ = depositsQ.in("id", leaseIds);
+  if (filterProperty) depositsQ = depositsQ.eq("property_id", filterProperty);
+  // Paged: portfolio-wide rent rows easily pass Supabase's 1,000-row response cap.
+  const [outstandingRows, upcomingRows, recentCollectedRows, costDueRes, costCollectedRes, { data: depositsData }, { data: leaseRefRows }, { data: propRefRows }] = await Promise.all([
+    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).in("status", ["due", "partial"]).lte("due_date", today)).order("due_date", { ascending: true }).range(f, t)),
+    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).in("status", ["due", "partial"]).gt("due_date", today).lte("due_date", upcomingHorizon)).order("due_date", { ascending: true }).range(f, t)),
+    fetchAll<any>((f, t) => apply(sb.from("rent_collections").select(cols).eq("status", "collected").gte("collected_at", `${collectedFloor}T00:00:00Z`)).order("collected_at", { ascending: false }).range(f, t)),
     applyCost(sb.from("costs").select(costCols).in("collection_status", ["due", "partial"])).order("due_date", { ascending: true }),
     applyCost(sb.from("costs").select(costCols).eq("collection_status", "collected").gte("collected_at", `${collectedFloor}T00:00:00Z`)).order("collected_at", { ascending: false }),
+    depositsQ,
+    sb.from("leases").select("id, lessee_name, lessee_contact"),
+    sb.from("properties").select("id, name, compounds(name)"),
   ]);
+  const leaseRefs: Record<string, LeaseRef> = Object.fromEntries((leaseRefRows ?? []).map((l: any) => [l.id, { id: l.id, lessee_name: l.lessee_name, lessee_contact: l.lessee_contact }]));
+  const propertyRefs: Record<string, PropertyRef> = Object.fromEntries((propRefRows ?? []).map((p: any) => [p.id, { name: p.name, compounds: p.compounds }]));
+  const outstandingRes = { data: outstandingRows };
+  const upcomingRes = { data: upcomingRows };
+  const recentCollectedRes = { data: recentCollectedRows };
+
+  const rentRows: LiteRentRow[] = [
+    ...((outstandingRes.data ?? []) as LiteRentRow[]),
+    ...((upcomingRes.data ?? []) as LiteRentRow[]),
+    ...((recentCollectedRes.data ?? []) as LiteRentRow[]),
+  ];
 
   let costRows: RawCostRow[] = [
     ...((costDueRes.data ?? []) as unknown as RawCostRow[]),
@@ -91,13 +101,7 @@ export default async function RentPage({
     });
   }
 
-  // DEPOSITS — active leases only, keyed by lessee_name
-  let depositsQ = sb.from("leases")
-    .select("lessee_name, deposit_charged, deposit_collected, property_id")
-    .eq("active", true);
-  if (leaseIds) depositsQ = depositsQ.in("id", leaseIds);
-  if (filterProperty) depositsQ = depositsQ.eq("property_id", filterProperty);
-  const { data: depositsData } = await depositsQ;
+  // DEPOSITS — active leases only, keyed by lessee_name (fetched with the rest above)
   const depositShortfallByLessee: Record<string, number> = {};
   for (const l of depositsData ?? []) {
     const row = l as { lessee_name: string; deposit_charged: number | null; deposit_collected: number | null };
@@ -154,6 +158,8 @@ export default async function RentPage({
 
       <LesseeAccordion
         rentRows={rentRows}
+        leaseRefs={leaseRefs}
+        propertyRefs={propertyRefs}
         costRows={costRows}
         depositShortfallByLessee={depositShortfallByLessee}
         today={today}

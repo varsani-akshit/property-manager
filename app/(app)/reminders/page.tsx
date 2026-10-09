@@ -29,7 +29,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
     outstandingByLessee(sb, today),
     sb.from("leases").select("id, lessee_name, lessee_contact, end_date, gross_rent_monthly, properties(name)").eq("active", true).gte("end_date", today).lte("end_date", in60).order("end_date"),
     sb.from("reminders").select("id, lessee_name, kind, channel, amount, message, sent_by, sent_at").order("sent_at", { ascending: false }).limit(200),
-    sb.from("user_profiles").select("id, full_name, email"),
+    sb.from("people").select("id, full_name, email"),
   ]);
   const who = new Map((people.data ?? []).map((p: any) => [p.id, p.full_name || p.email]));
   const reminders = (logRes.data ?? []) as any[];
@@ -99,7 +99,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
           {tab === "overdue" && (
             <table className="table">
               <thead>
-                <tr><th>Lessee</th><th>Contact</th><th className="text-right">Rent</th><th className="text-right">Charges</th><th className="text-right">Total</th><th className="text-right">Oldest</th><th>Last reminded</th><th></th></tr>
+                <tr><th>Lessee</th><th className="hidden lg:table-cell">Contact</th><th className="text-right hidden md:table-cell">Rent</th><th className="text-right hidden md:table-cell">Charges</th><th className="text-right">Total</th><th className="text-right hidden sm:table-cell">Oldest</th><th className="hidden md:table-cell">Last reminded</th><th></th></tr>
               </thead>
               <tbody>
                 {show(overdue).map((o) => {
@@ -108,15 +108,15 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                   return (
                     <tr key={o.lessee}>
                       <td>
-                        <Link href={`/rent/statement?lessee=${encodeURIComponent(o.lessee)}`} className="font-medium hover:underline">{o.lessee}</Link>
-                        <div className="mt-0.5 max-w-[18rem] truncate text-[12px] text-muted-fg">{o.properties.join(", ")}</div>
+                        <Link href={`/rent/statement?lessee=${encodeURIComponent(o.lessee)}`} className="block max-w-[8rem] font-medium hover:underline [overflow-wrap:anywhere] sm:max-w-none">{o.lessee}</Link>
+                        <div className="mt-0.5 max-w-[8rem] truncate text-[12px] text-muted-fg sm:max-w-[18rem]">{o.properties.join(", ")}</div>
                       </td>
-                      <td className="text-muted-fg">{o.contact || "—"}</td>
-                      <td className="text-right">{money(o.rent)}</td>
-                      <td className="text-right">{money(o.costs)}</td>
-                      <td className="text-right font-medium text-danger">{money(amt)}</td>
-                      <td className={cn("text-right", o.daysOverdue > 30 ? "font-medium text-danger" : "text-warning")}>{o.daysOverdue}d</td>
-                      <td>{last(o.lessee)}</td>
+                      <td className="text-muted-fg hidden lg:table-cell">{o.contact || "—"}</td>
+                      <td className="text-right hidden md:table-cell">{money(o.rent)}</td>
+                      <td className="text-right hidden md:table-cell">{money(o.costs)}</td>
+                      <td className="text-right font-medium text-danger">{money(amt)}<div className="text-[11px] font-normal text-muted-fg sm:hidden">{o.daysOverdue}d late</div></td>
+                      <td className={cn("text-right hidden sm:table-cell", o.daysOverdue > 30 ? "font-medium text-danger" : "text-warning")}>{o.daysOverdue}d</td>
+                      <td className="hidden md:table-cell">{last(o.lessee)}</td>
                       <td className="text-right">
                         <ReminderActions lessee={o.lessee} leaseId={o.leaseIds[0]} contact={o.contact} kind="overdue" amount={amt} message={msg} subject="Rent reminder" canSend={canSend} />
                       </td>
@@ -131,7 +131,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
           {tab === "expiring" && (
             <table className="table">
               <thead>
-                <tr><th>Lessee</th><th>Property</th><th>Contact</th><th>Ends</th><th className="text-right">Days left</th><th className="text-right">Rent / mo</th><th>Last reminded</th><th></th></tr>
+                <tr><th>Lessee</th><th className="hidden sm:table-cell">Property</th><th className="hidden lg:table-cell">Contact</th><th className="hidden sm:table-cell">Ends</th><th className="text-right">Days</th><th className="text-right hidden md:table-cell">Rent / mo</th><th className="hidden md:table-cell">Last reminded</th><th></th></tr>
               </thead>
               <tbody>
                 {show(expiring).map((l) => {
@@ -140,13 +140,13 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                   const msg = `Hello ${l.lessee_name}, your lease for ${prop} ends on ${fmtDate(l.end_date)}. Please let us know whether you would like to renew so we can prepare the paperwork. Thank you.`;
                   return (
                     <tr key={l.id}>
-                      <td><Link href={`/leases/${l.id}`} className="font-medium hover:underline">{l.lessee_name}</Link></td>
-                      <td>{prop}</td>
-                      <td className="text-muted-fg">{l.lessee_contact || "—"}</td>
-                      <td>{fmtDate(l.end_date)}</td>
+                      <td><Link href={`/leases/${l.id}`} className="font-medium hover:underline">{l.lessee_name}</Link><div className="text-[11.5px] text-muted-fg sm:hidden">{prop} · ends {fmtDate(l.end_date)}</div></td>
+                      <td className="hidden sm:table-cell">{prop}</td>
+                      <td className="text-muted-fg hidden lg:table-cell">{l.lessee_contact || "—"}</td>
+                      <td className="hidden sm:table-cell">{fmtDate(l.end_date)}</td>
                       <td className={cn("text-right font-medium", days <= 14 ? "text-danger" : days <= 30 ? "text-warning" : "")}>{days}</td>
-                      <td className="text-right">{money(l.gross_rent_monthly)}</td>
-                      <td>{last(l.lessee_name)}</td>
+                      <td className="text-right hidden md:table-cell">{money(l.gross_rent_monthly)}</td>
+                      <td className="hidden md:table-cell">{last(l.lessee_name)}</td>
                       <td className="text-right">
                         <ReminderActions lessee={l.lessee_name} leaseId={l.id} contact={l.lessee_contact} kind="expiry" message={msg} subject="Your lease renewal" canSend={canSend} />
                       </td>
@@ -161,7 +161,7 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
           {tab === "deposit" && (
             <table className="table">
               <thead>
-                <tr><th>Lessee</th><th>Property</th><th>Contact</th><th className="text-right">Shortfall</th><th>Last reminded</th><th></th></tr>
+                <tr><th>Lessee</th><th className="hidden sm:table-cell">Property</th><th className="hidden lg:table-cell">Contact</th><th className="text-right">Shortfall</th><th className="hidden md:table-cell">Last reminded</th><th></th></tr>
               </thead>
               <tbody>
                 {show(deposits).map((o) => {
@@ -169,10 +169,10 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
                   return (
                     <tr key={o.lessee}>
                       <td><Link href={`/rent/statement?lessee=${encodeURIComponent(o.lessee)}`} className="font-medium hover:underline">{o.lessee}</Link></td>
-                      <td className="max-w-[18rem] truncate">{o.properties.join(", ")}</td>
-                      <td className="text-muted-fg">{o.contact || "—"}</td>
+                      <td className="hidden sm:table-cell"><div className="max-w-[18rem] truncate">{o.properties.join(", ")}</div></td>
+                      <td className="text-muted-fg hidden lg:table-cell">{o.contact || "—"}</td>
                       <td className="text-right font-medium text-danger">{money(o.deposit)}</td>
-                      <td>{last(o.lessee)}</td>
+                      <td className="hidden md:table-cell">{last(o.lessee)}</td>
                       <td className="text-right">
                         <ReminderActions lessee={o.lessee} leaseId={o.leaseIds[0]} contact={o.contact} kind="deposit" amount={o.deposit} message={msg} subject="Deposit balance" canSend={canSend} />
                       </td>
@@ -187,18 +187,18 @@ export default async function RemindersPage({ searchParams }: { searchParams: Pr
           {tab === "log" && (
             <table className="table">
               <thead>
-                <tr><th>Sent</th><th>Lessee</th><th>About</th><th>Channel</th><th className="text-right">Amount</th><th>By</th><th>Message</th></tr>
+                <tr><th>Sent</th><th>Lessee</th><th className="hidden sm:table-cell">About</th><th>Channel</th><th className="text-right hidden md:table-cell">Amount</th><th className="hidden lg:table-cell">By</th><th className="hidden lg:table-cell">Message</th></tr>
               </thead>
               <tbody>
                 {show(reminders).map((r) => (
                   <tr key={r.id}>
                     <td>{fmtDate(r.sent_at)}</td>
                     <td className="font-medium">{r.lessee_name}</td>
-                    <td className="capitalize">{r.kind}</td>
+                    <td className="capitalize hidden sm:table-cell">{r.kind}</td>
                     <td className="capitalize">{r.channel}</td>
-                    <td className="text-right">{r.amount != null ? money(r.amount) : "—"}</td>
-                    <td className="text-muted-fg">{who.get(r.sent_by) ?? "—"}</td>
-                    <td className="max-w-[24rem] truncate text-muted-fg" title={r.message}>{r.message}</td>
+                    <td className="text-right hidden md:table-cell">{r.amount != null ? money(r.amount) : "—"}</td>
+                    <td className="text-muted-fg hidden lg:table-cell">{who.get(r.sent_by) ?? "—"}</td>
+                    <td className="text-muted-fg hidden lg:table-cell" title={r.message}><div className="max-w-[24rem] truncate">{r.message}</div></td>
                   </tr>
                 ))}
                 {!show(reminders).length && <tr><td colSpan={7} className="!py-10 text-center text-muted-fg">No reminders sent yet.</td></tr>}

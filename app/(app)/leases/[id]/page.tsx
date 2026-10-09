@@ -248,7 +248,7 @@ export default async function LeaseDetailPage({
           <div className="kpi-label">Rent</div>
           <div className="mt-1.5 text-[14px] font-medium text-fg">{money((lease as any).gross_rent_monthly)} / mo</div>
         </div>
-        <div className="col-span-full grid grid-cols-3 gap-x-6 gap-y-4 border-t border-line-subtle pt-4">
+        <div className="col-span-full grid grid-cols-1 gap-x-6 gap-y-4 border-t border-line-subtle pt-4 sm:grid-cols-3">
           <div>
             <div className="kpi-label">Deposit charged</div>
             <div className="mt-1.5 text-[14px] font-medium text-fg">{money((lease as any).deposit_charged ?? (lease as any).deposit_amount ?? 0)}</div>
@@ -343,7 +343,7 @@ export default async function LeaseDetailPage({
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Due date</th><th>Status</th><th className="text-right">Net</th><th className="text-right">Paid</th><th>Collected on</th></tr></thead>
+            <thead><tr><th>Due date</th><th>Status</th><th className="text-right hidden sm:table-cell">Net</th><th className="text-right">Paid</th><th className="hidden md:table-cell">Collected on</th></tr></thead>
             <tbody>
               {rentRows.map((r: any) => (
                 <tr key={r.id}>
@@ -353,9 +353,9 @@ export default async function LeaseDetailPage({
                       : r.status === "partial" ? <span className="badge-warning">Partial</span>
                       : <span className="badge-warning">Due</span>}
                   </td>
-                  <td className="text-right">{money(r.net_amount)}</td>
+                  <td className="text-right hidden sm:table-cell">{money(r.net_amount)}</td>
                   <td className="text-right">{money(r.collected_amount)}</td>
-                  <td>{r.collected_at ? fmtDate(r.collected_at) : "—"}</td>
+                  <td className="hidden md:table-cell">{r.collected_at ? fmtDate(r.collected_at) : "—"}</td>
                 </tr>
               ))}
               {!rentRows.length && <tr><td colSpan={5} className="!py-10 text-center text-muted-fg">No rent data in this period.</td></tr>}
@@ -374,15 +374,15 @@ export default async function LeaseDetailPage({
           </div>
           <div className="table-wrap">
             <table className="table">
-              <thead><tr><th>Due date</th><th>Description</th><th>Categories</th><th>Status</th><th className="text-right">Total</th><th className="text-right">Paid</th></tr></thead>
+              <thead><tr><th className="hidden sm:table-cell">Due date</th><th>Description</th><th className="hidden lg:table-cell">Categories</th><th>Status</th><th className="text-right hidden md:table-cell">Total</th><th className="text-right">Paid</th></tr></thead>
               <tbody>
                 {lesseeCosts.map((c) => {
                   const lineItems = (c.cost_line_items ?? []) as { category: string; amount: number }[];
                   return (
                     <tr key={c.id}>
-                      <td>{fmtDate(c.due_date)}</td>
+                      <td className="hidden sm:table-cell">{fmtDate(c.due_date)}</td>
                       <td className="font-medium">{c.description}</td>
-                      <td>
+                      <td className="hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {lineItems.map((li, i) => (
                             <span key={i} className="badge-muted text-xs">{li.category} · {money(Number(li.amount))}</span>
@@ -394,7 +394,7 @@ export default async function LeaseDetailPage({
                           : c.collection_status === "partial" ? <span className="badge-warning">Partial</span>
                           : <span className="badge-warning">Due</span>}
                       </td>
-                      <td className="text-right">{money(c.amount)}</td>
+                      <td className="text-right hidden md:table-cell">{money(c.amount)}</td>
                       <td className="text-right">{money(c.collected_amount)}</td>
                     </tr>
                   );
@@ -413,7 +413,7 @@ export default async function LeaseDetailPage({
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th className="text-right">Line</th><th className="text-right">Property share</th></tr></thead>
+            <thead><tr><th>Date</th><th>Description</th><th className="hidden md:table-cell">Category</th><th className="text-right hidden sm:table-cell">Line</th><th className="text-right">Share</th></tr></thead>
             <tbody>
               {allocs.flatMap((a, i) => {
                 const cost = a.costs;
@@ -425,8 +425,8 @@ export default async function LeaseDetailPage({
                     <tr key={`${i}-only`}>
                       <td>{fmtDate(cost?.incurred_on)}</td>
                       <td className="font-medium">{cost?.description}</td>
-                      <td className="text-muted-fg">—</td>
-                      <td className="text-right">{money(allocated)}</td>
+                      <td className="text-muted-fg hidden md:table-cell">—</td>
+                      <td className="text-right hidden sm:table-cell">{money(allocated)}</td>
                       <td className="text-right font-medium">{money(allocated)}</td>
                     </tr>
                   )];
@@ -437,8 +437,8 @@ export default async function LeaseDetailPage({
                     <tr key={`${i}-${j}`} className={j > 0 ? "text-muted-fg" : ""}>
                       <td>{j === 0 ? fmtDate(cost?.incurred_on) : ""}</td>
                       <td>{j === 0 ? <span className="font-medium">{cost?.description}</span> : <span className="pl-3">↳</span>}</td>
-                      <td><span className="badge-muted">{li.category}</span></td>
-                      <td className="text-right">{money(Number(li.amount))}</td>
+                      <td className="hidden md:table-cell"><span className="badge-muted">{li.category}</span></td>
+                      <td className="text-right hidden sm:table-cell">{money(Number(li.amount))}</td>
                       <td className="text-right font-medium">{money(share)}</td>
                     </tr>
                   );

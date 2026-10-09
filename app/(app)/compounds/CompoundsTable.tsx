@@ -18,6 +18,7 @@ export type CompoundRow = {
 type SortKey = "name" | "address" | "property_count" | "valuation" | "sqft" | "collected" | "costs";
 type SortDir = "asc" | "desc";
 
+const MOBILE_HIDDEN = new Set<string>(["address", "sqft", "collected", "costs"]);
 const nat = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; pageSize?: number }) {
@@ -54,7 +55,7 @@ export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; p
   }
 
   function header(label: string, k: SortKey, align?: "left" | "right" | "center") {
-    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} />;
+    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} className={MOBILE_HIDDEN.has(k) ? "hidden sm:table-cell" : undefined} />;
   }
 
   return (
@@ -76,12 +77,12 @@ export function CompoundsTable({ rows, pageSize = 25 }: { rows: CompoundRow[]; p
             {view.map((c) => (
               <tr key={c.id}>
                 <td><Link href={`/compounds/${c.id}`} className="font-medium hover:underline">{c.name}</Link></td>
-                <td className="text-xs text-muted-fg">{c.address || "—"}</td>
+                <td className="text-xs text-muted-fg hidden sm:table-cell">{c.address || "—"}</td>
                 <td className="text-right">{c.property_count}</td>
-                <td className="text-right">{c.sqft.toLocaleString()}</td>
+                <td className="text-right hidden sm:table-cell">{c.sqft.toLocaleString()}</td>
                 <td className="text-right">{money(c.valuation)}</td>
-                <td className="text-right">{money(c.collected)}</td>
-                <td className="text-right text-muted-fg">{money(c.costs)}</td>
+                <td className="text-right hidden sm:table-cell">{money(c.collected)}</td>
+                <td className="text-right text-muted-fg hidden sm:table-cell">{money(c.costs)}</td>
               </tr>
             ))}
             {!view.length && <tr><td colSpan={7} className="!py-10 text-center text-muted-fg">No compounds.</td></tr>}

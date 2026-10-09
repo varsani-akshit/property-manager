@@ -64,7 +64,7 @@ export default async function EditPropertyPage({ params }: { params: Promise<{ i
     <div className="[&>*:not(:first-child)]:max-w-2xl">
       <PageHeader crumbs={[{ label: "Properties", href: "/properties" }, { label: prop.name, href: `/properties/${prop.id}` }, { label: "Edit" }]} />
       <form action={update} className="card space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="label">Compound</label>
             <CompoundPicker

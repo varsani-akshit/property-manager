@@ -319,7 +319,7 @@ export default async function PropertyDetailPage({
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Due date</th><th>Status</th><th className="text-right">Net</th><th className="text-right">Paid</th><th>Collected on</th></tr></thead>
+            <thead><tr><th>Due date</th><th>Status</th><th className="text-right hidden sm:table-cell">Net</th><th className="text-right">Paid</th><th className="hidden md:table-cell">Collected on</th></tr></thead>
             <tbody>
               {rentRows.map((r: any) => (
                 <tr key={r.id}>
@@ -329,9 +329,9 @@ export default async function PropertyDetailPage({
                       : r.status === "partial" ? <span className="badge-warning">Partial</span>
                       : <span className="badge-warning">Due</span>}
                   </td>
-                  <td className="text-right">{money(r.net_amount)}</td>
+                  <td className="text-right hidden sm:table-cell">{money(r.net_amount)}</td>
                   <td className="text-right">{money(r.collected_amount)}</td>
-                  <td>{r.collected_at ? fmtDate(r.collected_at) : "—"}</td>
+                  <td className="hidden md:table-cell">{r.collected_at ? fmtDate(r.collected_at) : "—"}</td>
                 </tr>
               ))}
               {!rentRows.length && <tr><td colSpan={5} className="!py-10 text-center text-muted-fg">No rent in this period.</td></tr>}
@@ -349,7 +349,7 @@ export default async function PropertyDetailPage({
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Date</th><th>Description</th><th>Category</th><th className="text-right">Line</th><th className="text-right">Property share</th></tr></thead>
+            <thead><tr><th>Date</th><th>Description</th><th className="hidden md:table-cell">Category</th><th className="text-right hidden sm:table-cell">Line</th><th className="text-right">Share</th></tr></thead>
             <tbody>
               {allocsRows.flatMap((a, i) => {
                 const cost = a.costs;
@@ -361,8 +361,8 @@ export default async function PropertyDetailPage({
                     <tr key={`${i}-only`}>
                       <td>{fmtDate(cost?.incurred_on)}</td>
                       <td className="font-medium">{cost?.description}</td>
-                      <td className="text-muted-fg">—</td>
-                      <td className="text-right">{money(allocated)}</td>
+                      <td className="text-muted-fg hidden md:table-cell">—</td>
+                      <td className="text-right hidden sm:table-cell">{money(allocated)}</td>
                       <td className="text-right font-medium">{money(allocated)}</td>
                     </tr>
                   )];
@@ -373,8 +373,8 @@ export default async function PropertyDetailPage({
                     <tr key={`${i}-${j}`} className={j > 0 ? "text-muted-fg" : ""}>
                       <td>{j === 0 ? fmtDate(cost?.incurred_on) : ""}</td>
                       <td>{j === 0 ? <span className="font-medium">{cost?.description}</span> : <span className="pl-3">↳</span>}</td>
-                      <td><span className="badge-muted">{li.category}</span></td>
-                      <td className="text-right">{money(Number(li.amount))}</td>
+                      <td className="hidden md:table-cell"><span className="badge-muted">{li.category}</span></td>
+                      <td className="text-right hidden sm:table-cell">{money(Number(li.amount))}</td>
                       <td className="text-right font-medium">{money(share)}</td>
                     </tr>
                   );
@@ -395,20 +395,20 @@ export default async function PropertyDetailPage({
         </div>
         <div className="table-wrap">
           <table className="table">
-            <thead><tr><th>Lessee</th><th>Start</th><th>End</th><th>Status</th><th className="text-right">Rent</th><th></th></tr></thead>
+            <thead><tr><th>Lessee</th><th className="hidden md:table-cell">Start</th><th className="hidden sm:table-cell">End</th><th>Status</th><th className="text-right hidden sm:table-cell">Rent</th><th></th></tr></thead>
             <tbody>
               {leases.map((l: any) => (
                 <tr key={l.id}>
                   <td className="font-medium">{l.lessee_name}</td>
-                  <td>{fmtDate(l.start_date)}</td>
-                  <td>{fmtDate(l.end_date)}</td>
+                  <td className="hidden md:table-cell">{fmtDate(l.start_date)}</td>
+                  <td className="hidden sm:table-cell">{fmtDate(l.end_date)}</td>
                   <td>
                     {l.active ? <span className="badge-success">Active</span>
                       : l.cancelled_at ? <span className="badge-danger">Cancelled</span>
                       : <span className="badge-muted">Ended</span>}
                   </td>
-                  <td className="text-right">{money(l.gross_rent_monthly)}</td>
-                  <td className="text-right"><Link href={`/leases/${l.id}`} className="btn-secondary">View</Link></td>
+                  <td className="text-right hidden sm:table-cell">{money(l.gross_rent_monthly)}</td>
+                  <td className="text-right"><Link href={`/leases/${l.id}`} className="btn-secondary btn-sm">View</Link></td>
                 </tr>
               ))}
               {!leases.length && <tr><td colSpan={6} className="!py-10 text-center text-muted-fg">No leases yet.</td></tr>}

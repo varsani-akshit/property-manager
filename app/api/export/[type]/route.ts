@@ -30,7 +30,12 @@ const one = <T,>(v: T | T[] | null | undefined): T | null => (Array.isArray(v) ?
 export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
   const { type } = await params;
   // Money-in exports follow Rent Collection access; the rest follow the dashboard.
-  await guardView(["payments", "statement", "outstanding", "collected"].includes(type) ? "view_rent" : "view_dashboard");
+  await guardView(
+    ["payments", "statement", "outstanding", "collected"].includes(type) ? "view_rent"
+    : type === "costs" ? "view_costs"
+    : type === "properties" ? "view_properties"
+    : "view_dashboard"
+  );
   const url = new URL(req.url);
   const sb = await supabaseServer();
   const today = new Date().toISOString().slice(0, 10);

@@ -63,7 +63,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       .order("created_at", { ascending: false })
       .range((page - 1) * PAGE, page * PAGE - 1),
     fetchAll<any>((f, t) => filtered("amount, method, kind").range(f, t)),
-    sb.from("user_profiles").select("id, full_name, email"),
+    sb.from("people").select("id, full_name, email"),
   ]);
   const rows = (pageRes.data ?? []) as any[];
   const total = pageRes.count ?? 0;
@@ -135,12 +135,12 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
               <tr>
                 <th>Received</th>
                 <th>Lessee</th>
-                <th>Property</th>
-                <th>For</th>
-                <th>Method</th>
-                <th>Reference</th>
+                <th className="hidden md:table-cell">Property</th>
+                <th className="hidden sm:table-cell">For</th>
+                <th className="hidden sm:table-cell">Method</th>
+                <th className="hidden lg:table-cell">Reference</th>
                 <th className="text-right">Amount</th>
-                <th>Recorded by</th>
+                <th className="hidden xl:table-cell">Recorded by</th>
               </tr>
             </thead>
             <tbody>
@@ -155,22 +155,22 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                   <tr key={p.id}>
                     <td>{fmtDate(p.paid_on)}</td>
                     <td>
-                      <div className="max-w-[14rem] truncate">
+                      <div className="max-w-[8.5rem] truncate sm:max-w-[14rem]">
                         {lease ? (
                           <Link href={`/rent/statement?lessee=${encodeURIComponent(lease.lessee_name)}`} className="font-medium hover:underline" title={lease.lessee_name}>{lease.lessee_name}</Link>
                         ) : "—"}
                       </div>
                     </td>
-                    <td><div className="max-w-[11rem] truncate">{prop ? <Link href={`/properties/${prop.id}`} className="hover:underline" title={prop.name}>{prop.name}</Link> : "—"}</div></td>
-                    <td><div className="max-w-[12rem] truncate" title={forWhat}>{forWhat}</div></td>
-                    <td>
+                    <td className="hidden md:table-cell"><div className="max-w-[11rem] truncate">{prop ? <Link href={`/properties/${prop.id}`} className="hover:underline" title={prop.name}>{prop.name}</Link> : "—"}</div></td>
+                    <td className="hidden sm:table-cell"><div className="max-w-[12rem] truncate" title={forWhat}>{forWhat}</div></td>
+                    <td className="hidden sm:table-cell">
                       {p.method === "adjustment" ? <span className="badge-warning">Adjustment</span>
                         : p.method === "opening" ? <span className="badge-muted">Before log</span>
                         : methodLabel(p.method)}
                     </td>
-                    <td className="font-mono text-[11.5px]">{p.reference || <span className="text-muted-fg">—</span>}</td>
+                    <td className="hidden font-mono text-[11.5px] lg:table-cell">{p.reference || <span className="text-muted-fg">—</span>}</td>
                     <td className={`text-right font-medium ${Number(p.amount) < 0 ? "text-danger" : ""}`}>{money(p.amount)}</td>
-                    <td className="text-muted-fg">{p.recorded_by ? who.get(p.recorded_by) ?? "—" : p.method === "opening" ? "Imported" : "—"}</td>
+                    <td className="hidden text-muted-fg xl:table-cell">{p.recorded_by ? who.get(p.recorded_by) ?? "—" : p.method === "opening" ? "Imported" : "—"}</td>
                   </tr>
                 );
               })}

@@ -18,6 +18,7 @@ export type SCTableRow = {
 type SortKey = "due_month" | "property_name" | "compound_name" | "amount" | "paid_at";
 type SortDir = "asc" | "desc";
 
+const MOBILE_HIDDEN = new Set<string>(["compound_name"]);
 const nat = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export function SCTable({
@@ -55,11 +56,11 @@ export function SCTable({
   }
 
   function header(label: string, k: SortKey, align?: "left" | "right" | "center") {
-    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} />;
+    return <SortTh key={k} label={label} active={sortKey === k} dir={sortDir} onClick={() => toggle(k)} align={align} className={MOBILE_HIDDEN.has(k) ? "hidden sm:table-cell" : undefined} />;
   }
 
   return (
-    <div className="table-wrap">
+    <div className="table-wrap table-tight">
       <table className="table">
         <thead>
           <tr>
@@ -80,7 +81,7 @@ export function SCTable({
             {header("Compound", "compound_name")}
             {header("Amount", "amount", "right")}
             {tab === "paid" && header("Paid on", "paid_at")}
-            <th className="text-center">Status</th>
+            <th className="text-center hidden sm:table-cell">Status</th>
             {canPay && tab === "pending" && <th></th>}
           </tr>
         </thead>
@@ -90,12 +91,12 @@ export function SCTable({
               {showCheckbox && (
                 <td><input type="checkbox" name="ids" value={r.id} className="sc-row-check" /></td>
               )}
-              <td>{r.due_month.slice(0, 7)}</td>
-              <td><Link href={`/properties/${r.property_id}`} className="font-medium hover:underline">{r.property_name}</Link></td>
-              <td className="text-muted-fg">{r.compound_name}</td>
+              <td className="whitespace-nowrap">{r.due_month.slice(0, 7)}</td>
+              <td className="[overflow-wrap:anywhere]"><Link href={`/properties/${r.property_id}`} className="font-medium hover:underline">{r.property_name}</Link></td>
+              <td className="text-muted-fg hidden sm:table-cell">{r.compound_name}</td>
               <td className="text-right">{money(r.amount)}</td>
               {tab === "paid" && <td>{fmtDate(r.paid_at)}</td>}
-              <td className="text-center">
+              <td className="text-center hidden sm:table-cell">
                 {r.status === "pending" && <span className="badge-warning">pending</span>}
                 {r.status === "paid" && <span className="badge-success">paid</span>}
                 {r.status === "skipped" && <span className="badge-muted">skipped</span>}

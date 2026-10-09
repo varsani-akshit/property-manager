@@ -7,7 +7,7 @@ export async function PaymentHistory({ kind, id, title = "Payment history" }: { 
   const sb = await supabaseServer();
   let q = sb.from("payments").select("id, amount, paid_on, method, reference, notes, recorded_by, created_at").order("paid_on", { ascending: false }).order("created_at", { ascending: false });
   q = kind === "rent" ? q.eq("rent_collection_id", id) : kind === "cost" ? q.eq("cost_id", id) : q.eq("kind", "deposit").eq("lease_id", id);
-  const [{ data: rows }, { data: people }] = await Promise.all([q, sb.from("user_profiles").select("id, full_name, email")]);
+  const [{ data: rows }, { data: people }] = await Promise.all([q, sb.from("people").select("id, full_name, email")]);
   const who = new Map((people ?? []).map((p: any) => [p.id, p.full_name || p.email]));
 
   return (
@@ -19,16 +19,16 @@ export async function PaymentHistory({ kind, id, title = "Payment history" }: { 
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>Received</th><th>Method</th><th>Reference</th><th className="text-right">Amount</th><th>By</th></tr>
+            <tr><th>Received</th><th>Method</th><th className="hidden sm:table-cell">Reference</th><th className="text-right">Amount</th><th className="hidden md:table-cell">By</th></tr>
           </thead>
           <tbody>
             {(rows ?? []).map((p: any) => (
               <tr key={p.id}>
                 <td>{fmtDate(p.paid_on)}</td>
                 <td>{p.method === "adjustment" ? <span className="badge-warning">Adjustment</span> : methodLabel(p.method)}</td>
-                <td className="font-mono text-[11.5px]">{p.reference || <span className="text-muted-fg">—</span>}</td>
+                <td className="font-mono text-[11.5px] hidden sm:table-cell">{p.reference || <span className="text-muted-fg">—</span>}</td>
                 <td className={`text-right font-medium ${Number(p.amount) < 0 ? "text-danger" : ""}`}>{money(p.amount)}</td>
-                <td className="text-muted-fg">{p.recorded_by ? who.get(p.recorded_by) ?? "—" : p.method === "opening" ? "Imported" : "—"}</td>
+                <td className="text-muted-fg hidden md:table-cell">{p.recorded_by ? who.get(p.recorded_by) ?? "—" : p.method === "opening" ? "Imported" : "—"}</td>
               </tr>
             ))}
             {!(rows ?? []).length && <tr><td colSpan={5} className="!py-8 text-center text-muted-fg">No payments yet.</td></tr>}
